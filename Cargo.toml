@@ -1,0 +1,82 @@
+[workspace]
+resolver ="2"
+members = [
+    "gopenpgp-sys",
+    "proton-crypto",
+    "proton-crypto-account",
+    "proton-device-verification",
+    "proton-srp",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+license-file = "LICENSE"
+authors = ["Proton AG"]
+
+[workspace.lints.rust]
+trivial_numeric_casts= "warn"
+unused_extern_crates ="warn"
+unused_import_braces="warn"
+trivial_casts="warn"
+unused_qualifications="warn"
+
+[workspace.lints.clippy]
+cast_possible_truncation="warn"
+cast_possible_wrap="warn"
+cast_precision_loss ="warn"
+cast_sign_loss ="warn"
+# Useful to track missing comments on private items/code.
+# missing_docs_in_private_items ="warn"
+mut_mut="warn"
+#Disallow `println!`. Use `debug!` for debug output
+# (which is provided by the `log` crate).
+print_stdout = "warn"
+unseparated_literal_suffix ="warn"
+wrong_self_convention ="warn"
+pedantic={ level = "warn", priority = -1 }
+
+# --- Overrides ---
+return-self-not-must-use = { level = "allow", priority = 1 }
+must-use-candidate = { level = "allow", priority = 1 }
+missing-errors-doc = { level = "allow", priority = 1 }
+
+[profile.test]
+opt-level = 3
+
+[workspace.dependencies]
+base64 = "0.22"
+hex = "0.4.3"
+rand = "0.8.5"
+thiserror = "1"
+zeroize = { version="1.7.0", features = ["zeroize_derive"]}
+serde = { version="1", features = ["derive"]}
+
+# --- Workspace crates ---
+[workspace.dependencies.gopenpgp-sys]
+path     = "gopenpgp-sys"
+version  = "0.2.15"
+registry = "proton"
+
+[workspace.dependencies.proton-crypto]
+path     = "proton-crypto"
+version  = "0.4.13"
+registry = "proton"
+
+[workspace.dependencies.proton-crypto-account]
+path     = "proton-crypto-account"
+version  = "0.9.0"
+registry = "proton"
+
+[workspace.dependencies.proton-srp]
+path     = "proton-srp"
+version  = "0.6.1"
+registry = "proton"
+
+[workspace.dependencies.proton-device-verification]
+path     = "proton-device-verification"
+version  = "0.1.0"
+registry = "proton"
+
+[profile.dev.package.proton-srp]
+opt-level = 2
