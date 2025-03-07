@@ -106,8 +106,8 @@ impl<'a, T> VerifiedDataReader<'a, T> {
 }
 
 impl<T: io::Read> io::Read for VerifiedDataReader<'_, T> {
-    // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut data_read: usize = 0;
             let err = sys::pgp_verification_reader_read(

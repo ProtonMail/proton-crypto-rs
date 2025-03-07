@@ -63,7 +63,9 @@ func pgp_key_unlock_with_token(
 		return errorToPGPError(fmt.Errorf("failed create key ring: %w", err))
 	}
 
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goMessage := unsafe.Slice((*byte)(message), (C.int)(message_len))
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goSignature := unsafe.Slice((*byte)(signature), (C.int)(signature_len))
 
 	decryptor, err := pgp.Decryption().DecryptionKeys(keyRing).New()
@@ -89,6 +91,7 @@ func pgp_key_unlock_with_token(
 		return errorToPGPError(fmt.Errorf("signature verification for token failed:%w", err))
 	}
 
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	privateKey := unsafe.Slice((*byte)(private_key), (C.int)(private_key_len))
 	key, err := crypto.NewKeyFromReaderExplicit(bytes.NewReader(privateKey), crypto.Armor)
 	if err != nil {
@@ -121,6 +124,7 @@ func pgp_private_key_import(
 			cErr = errorToPGPError(fmt.Errorf("go panic: %v", err))
 		}
 	}()
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	privateKey := unsafe.Slice((*byte)(private_key), (C.int)(private_key_len))
 	key, err := crypto.NewKeyFromReaderExplicit(bytes.NewReader(privateKey), int8(encoding))
 	if err != nil {
@@ -131,6 +135,7 @@ func pgp_private_key_import(
 
 	var goPassphrase []byte
 	if passphrase_len > 0 {
+		// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 		goPassphrase = unsafe.Slice((*byte)(passphrase), (C.int)(passphrase_len))
 	}
 
@@ -156,6 +161,7 @@ func pgp_public_key_import(
 			cErr = errorToPGPError(fmt.Errorf("go panic: %v", err))
 		}
 	}()
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	publicKey := unsafe.Slice((*byte)(public_key), (C.int)(public_key_len))
 	key, err := crypto.NewKeyFromReaderExplicit(bytes.NewReader(publicKey), int8(encoding))
 	if err != nil {
@@ -301,6 +307,7 @@ func pgp_key_lock(
 	passphrase_len C.size_t,
 	out_locked_key *C.uintptr_t,
 ) C.PGP_Error {
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	passphraseGo := unsafe.Slice((*byte)(passphrase), (C.int)(passphrase_len))
 	lockedKey, err := pgp.LockKey(handleToKey(key), passphraseGo)
 	if err != nil {
@@ -342,6 +349,7 @@ func pgp_new_session_key_from_token(
 	token_len C.size_t,
 	algorithm C.PGP_SYMMETRIC_CIPHERS,
 ) C.uintptr_t {
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goToken := unsafe.Slice((*byte)(token), (C.int)(token_len))
 	goAlgorithm := algorithmToStrID(algorithm)
 	// NewSessionKeyFromToken clones the goToken.

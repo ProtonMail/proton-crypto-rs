@@ -35,6 +35,7 @@ func pgp_decrypt(
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize decryptor: %w", err))
 	}
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goBody := unsafe.Slice((*byte)(body), (C.int)(body_len))
 
 	detachedSignatureData, err := handleDetachedSignatureData(int8(encoding), decryption_handle)
@@ -125,6 +126,7 @@ func pgp_decrypt_session_key(
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize decryptor: %w", err))
 	}
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goKeyPackets := unsafe.Slice((*byte)(key_packets), (C.int)(key_packets_len))
 	sessionKey, err := decryptor.DecryptSessionKey(goKeyPackets)
 	if err != nil {
@@ -146,6 +148,7 @@ func handleDetachedSignatureData(inputDataEncoding int8, decryptionHandle *C.PGP
 		return nil, nil
 	}
 	// Handle detached signature of the plaintext data, which might be encrypted
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	detachedSignatureData = unsafe.Slice((*byte)(decryptionHandle.detached_sig), (C.int)(decryptionHandle.detached_sig_len))
 
 	// Handle the case where the content encoding is different than the signature encoding

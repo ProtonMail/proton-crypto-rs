@@ -127,6 +127,7 @@ func handleListToKeyRing(handles *C.uintptr_t, num_handles C.size_t) (*crypto.Ke
 }
 
 func handleInListToKey(handles *C.uintptr_t, index int) *crypto.Key {
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 	handle := *(*C.uintptr_t)(unsafe.Pointer(uintptr(unsafe.Pointer(handles)) + uintptr(index*C.sizeof_uintptr_t)))
 	return handleToKey(handle)
 }
@@ -193,6 +194,7 @@ func handleToDecryptor(handle *C.PGP_CDecryptionHandle) (crypto.PGPDecryption, e
 		decryptorBuilder.SessionKey(sessionKey)
 	}
 	if C.int(handle.password_len) > 0 {
+		// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 		goPassword := unsafe.Slice((*byte)(handle.password), (C.int)(handle.password_len))
 		decryptorBuilder.Password(goPassword)
 	}
@@ -245,6 +247,7 @@ func handleToEncryptor(handle *C.PGP_CEncryptionHandle) (crypto.PGPEncryption, e
 		encryptorBuilder.SessionKey(sessionKey)
 	}
 	if C.int(handle.password_len) > 0 {
+		// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 		goPassword := unsafe.Slice((*byte)(handle.password), (C.int)(handle.password_len))
 		encryptorBuilder.Password(goPassword)
 	}

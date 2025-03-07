@@ -49,6 +49,7 @@ func pgp_sign(
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize signer: %w", err))
 	}
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goData := unsafe.Slice((*byte)(data), (C.int)(data_len))
 	extBuffer := PGPExtBufferWriter{buffer: result_buffer}
 	// Buffered I/O due to cgo pin errors
@@ -85,6 +86,7 @@ func pgp_sign_cleartext(
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize signer: %w", err))
 	}
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goData := unsafe.Slice((*byte)(data), (C.int)(data_len))
 	extBuffer := PGPExtBufferWriter{buffer: result_buffer}
 

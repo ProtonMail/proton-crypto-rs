@@ -133,7 +133,9 @@ func pgp_verify_detached(
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize verifier: %w", err))
 	}
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goData := unsafe.Slice((*byte)(data), (C.int)(data_len))
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goSignature := unsafe.Slice((*byte)(signature), (C.int)(signature_len))
 	verifyResult, err := verifier.VerifyDetached(goData, goSignature, int8(encoding))
 	if err != nil {
@@ -165,6 +167,7 @@ func pgp_verify_detached_stream(
 	goReader := NewExternalReader(reader)
 	// Buffered I/O due to cgo pin errors
 	goReaderBuffered := bufio.NewReader(goReader)
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goSignature := unsafe.Slice((*byte)(signature), (C.int)(signature_len))
 	verifyResultReader, err := verifier.VerifyingReader(goReaderBuffered, bytes.NewReader(goSignature), int8(encoding))
 	if err != nil {
@@ -196,6 +199,7 @@ func pgp_verify_cleartext(
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize verifier: %w", err))
 	}
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goData := unsafe.Slice((*byte)(message), (C.int)(message_len))
 	verifyResultData, err := verifier.VerifyCleartext(goData)
 	if err != nil {
@@ -230,6 +234,7 @@ func pgp_verify_inline(
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize verifier: %w", err))
 	}
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
 	goData := unsafe.Slice((*byte)(message), (C.int)(message_len))
 	verifiedDataReader, err := verifier.VerifyingReader(nil, bytes.NewReader(goData), int8(encoding))
 	if err != nil {

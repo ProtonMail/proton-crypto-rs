@@ -36,6 +36,7 @@ func pgp_encrypt(
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize encryptor: %w", err))
 	}
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 	goMessage := unsafe.Slice((*byte)(message), (C.int)(message_len))
 	var extBufferWriter io.Writer
 	extBufferWriter = PGPExtBufferWriter{buffer: result_buffer}
@@ -184,6 +185,7 @@ func pgp_message_new(
 	message_len C.size_t,
 	armored C.bool_t,
 ) C.uintptr_t {
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 	goMessage := unsafe.Slice((*byte)(message), (C.int)(message_len))
 	if bool(armored) {
 		// Creates copy
@@ -212,6 +214,7 @@ func pgp_message_get_enc_key_ids(
 	*out_key_ids = (*C.uint64_t)(C.malloc(C.size_t(len(keyIDs)) * C.sizeof_uint64_t))
 	ptr := *out_key_ids
 	for index := 0; index < len(keyIDs); index++ {
+		// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 		loc := (*C.uint64_t)(unsafe.Pointer(uintptr(unsafe.Pointer(ptr)) + uintptr(index*C.sizeof_uint64_t)))
 		*loc = C.uint64_t(keyIDs[index])
 	}
@@ -232,6 +235,7 @@ func pgp_message_get_sig_key_ids(
 	*out_key_ids = (*C.uint64_t)(C.malloc(C.size_t(len(keyIDs)) * C.sizeof_uint64_t))
 	ptr := *out_key_ids
 	for index := 0; index < len(keyIDs); index++ {
+		// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 		loc := (*C.uint64_t)(unsafe.Pointer(uintptr(unsafe.Pointer(ptr)) + uintptr(index*C.sizeof_uint64_t)))
 		*loc = C.uint64_t(keyIDs[index])
 	}

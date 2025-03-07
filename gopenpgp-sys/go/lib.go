@@ -12,6 +12,7 @@ import "C"
 //export pgp_free
 func pgp_free(ptr *C.void) {
 	if ptr != nil {
+		// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 		C.free(unsafe.Pointer(ptr))
 	}
 }
@@ -19,6 +20,7 @@ func pgp_free(ptr *C.void) {
 //export pgp_cfree
 func pgp_cfree(ptr *C.cvoid_t) {
 	if ptr != nil {
+		// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 		C.free(unsafe.Pointer(ptr))
 	}
 }
@@ -36,6 +38,7 @@ func stringCMem(value string) (*C.char_t, C.size_t) {
 func stringSliceCMem(values []string) C.PGP_StringArray {
 	array := C.malloc(C.sizeof_charptr_t * C.size_t(len(values)))
 	for index := 0; index < len(values); index++ {
+		// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
 		location := (*C.charptr_t)(unsafe.Pointer(uintptr(array) + uintptr(index*C.sizeof_charptr_t)))
 		*location = C.CString(values[index])
 	}
