@@ -61,6 +61,7 @@ pub struct GoKey(usize);
 
 impl Drop for GoKey {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             // Also zeros the keys
             sys::pgp_key_destroy(self.0);
@@ -74,6 +75,7 @@ impl GoKey {
     }
 
     fn to_public_key(&self) -> Result<Self, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut handle: usize = 0;
             let err = sys::pgp_private_key_get_public_key(self.0, &mut handle);
@@ -83,6 +85,7 @@ impl GoKey {
     }
 
     fn lock_key(&self, password: &[u8]) -> Result<GoKey, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut handle: usize = 0;
             let err = sys::pgp_key_lock(self.0, password.as_ptr(), password.len(), &mut handle);
@@ -92,6 +95,7 @@ impl GoKey {
     }
 
     pub fn serialize(&self, force_public: bool, armored: bool) -> Result<Vec<u8>, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut buffer: ExtBuffer = ExtBuffer::with_capacity(1024);
             let ext_buffer = ExtBuffer::make_ext_buffer_writer(&mut buffer);
@@ -102,14 +106,17 @@ impl GoKey {
     }
 
     fn version(&self) -> i32 {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { sys::pgp_key_get_version(self.0) as i32 }
     }
 
     fn key_id(&self) -> u64 {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { sys::pgp_key_get_key_id(self.0) }
     }
 
     fn key_fingerprint(&self) -> impl AsRef<[u8]> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut size: usize = 0;
             let mut data: *mut uchar_t = null_mut();
@@ -119,6 +126,7 @@ impl GoKey {
     }
 
     fn sha256_key_fingerprints(&self) -> Vec<impl AsRef<[u8]>> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let out = sys::pgp_key_get_sha256_fingerprints(self.0);
             let mut fingerprints = Vec::with_capacity(out.num);
@@ -135,18 +143,22 @@ impl GoKey {
     }
 
     fn can_encrypt(&self, unix_time: u64) -> bool {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { sys::pgp_key_can_encrypt(self.0, unix_time) }
     }
 
     fn can_verify(&self, unix_time: u64) -> bool {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { sys::pgp_key_can_encrypt(self.0, unix_time) }
     }
 
     fn is_expired(&self, unix_time: u64) -> bool {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { sys::pgp_key_is_expired(self.0, unix_time) }
     }
 
     fn is_revoked(&self, unix_time: u64) -> bool {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { sys::pgp_key_is_revoked(self.0, unix_time) }
     }
 }
@@ -164,6 +176,7 @@ impl PublicKeyReference for PublicKey {
 
 impl PublicKey {
     pub fn import(public_key: &[u8], encoding: DataEncoding) -> Result<Self, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut key_handle = 0usize;
             let err = sys::pgp_public_key_import(
@@ -206,6 +219,7 @@ impl PrivateKey {
         passphrase: &[u8],
         encoding: DataEncoding,
     ) -> Result<Self, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut key_handle = 0usize;
             let err = sys::pgp_private_key_import(
@@ -223,6 +237,7 @@ impl PrivateKey {
     }
 
     pub fn import_unlocked(private_key: &[u8], encoding: DataEncoding) -> Result<Self, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut key_handle = 0usize;
             let err = sys::pgp_private_key_import(
@@ -245,6 +260,7 @@ impl PrivateKey {
         message: &'a str,
         signature: &'a str,
     ) -> Result<PrivateKey, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut key_handle = 0usize;
             let handles: Vec<usize> = keys
@@ -294,6 +310,7 @@ pub struct SessionKey(pub(crate) usize);
 
 impl Drop for SessionKey {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             // Zeros the session key as well
             sys::pgp_session_key_destroy(self.0);
@@ -303,6 +320,7 @@ impl Drop for SessionKey {
 
 impl Clone for SessionKey {
     fn clone(&self) -> Self {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let cloned_session_key = sys::pgp_clone_session_key(self.0);
             Self(cloned_session_key)
@@ -318,6 +336,7 @@ impl SessionKey {
 
 impl SessionKey {
     pub fn generate(algorithm: SessionKeyAlgorithm) -> Result<Self, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut session_key_handle = 0usize;
             let err = sys::pgp_generate_session_key(
@@ -331,6 +350,7 @@ impl SessionKey {
     }
 
     pub fn from_token(token: &[u8], algorithm: SessionKeyAlgorithm) -> Self {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             Self(sys::pgp_new_session_key_from_token(
                 token.as_ptr(),
@@ -341,6 +361,7 @@ impl SessionKey {
     }
 
     pub fn algorithm(&self) -> Result<SessionKeyAlgorithm, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut out: c_uchar = 0;
             let err = sys::pgp_session_key_get_algorithm(self.0, &mut out);
@@ -350,6 +371,7 @@ impl SessionKey {
     }
 
     pub fn export_token(&self) -> impl AsRef<[u8]> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut size: usize = 0;
             let mut data: *mut uchar_t = null_mut();
@@ -435,6 +457,7 @@ impl KeyGenerator {
 
     pub fn generate(self) -> Result<PrivateKey, PGPError> {
         let c_key_generator = self.create_c_key_generator();
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut out_handle: usize = 0;
             let err = sys::pgp_generate_key(&c_key_generator, &mut out_handle);

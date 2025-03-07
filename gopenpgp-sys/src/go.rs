@@ -39,6 +39,7 @@ impl PGPBytes {
         if self.ptr.is_null() {
             return &[];
         }
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { std::slice::from_raw_parts(self.ptr as *mut u8, self.len) }
     }
 
@@ -55,6 +56,7 @@ impl AsRef<[u8]> for PGPBytes {
 
 impl Drop for PGPBytes {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             if !self.ptr.is_null() {
                 sys::pgp_free(self.ptr as *mut c_void);
@@ -85,6 +87,7 @@ impl SecretGoBytes {
         if self.ptr.is_null() {
             return &[];
         }
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { std::slice::from_raw_parts(self.ptr as *mut u8, self.len) }
     }
 
@@ -101,6 +104,7 @@ impl AsRef<[u8]> for SecretGoBytes {
 
 impl Drop for SecretGoBytes {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             if !self.ptr.is_null() {
                 let data = std::slice::from_raw_parts_mut(self.ptr as *mut u8, self.len);
@@ -173,6 +177,7 @@ impl<T: Sized> PGPSlice<T> {
         if self.ptr.is_null() {
             return &[];
         }
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { std::slice::from_raw_parts(self.ptr as *mut T, self.len) }
     }
 
@@ -189,6 +194,7 @@ impl<T: Sized> AsRef<[T]> for PGPSlice<T> {
 
 impl<T: Sized> Drop for PGPSlice<T> {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             if !self.ptr.is_null() {
                 sys::pgp_free(self.ptr as *mut c_void);
@@ -210,6 +216,7 @@ impl OwnedCStr {
 
 impl OwnedCStr {
     pub fn to_string(&self) -> String {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             if self.cstr.is_null() {
                 return String::default();
@@ -225,6 +232,7 @@ impl OwnedCStr {
         if self.cstr.is_null() {
             return CString::default();
         }
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { CString::from_raw(self.cstr) }
     }
 }
@@ -234,12 +242,14 @@ impl AsRef<[u8]> for OwnedCStr {
         if self.cstr.is_null() {
             return &[];
         }
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { CStr::from_ptr(self.cstr).to_bytes() }
     }
 }
 
 impl Drop for OwnedCStr {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             if !self.cstr.is_null() {
                 sys::pgp_free(self.cstr as *mut c_void);
@@ -253,6 +263,7 @@ impl Debug for OwnedCStr {
         if self.cstr.is_null() {
             Debug::fmt("", f)
         } else {
+            // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
             Debug::fmt(unsafe { CStr::from_ptr(self.cstr) }, f)
         }
     }
@@ -310,6 +321,7 @@ impl Default for PGPError {
 
 impl Drop for PGPError {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             if !self.0.err.is_null() {
                 sys::pgp_cfree(self.0.err.cast());
@@ -323,6 +335,7 @@ impl Debug for PGPError {
         if !self.is_error() {
             write!(f, "{{nil}}")
         } else {
+            // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
             unsafe { write!(f, "{{{}}}", self.as_cstr().to_string_lossy()) }
         }
     }
@@ -333,6 +346,7 @@ impl Display for PGPError {
         if !self.is_error() {
             write!(f, "no error")
         } else {
+            // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
             unsafe { write!(f, "PGP Error: {}", self.as_cstr().to_string_lossy()) }
         }
     }

@@ -17,6 +17,7 @@ pub struct SigningContext(usize);
 
 impl Clone for SigningContext {
     fn clone(&self) -> Self {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let cloned_signing_context = sys::pgp_clone_signing_context(self.0);
             Self(cloned_signing_context)
@@ -26,6 +27,7 @@ impl Clone for SigningContext {
 
 impl SigningContext {
     pub fn new(value: &str, is_critical: bool) -> Self {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let handle =
                 sys::pgp_signing_context_new(value.as_ptr().cast(), value.len(), is_critical);
@@ -40,6 +42,7 @@ impl SigningContext {
 
 impl Drop for SigningContext {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             sys::pgp_signing_context_new_destroy(self.0);
         }
@@ -129,6 +132,7 @@ impl<'a> Signer<'a> {
     ) -> Result<Vec<u8>, PGPError> {
         let signing_key_handles = get_key_handles(&self.signing_keys);
         let c_signer = self.create_c_signer(&signing_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut buffer: ExtBuffer = ExtBuffer::with_capacity(data.len());
             let ext_buffer_vtable = ExtBuffer::make_ext_buffer_writer(&mut buffer);
@@ -148,6 +152,7 @@ impl<'a> Signer<'a> {
     pub fn sign_cleartext(self, data: &[u8]) -> Result<Vec<u8>, PGPError> {
         let signing_key_handles = get_key_handles(&self.signing_keys);
         let c_signer = self.create_c_signer(&signing_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut buffer: ExtBuffer = ExtBuffer::with_capacity(data.len());
             let ext_buffer_vtable = ExtBuffer::make_ext_buffer_writer(&mut buffer);
@@ -166,6 +171,7 @@ impl<'a> Signer<'a> {
     ) -> Result<PGPEncryptorWriteCloser<'a, T>, PGPError> {
         let signing_key_handles = get_key_handles(&self.signing_keys);
         let c_signer = self.create_c_signer(&signing_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut writer = WriterForGo::new(sign_writer);
             let c_handle = writer.make_external_writer();

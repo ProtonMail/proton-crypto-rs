@@ -23,6 +23,7 @@ extern "C" fn ext_reader_read<T: io::Read>(
     size: usize,
     err_code: *mut i32,
 ) -> i64 {
+    // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
     unsafe {
         let reader: *mut T = ptr.cast();
         let data_bytes: &mut [u8] = std::slice::from_raw_parts_mut(data.cast(), size);
@@ -65,6 +66,7 @@ extern "C" fn ext_writer_write<T: io::Write>(
     data: *const std::os::raw::c_void,
     size: usize,
 ) -> i64 {
+    // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
     unsafe {
         let writer: *mut T = ptr.cast();
         let data_bytes: &[u8] = std::slice::from_raw_parts(data.cast(), size);

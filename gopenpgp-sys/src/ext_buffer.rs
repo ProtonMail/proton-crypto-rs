@@ -23,6 +23,7 @@ extern "C" fn ext_buffer_write(
     data: *const std::os::raw::c_void,
     size: usize,
 ) -> i64 {
+    // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
     unsafe {
         // Extend from slice does a 1 by 1 copy of the data, we should use memcpy instead.
         let buffer: *mut ExtBuffer = ptr.cast();

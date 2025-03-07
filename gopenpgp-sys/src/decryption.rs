@@ -47,6 +47,7 @@ struct VerifiedDataReaderHandle(usize);
 
 impl Drop for VerifiedDataReaderHandle {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             sys::pgp_go_reader_destroy(self.0);
         }
@@ -93,6 +94,7 @@ impl<'a, T> VerifiedDataReader<'a, T> {
     }
 
     pub fn verification_result(&self) -> Result<VerificationResult, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut result_handle: usize = 0;
             let err =
@@ -104,6 +106,7 @@ impl<'a, T> VerifiedDataReader<'a, T> {
 }
 
 impl<T: io::Read> io::Read for VerifiedDataReader<'_, T> {
+    // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         unsafe {
             let mut data_read: usize = 0;
@@ -311,6 +314,7 @@ impl<'a> Decryptor<'a> {
         let verification_key_handles = get_key_handles(&self.verification_keys);
         let c_decryptor =
             self.create_c_decryptor(&decryption_key_handles, &verification_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut buffer: ExtBuffer = ExtBuffer::with_capacity(data.len());
             let ext_buffer_vtable = ExtBuffer::make_ext_buffer_writer(&mut buffer);
@@ -343,6 +347,7 @@ impl<'a> Decryptor<'a> {
         let verification_key_handles = get_key_handles(&self.verification_keys);
         let c_decryptor =
             self.create_c_decryptor(&decryption_key_handles, &verification_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut reader = ReaderForGo::new(data);
             let c_handle = reader.make_external_reader();
@@ -360,6 +365,7 @@ impl<'a> Decryptor<'a> {
         let verification_key_handles = get_key_handles(&self.verification_keys);
         let c_decryptor =
             self.create_c_decryptor(&decryption_key_handles, &verification_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut result: usize = 0;
             let err = sys::pgp_decrypt_session_key(

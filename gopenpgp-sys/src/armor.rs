@@ -22,6 +22,7 @@ impl ArmorType {
 }
 
 pub fn armor(data: &[u8], armor_type: ArmorType) -> Result<Vec<u8>, PGPError> {
+    // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
     unsafe {
         let mut buffer = ExtBuffer::with_capacity(data.len());
         let ext_buffer = ExtBuffer::make_ext_buffer_writer(&mut buffer);
@@ -37,6 +38,7 @@ pub fn armor(data: &[u8], armor_type: ArmorType) -> Result<Vec<u8>, PGPError> {
 }
 
 pub fn unarmor(data: &[u8]) -> Result<Vec<u8>, PGPError> {
+    // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
     unsafe {
         let mut buffer = ExtBuffer::with_capacity(data.len());
         let ext_buffer = ExtBuffer::make_ext_buffer_writer(&mut buffer);

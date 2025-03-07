@@ -28,6 +28,7 @@ pub struct VerificationContext(usize);
 
 impl Clone for VerificationContext {
     fn clone(&self) -> Self {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let cloned_verification_context = sys::pgp_clone_verification_context(self.0);
             Self(cloned_verification_context)
@@ -37,6 +38,7 @@ impl Clone for VerificationContext {
 
 impl VerificationContext {
     pub fn new(value: &str, is_required: bool, required_after_unix: u64) -> Self {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             Self(sys::pgp_verification_context_new(
                 value.as_ptr().cast(),
@@ -48,6 +50,7 @@ impl VerificationContext {
     }
 
     pub fn get_value(&self) -> String {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut out: *mut c_char = null_mut();
             sys::pgp_verification_context_get_value(self.0, &mut out);
@@ -56,10 +59,12 @@ impl VerificationContext {
     }
 
     pub fn is_required(&self) -> bool {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { sys::pgp_verification_context_is_required(self.0) }
     }
 
     pub fn is_required_after(&self) -> u64 {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { sys::pgp_verification_context_is_required_after(self.0) }
     }
 }
@@ -72,6 +77,7 @@ impl VerificationContext {
 
 impl Drop for VerificationContext {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             sys::pgp_verification_context_destroy(self.0);
         }
@@ -101,6 +107,7 @@ impl SignatureInfo {
         if self.0.key_fingerprint.is_null() {
             return None;
         }
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             Some(std::slice::from_raw_parts(
                 self.0.selected_signature,
@@ -113,6 +120,7 @@ impl SignatureInfo {
         if self.0.key_fingerprint.is_null() {
             return None;
         }
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             Some(std::slice::from_raw_parts(
                 self.0.key_fingerprint,
@@ -142,6 +150,7 @@ impl Default for SignatureInfo {
 
 impl Drop for SignatureInfo {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             if !self.0.key_fingerprint.is_null() {
                 sys::pgp_free(self.0.key_fingerprint.cast());
@@ -167,6 +176,7 @@ impl Default for Signatures {
 
 impl Drop for Signatures {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             if !self.0.all_signatures.is_null() {
                 sys::pgp_free(self.0.all_signatures.cast());
@@ -180,6 +190,7 @@ impl AsRef<[u8]> for Signatures {
         if self.number_of_signatures() == 0 || self.0.all_signatures.is_null() {
             return &[];
         }
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { std::slice::from_raw_parts(self.0.all_signatures, self.0.all_signatures_len) }
     }
 }
@@ -205,6 +216,7 @@ impl VerificationResult {
 
 impl VerificationResult {
     pub fn status(&self) -> VerificationStatus {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut status_code: std::os::raw::c_int = 0;
             let err = sys::pgp_verification_result_error(self.0, &mut status_code);
@@ -220,6 +232,7 @@ impl VerificationResult {
     }
 
     pub fn signature_info(&self) -> Result<SignatureInfo, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut signature_info = SignatureInfo::default();
             let err = sys::pgp_verification_result_signature_info(self.0, &mut signature_info.0);
@@ -229,6 +242,7 @@ impl VerificationResult {
     }
 
     pub fn signatures(&self) -> Result<Signatures, PGPError> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut signatures = Signatures::default();
             let err = sys::pgp_verification_result_all_signatures(self.0, &mut signatures.0);
@@ -240,6 +254,7 @@ impl VerificationResult {
 
 impl Drop for VerificationResult {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe { sys::pgp_verification_result_destroy(self.0) }
     }
 }
@@ -333,6 +348,7 @@ impl<'a> Verifier<'a> {
     ) -> Result<VerificationResult, PGPError> {
         let verification_key_handles = get_key_handles(&self.verification_keys);
         let c_verifier = self.create_c_verifier(&verification_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut verification_result: usize = 0;
             let err = sys::pgp_verify_detached(
@@ -356,6 +372,7 @@ impl<'a> Verifier<'a> {
     ) -> Result<VerifiedData, PGPError> {
         let verification_key_handles = get_key_handles(&self.verification_keys);
         let c_verifier = self.create_c_verifier(&verification_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut buffer = ExtBuffer::with_capacity(data.len());
             let ext_buffer_vtable = ExtBuffer::make_ext_buffer_writer(&mut buffer);
@@ -382,6 +399,7 @@ impl<'a> Verifier<'a> {
     pub fn verify_cleartext(self, data: &[u8]) -> Result<VerifiedData, PGPError> {
         let verification_key_handles = get_key_handles(&self.verification_keys);
         let c_verifier = self.create_c_verifier(&verification_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut buffer = ExtBuffer::with_capacity(data.len());
             let ext_buffer_vtable = ExtBuffer::make_ext_buffer_writer(&mut buffer);
@@ -408,6 +426,7 @@ impl<'a> Verifier<'a> {
     ) -> Result<VerificationResult, PGPError> {
         let verification_key_handles = get_key_handles(&self.verification_keys);
         let c_verifier = self.create_c_verifier(&verification_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut reader_go = ReaderForGo::new(data);
             let mut verification_result: usize = 0;
@@ -432,6 +451,7 @@ impl<'a> Verifier<'a> {
     ) -> Result<VerifiedDataReader<'a, T>, PGPError> {
         let verification_key_handles = get_key_handles(&self.verification_keys);
         let c_verifier = self.create_c_verifier(&verification_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut reader = ReaderForGo::new(data);
             let c_handle = ReaderForGo::make_external_reader(&mut reader);

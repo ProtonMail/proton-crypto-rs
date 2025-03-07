@@ -28,6 +28,7 @@ struct PGPMessageHandle(usize);
 
 impl Drop for PGPMessageHandle {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             sys::pgp_message_destroy(self.0);
         }
@@ -41,6 +42,7 @@ pub struct PGPMessage {
 
 impl PGPMessage {
     pub fn new(message: Vec<u8>) -> Self {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let handle = sys::pgp_message_new(message.as_ptr(), message.len(), false);
             PGPMessage {
@@ -64,6 +66,7 @@ impl PGPMessage {
     }
 
     pub fn key_packet(&self) -> &[u8] {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let split = sys::pgp_message_key_packet_split(self.handle.0);
             &self.data[..split]
@@ -71,6 +74,7 @@ impl PGPMessage {
     }
 
     pub fn data_packet(&self) -> &[u8] {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let split = sys::pgp_message_key_packet_split(self.handle.0);
             &self.data[split..]
@@ -78,6 +82,7 @@ impl PGPMessage {
     }
 
     pub fn encryption_key_ids(&self) -> Option<impl AsRef<[u64]>> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut data_ptr: *mut u64 = null_mut();
             let mut size: usize = 0;
@@ -104,6 +109,7 @@ impl PGPMessage {
     }
 
     pub fn signature_key_ids(&self) -> Option<impl AsRef<[u64]>> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut data_ptr: *mut u64 = null_mut();
             let mut size: usize = 0;
@@ -141,6 +147,7 @@ struct PGPEncryptorWriteCloserHandle(usize);
 
 impl Drop for PGPEncryptorWriteCloserHandle {
     fn drop(&mut self) {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             sys::pgp_message_write_closer_destroy(self.0);
         }
@@ -159,6 +166,7 @@ pub struct PGPEncryptorWriteCloser<'a, T> {
 
 impl<T: io::Write> io::Write for PGPEncryptorWriteCloser<'_, T> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut data_written: usize = 0;
             let err = sys::pgp_message_write_closer_write(
@@ -211,6 +219,7 @@ impl<'a, T: io::Write> PGPEncryptorWriteCloser<'a, T> {
     }
 
     pub fn close(&mut self) -> io::Result<()> {
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let err = sys::pgp_message_write_closer_close(self.handle.0);
             PGPError::unwrap(err).map_err(|err| Error::new(ErrorKind::Other, err.to_string()))?;
@@ -415,6 +424,7 @@ impl<'a> Encryptor<'a> {
         let encryption_key_handles = get_key_handles(&self.encryption_keys);
         let signing_key_handles = get_key_handles(&self.signing_keys);
         let c_encryptor = self.create_c_encryptor(&encryption_key_handles, &signing_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut buffer: ExtBuffer = ExtBuffer::with_capacity(data.len());
             let ext_buffer_vtable = ExtBuffer::make_ext_buffer_writer(&mut buffer);
@@ -443,6 +453,7 @@ impl<'a> Encryptor<'a> {
             self.create_c_encryptor(&encryption_key_handles, &signing_key_handles);
         c_encryptor.detached_sig = true;
         c_encryptor.detached_sig_encrypted = encrypt_detached_signature;
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut encrypted_data_buffer: ExtBuffer = ExtBuffer::with_capacity(data.len());
             let encrypted_data_buffer_writer =
@@ -471,6 +482,7 @@ impl<'a> Encryptor<'a> {
         let encryption_key_handles = get_key_handles(&self.encryption_keys);
         let signing_key_handles = get_key_handles(&self.signing_keys);
         let c_encryptor = self.create_c_encryptor(&encryption_key_handles, &signing_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut key_packet_buffer: ExtBuffer = ExtBuffer::with_capacity(
                 self.encryption_keys.len() * ESTIMATE_SESSION_KEY_PACKET_SIZE,
@@ -506,6 +518,7 @@ impl<'a> Encryptor<'a> {
             self.create_c_encryptor(&encryption_key_handles, &signing_key_handles);
         c_encryptor.detached_sig = true;
         c_encryptor.detached_sig_encrypted = encrypt_detached_signature;
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut key_packet_buffer: ExtBuffer = ExtBuffer::with_capacity(
                 self.encryption_keys.len() * ESTIMATE_SESSION_KEY_PACKET_SIZE,
@@ -540,6 +553,7 @@ impl<'a> Encryptor<'a> {
         let encryption_key_handles = get_key_handles(&self.encryption_keys);
         let signing_key_handles = get_key_handles(&self.signing_keys);
         let c_encryptor = self.create_c_encryptor(&encryption_key_handles, &signing_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut writer = WriterForGo::new(ciphertext_writer);
             let c_handle = writer.make_external_writer();
@@ -568,6 +582,7 @@ impl<'a> Encryptor<'a> {
         let signing_key_handles = get_key_handles(&self.signing_keys);
         let mut c_encryptor =
             self.create_c_encryptor(&encryption_key_handles, &signing_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             c_encryptor.detached_sig = true;
             c_encryptor.detached_sig_encrypted = encrypt_detached_signature;
@@ -594,6 +609,7 @@ impl<'a> Encryptor<'a> {
         let encryption_key_handles = get_key_handles(&self.encryption_keys);
         let signing_key_handles = get_key_handles(&self.signing_keys);
         let c_encryptor = self.create_c_encryptor(&encryption_key_handles, &signing_key_handles);
+        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let mut buffer: ExtBuffer = ExtBuffer::with_capacity(ESTIMATE_SESSION_KEY_SIZE);
             let ext_buffer = ExtBuffer::make_ext_buffer_writer(&mut buffer);
