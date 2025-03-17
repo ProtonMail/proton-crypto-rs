@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2024-00-00
 
+### Changed
+
+- Update GopenPGP to `v3.1.3-proton`
+
 ## [0.2.15] - 2025-03-06
 
 ### Fixed
