@@ -16,8 +16,8 @@ use super::{
     KeyTokenSignature, LockedKey, UnlockResult, UnlockedUserKey,
 };
 use proton_crypto::crypto::{
-    AccessKeyInfo, AsPublicKeyRef, DataEncoding, KeyGeneratorAlgorithm, PGPProviderAsync,
-    PGPProviderSync, PrivateKey, PublicKey,
+    AccessKeyInfo, AsPublicKeyRef, DataEncoding, KeyGeneratorAlgorithm, OpenPGPFingerprint,
+    PGPProviderAsync, PGPProviderSync, PrivateKey, PublicKey,
 };
 use serde::{Deserialize, Serialize};
 
@@ -209,7 +209,7 @@ impl<Priv: PrivateKey, Pub: PublicKey> PrimaryUnlockedAddressKey<Priv, Pub> {
     ///
     /// For example, the exported key might be attached to an email if the user selected this option.
     /// For compatibility reasons, this function will return the internal v4 public key for v6 primary keys.
-    /// The returned key has the form:
+    /// The returned tuple has the form `(key fingerprint, key)`, where `key` has the form:
     /// ```skip
     /// -----BEGIN PGP PUBLIC KEY BLOCK-----
     ///
@@ -220,20 +220,22 @@ impl<Priv: PrivateKey, Pub: PublicKey> PrimaryUnlockedAddressKey<Priv, Pub> {
     pub fn export_public_key<Provider>(
         &self,
         pgp_provider: &Provider,
-    ) -> Result<String, KeySerializationError>
+    ) -> Result<(OpenPGPFingerprint, String), KeySerializationError>
     where
         Provider: PGPProviderSync<PrivateKey = Priv>,
     {
         // We use the first signing key for compatibility reasons for now.
         let private_key: &Priv = self.sign.first().ok_or(KeySerializationError::NoKeyFound)?;
+        let fingerprint = private_key.key_fingerprint();
         let public_key = pgp_provider
             .private_key_to_public_key(private_key)
             .map_err(|err| KeySerializationError::Export(err.to_string()))?;
         let public_key_bytes = pgp_provider
             .public_key_export(&public_key, DataEncoding::Armor)
             .map_err(|err| KeySerializationError::Export(err.to_string()))?;
-        String::from_utf8(public_key_bytes.as_ref().to_vec())
-            .map_err(|_| KeySerializationError::Export("Failed to convert to utf-8".to_owned()))
+        let armored_key = String::from_utf8(public_key_bytes.as_ref().to_vec())
+            .map_err(|_| KeySerializationError::Export("Failed to convert to utf-8".to_owned()))?;
+        Ok((fingerprint, armored_key))
     }
 }
 
@@ -419,7 +421,7 @@ impl<Priv: PrivateKey, Pub: PublicKey> DecryptedAddressKey<Priv, Pub> {
     /// Exports the public key in `OpenPGP` armored format to be shared with recipients.
     ///
     /// For example, the exported key might be attached to an email if the user selected this option.
-    /// The returned key has the form:
+    /// The returned tuple has the form `(key fingerprint, key)`, where `key` has the form:
     /// ``````skip
     /// -----BEGIN PGP PUBLIC KEY BLOCK-----
     ///
@@ -430,15 +432,17 @@ impl<Priv: PrivateKey, Pub: PublicKey> DecryptedAddressKey<Priv, Pub> {
     pub fn export_public_key<Provider>(
         &self,
         pgp_provider: &Provider,
-    ) -> Result<String, KeySerializationError>
+    ) -> Result<(OpenPGPFingerprint, String), KeySerializationError>
     where
         Provider: PGPProviderSync<PublicKey = Pub>,
     {
+        let fingerprint = self.public_key.key_fingerprint();
         let public_key_bytes = pgp_provider
             .public_key_export(&self.public_key, DataEncoding::Armor)
             .map_err(|err| KeySerializationError::Export(err.to_string()))?;
-        String::from_utf8(public_key_bytes.as_ref().to_vec())
-            .map_err(|_| KeySerializationError::Export("Failed to convert to utf-8".to_owned()))
+        let armored_key = String::from_utf8(public_key_bytes.as_ref().to_vec())
+            .map_err(|_| KeySerializationError::Export("Failed to convert to utf-8".to_owned()))?;
+        Ok((fingerprint, armored_key))
     }
 }
 

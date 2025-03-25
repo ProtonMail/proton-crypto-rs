@@ -336,18 +336,19 @@ fn test_address_key_export() {
     let provider = new_pgp_provider();
     let address_keys = get_unlocked_address_keys(&provider);
     let primary = address_keys.primary_for_mail().expect("No key found");
-    let exported_public_key = primary
+    let (fingerprint, exported_public_key) = primary
         .export_public_key(&provider)
         .expect("Export should not fail");
 
     let primary = address_keys.primary_default().expect("No key found");
-    let exported_public_key_default = primary
+    let (fingerprint_default, exported_public_key_default) = primary
         .export_public_key(&provider)
         .expect("Export should not fail");
 
     assert!(exported_public_key.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
     assert!(exported_public_key.contains("-----END PGP PUBLIC KEY BLOCK-----"));
     assert_eq!(exported_public_key, exported_public_key_default);
+    assert_eq!(fingerprint, fingerprint_default);
 }
 
 #[test]
