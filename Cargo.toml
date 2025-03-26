@@ -65,7 +65,7 @@ registry = "proton"
 
 [workspace.dependencies.proton-crypto-account]
 path     = "proton-crypto-account"
-version  = "0.9.1"
+version  = "0.10.0"
 registry = "proton"
 
 [workspace.dependencies.proton-srp]
