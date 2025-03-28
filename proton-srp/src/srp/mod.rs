@@ -8,11 +8,12 @@ use crate::{ModulusSignatureVerifier, SRPError, PROTON_SRP_VERSION};
 mod tests;
 
 mod core;
-use core::SRPAuthData;
+use core::{SRPAuthData, ServerInteraction as CoreServerInteraction};
 pub use core::{SALT_LEN_BYTES, SRP_LEN_BYTES};
 
 #[cfg(test)]
 use core::TEST_CLIENT_SECRET_LEN;
+use std::ops::Deref;
 
 /// Represents client SRP proof generated from a request by the SRP server.
 #[derive(Debug, Clone)]
@@ -64,14 +65,10 @@ impl SRPProofB64 {
     /// Compare that the server proof is equal to the client's computation
     #[must_use]
     pub fn compare_server_proof(&self, server_proof: &str) -> bool {
-        // Note that b64 decode is not constant time for now.
-        let Ok(expected_server_proof) = BASE_64.decode(&self.expected_server_proof) else {
-            return false;
-        };
-        let Ok(server_proof_decoded) = BASE_64.decode(server_proof) else {
-            return false;
-        };
-        expected_server_proof.ct_eq(&server_proof_decoded).into()
+        self.expected_server_proof
+            .as_bytes()
+            .ct_eq(server_proof.as_bytes())
+            .into()
     }
 }
 
@@ -316,5 +313,143 @@ impl SRPAuth {
             password,
         )
         .map(SRPAuth)
+    }
+}
+
+/// An SRP server challenge returned by the SRP server
+/// containing the SRP server proof.
+#[derive(Debug, Clone)]
+pub struct ServerChallenge(pub [u8; SRP_LEN_BYTES]);
+
+impl ServerChallenge {
+    /// Encodes the server challenge as a base64 string.
+    pub fn encode_b64(&self) -> String {
+        BASE_64.encode(self.0)
+    }
+}
+
+impl Deref for ServerChallenge {
+    type Target = [u8; SRP_LEN_BYTES];
+
+    fn deref(&self) -> &[u8; SRP_LEN_BYTES] {
+        &self.0
+    }
+}
+
+/// An SRP server proof returned by the SRP server upon successful authentication.
+#[derive(Debug, Clone)]
+pub struct ServerProof(pub [u8; SRP_LEN_BYTES]);
+
+impl ServerProof {
+    /// Encodes the server proof as a base64 string.
+    pub fn encode_b64(&self) -> String {
+        BASE_64.encode(self.0)
+    }
+}
+
+impl Deref for ServerProof {
+    type Target = [u8; SRP_LEN_BYTES];
+
+    fn deref(&self) -> &[u8; SRP_LEN_BYTES] {
+        &self.0
+    }
+}
+
+#[derive(Debug)]
+/// SRP interaction with a client from a servers point of view.
+pub struct ServerInteraction {
+    core_interaction: CoreServerInteraction,
+}
+
+impl ServerInteraction {
+    /// Starts a new server interaction with a client.
+    ///
+    /// # Parameters
+    ///
+    /// * `raw_modulus`      - The base64 encoded modulus to use.
+    /// * `verifier`         - The SRP verifier of the client to start the interaction with.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if input decoding fails or if the input is invalid
+    pub fn new(raw_modulus: &str, verifier: &str) -> Result<Self, SRPError> {
+        let decoded_modulus = BASE_64.decode(raw_modulus.trim())?;
+        let modulus_bytes: &[u8; SRP_LEN_BYTES] = decoded_modulus
+            .as_slice()
+            .try_into()
+            .map_err(|_err| SRPError::InvalidModulus("base64 decoding failed"))?;
+
+        let decoded_verifier = BASE_64.decode(verifier)?;
+        let verifier_bytes: &[u8; SRP_LEN_BYTES] = decoded_verifier
+            .as_slice()
+            .try_into()
+            .map_err(|_err| SRPError::InvalidVerifier)?;
+
+        Ok(Self {
+            core_interaction: CoreServerInteraction::new(modulus_bytes, verifier_bytes)?,
+        })
+    }
+
+    /// Starts a new server interaction with a client.
+    ///
+    /// # Parameters
+    ///
+    /// * `modulus_verifier` - The extractor that should be used to extract and verify the modulus.
+    /// * `signed_modulus`   - The signed modulus to use encoded as a cleartext `OpenPGP` message.
+    /// * `verifier`         - The SRP verifier of the client to start the interaction with.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if input decoding fails or if the input is invalid
+    pub fn new_with_modulus_extractor(
+        modulus_verifier: &impl ModulusSignatureVerifier,
+        signed_modulus: &str,
+        verifier: &str,
+    ) -> Result<Self, SRPError> {
+        let modulus_b64 = modulus_verifier.verify_and_extract_modulus(
+            signed_modulus,
+            include_str!("../../resources/server_public_key.asc"),
+        )?;
+        Self::new(&modulus_b64, verifier)
+    }
+
+    /// Generates a client challenge message containing the SRP server ephemeral.
+    pub fn generate_challenge(&mut self) -> ServerChallenge {
+        let challenge = self.core_interaction.generate_challenge();
+        ServerChallenge(challenge)
+    }
+
+    /// Authenticates a client by verifying the client proof with the client ephemeral.
+    ///
+    /// # Parameters
+    ///
+    /// * `client_ephemeral` - The base64 encoded client ephemeral.
+    /// * `client_proof`     - The base64 encoded client proof.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs are invalid or client verification fails.
+    /// If client verification fails sue to an invlaid client proof
+    /// the function will fail with [`SRPError::InvalidClientProof`].
+    pub fn verify_proof(
+        &mut self,
+        client_ephemeral: &str,
+        client_proof: &str,
+    ) -> Result<ServerProof, SRPError> {
+        let decoded_client_ephemeral = BASE_64.decode(client_ephemeral)?;
+        let client_ephemeral_bytes: &[u8; SRP_LEN_BYTES] = decoded_client_ephemeral
+            .as_slice()
+            .try_into()
+            .map_err(|_err| SRPError::InvalidClientEphemeral)?;
+
+        let decoded_client_proof = BASE_64.decode(client_proof)?;
+        let client_proof_bytes: &[u8; SRP_LEN_BYTES] =
+            decoded_client_proof
+                .as_slice()
+                .try_into()
+                .map_err(|_err| SRPError::InvalidClientProof)?;
+        self.core_interaction
+            .verify_proof(client_ephemeral_bytes, client_proof_bytes)
+            .map(ServerProof)
     }
 }

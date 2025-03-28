@@ -29,9 +29,8 @@
 //! |`k = H(g || N)`          |                   | `k = H(g || N)`                 |
 //! |`x = H_pw(p, s)`         | <— `B`, `s` —     | `B = k*v + g^b`                 |
 //! |`u = H(A ‖ B)`           |                   | `u = H(A ‖ B)`                  |
-//! |`t = (B - k*g^x)^(a+u*x)`|                   | `t = (Av^u) ^ b`                |
-//! |`K = H(t)`               |                   | `K = H(t)`                      |
-//! |`cp = H(A ‖ B ‖ K)`      |— `client_proof` —>|  verify `client_proof`)         |
+//! |`K = (B - k*g^x)^(a+u*x)`|                   | `K = (Av^u) ^ b`                |
+//! |`cp = H(A ‖ B ‖ K)`      |— `client_proof` —>|  verify `client_proof`          |
 //! | verify `server_proof`   |<— `server_proof` —| `sp = H(A ‖ cp ‖ K)`            |
 //!```
 //!
@@ -41,7 +40,8 @@
 //!   proof is incorrect it must abort without showing its own proof of K
 
 use crypto_bigint::modular::runtime_mod::{DynResidue, DynResidueParams};
-use crypto_bigint::{Encoding, Integer, NonZero, RandomMod, U2048};
+use crypto_bigint::subtle::ConstantTimeEq;
+use crypto_bigint::{Encoding, Integer, NonZero, RandomMod, Zero, U2048};
 use rand::RngCore;
 use zeroize::Zeroizing;
 
@@ -120,7 +120,7 @@ impl SRPAuthData {
         // Validate server_ephemeral Bs
         // Server public ephemeral should not be 0 i.e., B % n != 0
         let b_pub = BigUint::from_le_slice(server_ephemeral);
-        if b_pub.rem(&n) == BigUint::ZERO {
+        if b_pub.rem(&n).is_zero().into() {
             return Err(SRPError::InvalidServerEphemeral);
         }
 
@@ -146,29 +146,36 @@ impl SRPAuthData {
         let b_pub = &self.b_pub;
 
         // k = H(g || N)
-        let k = hash_two(g, n);
-        let k_reduced = k.rem(n);
-        // Check that the multiplier k is an element of the group
-        if k_reduced < BigUint::ONE || &k_reduced >= n {
+        // The multiplier k must be non zero
+        let Some(k) = NonZero::new(hash_two(g, n).rem(n)).into_option() else {
             return Err(SRPError::InvalidMultiplier);
-        }
-
-        // This allows to override client_item in test suites
-        let client_secret = self.generate_client_secret()?;
+        };
 
         let modulus_param = DynResidueParams::new(n);
         let g_res = DynResidue::new(g, modulus_param);
 
-        // Compute public client ephemeral A = g^a
-        let a_pub = g_res.pow(&client_secret).retrieve();
+        let mut rounds = 0;
+        let (client_secret, a_pub, u) = loop {
+            if rounds >= MAX_RETRIES {
+                return Err(SRPError::InvalidScramblingParameter);
+            }
+            // Client secret a
+            let client_secret = self.generate_client_secret()?;
 
-        // Compute scrambling parameter u = H(A || B)
-        let u = hash_two(&a_pub, b_pub);
+            // Compute public client ephemeral A = g^a
+            let a_pub = g_res.pow(&client_secret).retrieve();
 
-        // The scrambling parameter u is not allowed to be 0
-        if u.rem(n) == BigUint::ZERO {
-            return Err(SRPError::InvalidScramblingParameter);
-        }
+            // Compute scrambling parameter u = H(A || B)
+            let u = hash_two(&a_pub, b_pub);
+
+            // The scrambling parameter u is not allowed to be 0
+            if u.rem(&n_minus_one).is_zero().into() {
+                // highly unlikely
+                rounds += 1;
+                continue;
+            };
+            break (client_secret, a_pub, u);
+        };
 
         let k_residue = DynResidue::new(&k, modulus_param);
 
@@ -207,7 +214,7 @@ impl SRPAuthData {
                 return Ok(BigUint::from_le_slice(&extended));
             }
         }
-        generate_client_ephemeral_secret(self.n_minus_one)
+        generate_ephemeral_secret(self.n_minus_one)
     }
 }
 
@@ -215,11 +222,13 @@ fn extract_and_check_modulus(
     modulus: &[u8; SRP_LEN_BYTES],
 ) -> Result<(NonZero<BigUint>, NonZero<BigUint>), SRPError> {
     let n_unchecked = BigUint::from_le_slice(modulus);
-    if n_unchecked <= BigUint::ONE || n_unchecked.is_even().into() {
-        return Err(SRPError::InvalidModulus("modulus is even or zero"));
+    let Some(n) = NonZero::new(n_unchecked).into_option() else {
+        return Err(SRPError::InvalidModulus("modulus is zero"));
+    };
+    if n.is_even().into() {
+        return Err(SRPError::InvalidModulus("modulus is even"));
     }
-    if !(n_unchecked.bit(0).into() && n_unchecked.bit(1).into() && !bool::from(n_unchecked.bit(2)))
-    {
+    if !(n.bit(0).into() && n.bit(1).into() && !bool::from(n.bit(2))) {
         // By quadratic reciprocity, 2 is a square mod N if and only if
         // N is 1 or 7 mod 8. We want the generator, 2, to generate the
         // whole group, not just the prime-order subgroup, so it should
@@ -229,9 +238,9 @@ fn extract_and_check_modulus(
         return Err(SRPError::InvalidModulus("modulus did not pass bit check"));
     }
     // We have to unwrap here due to CtOption not exposing the inner value.
-    // We checked that they are non-zero above, so the or case should never happen.
-    let n = NonZero::new(n_unchecked).unwrap_or(NonZero::MAX);
-    let n_minus_one = NonZero::new(n.sub_mod(&BigUint::ONE, &n)).unwrap_or(NonZero::MAX);
+    let Some(n_minus_one) = NonZero::new(n.sub_mod(&BigUint::ONE, &n)).into_option() else {
+        return Err(SRPError::InvalidModulus("modulus is invalid"));
+    };
     Ok((n, n_minus_one))
 }
 
@@ -264,10 +273,8 @@ fn compute_server_proof(
     *expand_hash(data_to_hash.as_slice())
 }
 
-/// Generate a client ephemeral secret.
-fn generate_client_ephemeral_secret(
-    modulus_minus_one: NonZero<BigUint>,
-) -> Result<BigUint, SRPError> {
+/// Generate an ephemeral secret.
+fn generate_ephemeral_secret(modulus_minus_one: NonZero<BigUint>) -> Result<BigUint, SRPError> {
     let mut rng = rand::thread_rng();
     for _ in 0..MAX_RETRIES {
         let possible_client_item = BigUint::random_mod(&mut rng, &modulus_minus_one);
@@ -313,4 +320,135 @@ pub(super) fn generate_srp_verifier(
         salt: salt_bytes.to_owned(),
         verifier: verifier_bytes,
     })
+}
+
+#[derive(Debug)]
+pub struct ServerInteraction {
+    /// Generator g.
+    pub(super) g: BigUint,
+
+    /// Group modulus N
+    pub(super) n: NonZero<BigUint>,
+
+    /// Group modulus N - 1
+    pub(super) n_minus_one: NonZero<BigUint>,
+
+    /// Client verifier
+    pub(super) v: BigUint,
+
+    /// The sever ephemeral secret b
+    pub(super) b: BigUint,
+
+    /// The multiplier k.
+    pub(super) k: NonZero<BigUint>,
+
+    /// The sever ephemeral B.
+    pub(super) server_ephemeral: Option<BigUint>,
+
+    /// The shared session key K.
+    pub(super) shared_session: Option<BigUint>,
+}
+
+impl ServerInteraction {
+    pub(super) fn new(
+        modulus: &[u8; SRP_LEN_BYTES],  // N
+        verifier: &[u8; SRP_LEN_BYTES], // v
+    ) -> Result<Self, SRPError> {
+        // Generator g is hardcoded to 2
+        let g = HARDCODED_GENERATOR;
+        // Group modulus N
+        let (n, n_minus_one) = extract_and_check_modulus(modulus)?;
+        // k
+        let Some(k) = NonZero::new(hash_two(&g, &n).rem(&n)).into_option() else {
+            return Err(SRPError::InvalidMultiplier);
+        };
+        // b
+        let server_secret = generate_ephemeral_secret(n_minus_one)?;
+        // v
+        let v = BigUint::from_le_slice(verifier);
+
+        Ok(Self {
+            g,
+            n,
+            n_minus_one,
+            v,
+            b: server_secret,
+            k,
+            server_ephemeral: None,
+            shared_session: None,
+        })
+    }
+
+    pub(super) fn generate_challenge(&mut self) -> [u8; SRP_LEN_BYTES] {
+        let params = DynResidueParams::new(&self.n);
+
+        let g_residue = DynResidue::new(&self.g, params);
+        let k_residue = DynResidue::new(&self.k, params);
+        let v_residue = DynResidue::new(&self.v, params);
+
+        // g^b
+        let ephemeral_part = g_residue.pow(&self.b);
+
+        // B = k*v + g^b
+        let b_pub = ephemeral_part.add(&k_residue.mul(&v_residue)).retrieve();
+        let server_ephemeral_encoded = b_pub.to_le_bytes();
+        self.server_ephemeral = Some(b_pub);
+
+        server_ephemeral_encoded
+    }
+
+    pub(super) fn verify_proof(
+        &mut self,
+        client_ephemeral: &[u8; SRP_LEN_BYTES],
+        client_proof: &[u8; SRP_LEN_BYTES],
+    ) -> Result<[u8; SRP_LEN_BYTES], SRPError> {
+        // B
+        let Some(server_ephemeral) = &self.server_ephemeral else {
+            return Err(SRPError::InvalidServerEphemeral);
+        };
+
+        // A
+        let Some(client_ephemeral_num) =
+            NonZero::new(BigUint::from_le_slice(client_ephemeral).rem(&self.n)).into_option()
+        else {
+            return Err(SRPError::InvalidClientEphemeral);
+        };
+
+        // u
+        let Some(u) =
+            NonZero::new(hash_two(&client_ephemeral_num, server_ephemeral).rem(&self.n_minus_one))
+                .into_option()
+        else {
+            return Err(SRPError::InvalidScramblingParameter);
+        };
+
+        let params = DynResidueParams::new(&self.n);
+        // v
+        let v_residue = DynResidue::new(&self.v, params);
+        // A
+        let client_ephemeral_residue = DynResidue::new(&client_ephemeral_num, params);
+
+        // K = (Av^u) ^ b
+        let shared_session = v_residue
+            .pow(&u)
+            .mul(&client_ephemeral_residue)
+            .pow(&self.b)
+            .retrieve();
+
+        // verify `client_proof`
+        let expected_client_proof =
+            compute_client_proof(&client_ephemeral_num, server_ephemeral, &shared_session);
+
+        if expected_client_proof.ct_ne(client_proof).into() {
+            return Err(SRPError::InvalidClientProof);
+        }
+
+        // sp = H(A ‖ cp ‖ K)
+        let server_proof =
+            compute_server_proof(&client_ephemeral_num, client_proof, &shared_session);
+
+        self.shared_session = Some(shared_session);
+
+        Ok(server_proof)
+    }
 }

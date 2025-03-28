@@ -298,3 +298,49 @@ fn test_srp_verifier_generate_rand() {
     )
     .expect("verifier generation must succeed");
 }
+
+#[test]
+fn test_srp_round_trip() {
+    const PASSWORD: &str = "password";
+    let client_verifier: SRPVerifierB64 = SRPAuth::generate_verifier(
+        &TestNoOpVerifier {},
+        PASSWORD,
+        None,
+        TEST_VERIFIER_MODULUS_NO_OP,
+    )
+    .expect("verifier generation must succeed")
+    .into();
+
+    // Start dummy login with the verifier from the client above
+    let mut server = ServerInteraction::new_with_modulus_extractor(
+        &TestNoOpVerifier {},
+        TEST_VERIFIER_MODULUS_NO_OP,
+        &client_verifier.verifier,
+    )
+    .expect("verifier generation failed");
+    let server_challenge = server.generate_challenge();
+
+    // Client login
+    let client = SRPAuth::new(
+        &TestNoOpVerifier {},
+        PASSWORD,
+        4,
+        &client_verifier.salt,
+        TEST_VERIFIER_MODULUS_NO_OP,
+        &server_challenge.encode_b64(),
+    )
+    .expect("client auth failed");
+
+    let proof: SRPProofB64 = client
+        .generate_proofs()
+        .expect("client failed to generate a proof")
+        .into();
+
+    // Server verification
+    let server_proof = server
+        .verify_proof(&proof.client_ephemeral, &proof.client_proof)
+        .expect("server side verification failed");
+
+    // Client verification
+    assert!(proof.compare_server_proof(&server_proof.encode_b64()));
+}

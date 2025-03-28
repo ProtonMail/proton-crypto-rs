@@ -21,10 +21,16 @@ pub enum SRPError {
     InvalidScramblingParameter,
     #[error("Invalid SRP salt: {0}")]
     InvalidSalt(&'static str),
+    #[error("Invalid SRP verifier")]
+    InvalidVerifier,
     #[error("Invalid SRP generator")]
     InvalidGenerator,
     #[error("Invalid SRP server ephemeral")]
     InvalidServerEphemeral,
+    #[error("Invalid SRP client ephemeral")]
+    InvalidClientEphemeral,
+    #[error("Invalid SRP client proof")]
+    InvalidClientProof,
     #[error("Invalid SRP modulus: {0}")]
     InvalidModulus(&'static str),
     #[error("Failed to find client secret")]

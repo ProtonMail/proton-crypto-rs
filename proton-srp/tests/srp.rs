@@ -1,4 +1,4 @@
-use proton_srp::SRPAuth;
+use proton_srp::{SRPAuth, SRPProofB64, SRPVerifierB64, ServerInteraction};
 
 #[test]
 #[cfg(feature = "pgpinternal")]
@@ -65,4 +65,61 @@ fn test_srp_call_custom_verifier() {
     )
     .expect("parameters are valid");
     client.generate_proofs().expect("expected no error");
+}
+
+#[test]
+fn test_srp_round_trip_custom_verifier() {
+    const TEST_MODULUS_CLEAR_SIGN: &str = "W2z5HBi8RvsfYzZTS7qBaUxxPhsfHJFZpu3Kd6s1JafNrCCH9rfvPLrfuqocxWPgWDH2R8neK7PkNvjxto9TStuY5z7jAzWRvFWN9cQhAKkdWgy0JY6ywVn22+HFpF4cYesHrqFIKUPDMSSIlWjBVmEJZ/MusD44ZT29xcPrOqeZvwtCffKtGAIjLYPZIEbZKnDM1Dm3q2K/xS5h+xdhjnndhsrkwm9U9oyA2wxzSXFL+pdfj2fOdRwuR5nW0J2NFrq3kJjkRmpO/Genq1UW+TEknIWAb6VzJJJA244K/H8cnSx2+nSNZO3bbo6Ys228ruV9A8m6DhxmS+bihN3ttQ==";
+    const TEST_PASSWORD: &str = "password";
+    srp_round_trip(&TestVerifer {}, TEST_PASSWORD, TEST_MODULUS_CLEAR_SIGN);
+}
+
+#[test]
+#[cfg(feature = "pgpinternal")]
+fn test_srp_round_trip() {
+    use proton_srp::RPGPVerifier;
+    const TEST_MODULUS_CLEAR_SIGN: &str = "-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\nW2z5HBi8RvsfYzZTS7qBaUxxPhsfHJFZpu3Kd6s1JafNrCCH9rfvPLrfuqocxWPgWDH2R8neK7PkNvjxto9TStuY5z7jAzWRvFWN9cQhAKkdWgy0JY6ywVn22+HFpF4cYesHrqFIKUPDMSSIlWjBVmEJZ/MusD44ZT29xcPrOqeZvwtCffKtGAIjLYPZIEbZKnDM1Dm3q2K/xS5h+xdhjnndhsrkwm9U9oyA2wxzSXFL+pdfj2fOdRwuR5nW0J2NFrq3kJjkRmpO/Genq1UW+TEknIWAb6VzJJJA244K/H8cnSx2+nSNZO3bbo6Ys228ruV9A8m6DhxmS+bihN3ttQ==\n-----BEGIN PGP SIGNATURE-----\nVersion: ProtonMail\nComment: https://protonmail.com\n\nwl4EARYIABAFAlwB1j0JEDUFhcTpUY8mAAD8CgEAnsFnF4cF0uSHKkXa1GIa\nGO86yMV4zDZEZcDSJo0fgr8A/AlupGN9EdHlsrZLmTA1vhIx+rOgxdEff28N\nkvNM7qIK\n=q6vu\n-----END PGP SIGNATURE-----";
+    const TEST_PASSWORD: &str = "password";
+    srp_round_trip(
+        &RPGPVerifier::default(),
+        TEST_PASSWORD,
+        TEST_MODULUS_CLEAR_SIGN,
+    );
+}
+
+fn srp_round_trip(verifier: &impl ModulusSignatureVerifier, password: &str, modulus: &str) {
+    let client_verifier: SRPVerifierB64 =
+        SRPAuth::generate_verifier(verifier, password, None, modulus)
+            .expect("verifier generation must succeed")
+            .into();
+
+    // Start dummy login with the verifier from the client above
+    let mut server =
+        ServerInteraction::new_with_modulus_extractor(verifier, modulus, &client_verifier.verifier)
+            .expect("verifier generation failed");
+    let server_challenge = server.generate_challenge();
+
+    // Client login
+    let client = SRPAuth::new(
+        verifier,
+        password,
+        4,
+        &client_verifier.salt,
+        modulus,
+        &server_challenge.encode_b64(),
+    )
+    .expect("client auth failed");
+
+    let proof: SRPProofB64 = client
+        .generate_proofs()
+        .expect("client failed to generate a proof")
+        .into();
+
+    // Server verification
+    let server_proof = server
+        .verify_proof(&proof.client_ephemeral, &proof.client_proof)
+        .expect("server side verification failed");
+
+    // Client verification
+    assert!(proof.compare_server_proof(&server_proof.encode_b64()));
 }
