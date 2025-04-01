@@ -1,6 +1,7 @@
-use crate::ModulusVerifyError;
+use crate::{ModulusSignatureVerifier, ModulusVerifyError, PROTON_SRP_VERSION};
 
 use super::*;
+use base64::{prelude::BASE64_STANDARD as BASE_64, Engine as _};
 
 struct TestNoOpVerifier {}
 
@@ -270,6 +271,8 @@ fn test_srp_verifier_generate() {
 #[test]
 #[cfg(feature = "pgpinternal")]
 fn test_srp_verifier_generate_with_pgp() {
+    use crate::PROTON_SRP_VERSION;
+
     let password = "123";
     let salt = "SzHkg+YYA/eN1A==";
     let expected_verifier = "j2o8z9G+Xm5t07Y6D7rauq3bNi6v0ZqnM1nWuZHS8PgtQOl4Xgh8LjuzulhX1izaOqeIoW221Z/LDVkrUZzxAXwFdi5LfxMN+RHPJCg0Uk5OcigQHsO1xTMuk3hvoIXO7yIXXs2oCqpBwKNfuhMNjcwVlgjyh5ZC4FzhSV2lwlP7KE1me/USAOfq4FbW7KtDtvxX8fk6hezWIz9X8/bcAHwQkHobqOVTCE81Lg+WL7s4sMed72YHwx5p6S/YGm558zrZmeETv6PuS4MRkQ8vPRrIvmzPEQDUiOXCaqfLkGvBFeCbBjNtBM8AlbWcW8XE+gcb/GwWH8cHinzd4ddh4A==";
@@ -312,10 +315,11 @@ fn test_srp_round_trip() {
     .into();
 
     // Start dummy login with the verifier from the client above
+    let server_client_verifier = ServerClientVerifier::try_from(&client_verifier).expect("failed");
     let mut server = ServerInteraction::new_with_modulus_extractor(
         &TestNoOpVerifier {},
         TEST_VERIFIER_MODULUS_NO_OP,
-        &client_verifier.verifier,
+        &server_client_verifier,
     )
     .expect("verifier generation failed");
     let server_challenge = server.generate_challenge();
@@ -331,16 +335,66 @@ fn test_srp_round_trip() {
     )
     .expect("client auth failed");
 
-    let proof: SRPProofB64 = client
+    let proof = client
         .generate_proofs()
-        .expect("client failed to generate a proof")
-        .into();
+        .expect("client failed to generate a proof");
 
     // Server verification
+    let server_client_proof = ServerClientProof::from(&proof);
     let server_proof = server
-        .verify_proof(&proof.client_ephemeral, &proof.client_proof)
+        .verify_proof(&server_client_proof)
         .expect("server side verification failed");
 
     // Client verification
-    assert!(proof.compare_server_proof(&server_proof.encode_b64()));
+    assert!(proof.compare_server_proof(server_proof.as_ref()));
+}
+
+#[test]
+fn test_srp_round_trip_with_restore() {
+    const PASSWORD: &str = "password";
+    let client_verifier: SRPVerifierB64 = SRPAuth::generate_verifier(
+        &TestNoOpVerifier {},
+        PASSWORD,
+        None,
+        TEST_VERIFIER_MODULUS_NO_OP,
+    )
+    .expect("verifier generation must succeed")
+    .into();
+
+    let server_modulus = RawSRPModulus::new(TEST_VERIFIER_MODULUS_NO_OP).unwrap();
+
+    // Start dummy login with the verifier from the client above
+    let server_client_verifier = ServerClientVerifier::try_from(&client_verifier).expect("failed");
+    let mut server = ServerInteraction::new(&server_modulus, &server_client_verifier)
+        .expect("verifier generation failed");
+    let server_challenge = server.generate_challenge();
+
+    // Client login
+    let client = SRPAuth::new(
+        &TestNoOpVerifier {},
+        PASSWORD,
+        4,
+        &client_verifier.salt,
+        TEST_VERIFIER_MODULUS_NO_OP,
+        &server_challenge.encode_b64(),
+    )
+    .expect("client auth failed");
+
+    let proof = client
+        .generate_proofs()
+        .expect("client failed to generate a proof");
+
+    let server_state = server.state();
+
+    // Server verification with restored server from the state;
+    let mut server_restored =
+        ServerInteraction::restore(&server_modulus, &server_client_verifier, &server_state)
+            .expect("restoring server failed");
+    let server_client_proof = ServerClientProof::from(&proof);
+    let server_proof = server_restored
+        .verify_proof(&server_client_proof)
+        .expect("server side verification failed");
+
+    // Client verification
+    assert!(proof.compare_server_proof(server_proof.as_ref()));
 }

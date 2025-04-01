@@ -33,6 +33,8 @@ pub enum SRPError {
     InvalidClientProof,
     #[error("Invalid SRP modulus: {0}")]
     InvalidModulus(&'static str),
+    #[error("Invalid SRP server state")]
+    InvalidServerState,
     #[error("Failed to find client secret")]
     CannotFindClientSecret,
     #[error("The SRP protocol version is not supported by this implementation")]

@@ -51,7 +51,7 @@ use crate::{srp_password_hash, MAX_SUPPORTED_VERSION, MIN_SUPPORTED_VERSION};
 use super::{SRPError, SRPProof, SRPVerifier};
 
 #[cfg(test)]
-pub(super) const TEST_CLIENT_SECRET_LEN: usize = SRP_LEN_BYTES;
+pub(crate) const TEST_CLIENT_SECRET_LEN: usize = SRP_LEN_BYTES;
 
 /// Internal constant which indicates the maximal number of retries
 /// when creating a client ephemeral secret.
@@ -73,27 +73,27 @@ type BigUint = U2048;
 #[derive(Debug)]
 pub struct SRPAuthData {
     /// Generator g.
-    pub(super) g: BigUint,
+    pub(crate) g: BigUint,
 
     /// Group modulus N
-    pub(super) n: NonZero<BigUint>,
+    pub(crate) n: NonZero<BigUint>,
 
     /// Group modulus minus one N -1.
-    pub(super) n_minus_one: NonZero<BigUint>,
+    pub(crate) n_minus_one: NonZero<BigUint>,
 
     /// The hashed password x.
-    pub(super) hashed_pass: BigUint,
+    pub(crate) hashed_pass: BigUint,
 
     /// The public ephemeral server value B.
-    pub(super) b_pub: BigUint,
+    pub(crate) b_pub: BigUint,
 
     // Allow to override the client ephemeral secret for tests.
     #[cfg(test)]
-    pub(super) override_client_secret: Option<[u8; TEST_CLIENT_SECRET_LEN]>,
+    pub(crate) override_client_secret: Option<[u8; TEST_CLIENT_SECRET_LEN]>,
 }
 
 impl SRPAuthData {
-    pub(super) fn new(
+    pub(crate) fn new(
         version: u8,                            // protocol version
         modulus: &[u8; SRP_LEN_BYTES],          // N
         salt: &[u8; SALT_LEN_BYTES],            // s
@@ -139,7 +139,7 @@ impl SRPAuthData {
         })
     }
 
-    pub(super) fn generate_client_proof(&self) -> Result<SRPProof, SRPError> {
+    pub(crate) fn generate_client_proof(&self) -> Result<SRPProof, SRPError> {
         let g = &self.g;
         let n = &self.n;
         let n_minus_one = self.n_minus_one;
@@ -286,7 +286,7 @@ fn generate_ephemeral_secret(modulus_minus_one: NonZero<BigUint>) -> Result<BigU
 }
 
 /// Generates a random srp salt using a [`rand::rngs::ThreadRng`] as `CSPRNG`.
-pub(super) fn generate_random_salt() -> Vec<u8> {
+pub(crate) fn generate_random_salt() -> Vec<u8> {
     let mut salt_bytes: Vec<u8> = vec![0; SALT_LEN_BYTES];
     let mut rng = rand::thread_rng();
     rng.fill_bytes(&mut salt_bytes);
@@ -294,7 +294,7 @@ pub(super) fn generate_random_salt() -> Vec<u8> {
 }
 
 /// Generates an srp verifier.
-pub(super) fn generate_srp_verifier(
+pub(crate) fn generate_srp_verifier(
     version: u8,
     password: &str,
     salt_bytes: &[u8; SALT_LEN_BYTES],
@@ -325,32 +325,32 @@ pub(super) fn generate_srp_verifier(
 #[derive(Debug)]
 pub struct ServerInteraction {
     /// Generator g.
-    pub(super) g: BigUint,
+    pub(crate) g: BigUint,
 
     /// Group modulus N
-    pub(super) n: NonZero<BigUint>,
+    pub(crate) n: NonZero<BigUint>,
 
     /// Group modulus N - 1
-    pub(super) n_minus_one: NonZero<BigUint>,
+    pub(crate) n_minus_one: NonZero<BigUint>,
 
     /// Client verifier
-    pub(super) v: BigUint,
+    pub(crate) v: BigUint,
 
     /// The sever ephemeral secret b
-    pub(super) b: BigUint,
+    pub(crate) b: BigUint,
 
     /// The multiplier k.
-    pub(super) k: NonZero<BigUint>,
+    pub(crate) k: NonZero<BigUint>,
 
     /// The sever ephemeral B.
-    pub(super) server_ephemeral: Option<BigUint>,
+    pub(crate) server_ephemeral: Option<BigUint>,
 
     /// The shared session key K.
-    pub(super) shared_session: Option<BigUint>,
+    pub(crate) shared_session: Option<BigUint>,
 }
 
 impl ServerInteraction {
-    pub(super) fn new(
+    pub(crate) fn new(
         modulus: &[u8; SRP_LEN_BYTES],  // N
         verifier: &[u8; SRP_LEN_BYTES], // v
     ) -> Result<Self, SRPError> {
@@ -379,7 +379,42 @@ impl ServerInteraction {
         })
     }
 
-    pub(super) fn generate_challenge(&mut self) -> [u8; SRP_LEN_BYTES] {
+    pub(crate) fn restore(
+        modulus: &[u8; SRP_LEN_BYTES],                  // N
+        verifier: &[u8; SRP_LEN_BYTES],                 // v
+        server_ephemeral_secret: &[u8; SRP_LEN_BYTES],  // b
+        server_ephemeral: Option<&[u8; SRP_LEN_BYTES]>, // B
+    ) -> Result<Self, SRPError> {
+        // Generator g is hardcoded to 2
+        let g = HARDCODED_GENERATOR;
+        // Group modulus N
+        let (n, n_minus_one) = extract_and_check_modulus(modulus)?;
+        // k
+        let Some(k) = NonZero::new(hash_two(&g, &n).rem(&n)).into_option() else {
+            return Err(SRPError::InvalidMultiplier);
+        };
+
+        // b
+        let server_secret = BigUint::from_le_slice(server_ephemeral_secret);
+
+        // v
+        let v = BigUint::from_le_slice(verifier);
+
+        let mut interaction = Self {
+            g,
+            n,
+            n_minus_one,
+            v,
+            b: server_secret,
+            k,
+            server_ephemeral: None,
+            shared_session: None,
+        };
+        interaction.server_ephemeral = server_ephemeral.map(|data| BigUint::from_le_slice(data));
+        Ok(interaction)
+    }
+
+    pub(crate) fn generate_challenge(&mut self) -> [u8; SRP_LEN_BYTES] {
         let params = DynResidueParams::new(&self.n);
 
         let g_residue = DynResidue::new(&self.g, params);
@@ -397,7 +432,7 @@ impl ServerInteraction {
         server_ephemeral_encoded
     }
 
-    pub(super) fn verify_proof(
+    pub(crate) fn verify_proof(
         &mut self,
         client_ephemeral: &[u8; SRP_LEN_BYTES],
         client_proof: &[u8; SRP_LEN_BYTES],
@@ -450,5 +485,14 @@ impl ServerInteraction {
         self.shared_session = Some(shared_session);
 
         Ok(server_proof)
+    }
+
+    pub(crate) fn server_ephemeral(&self) -> Option<[u8; SRP_LEN_BYTES]> {
+        self.server_ephemeral
+            .map(|ephemeral| ephemeral.to_le_bytes())
+    }
+
+    pub(crate) fn server_ephemeral_secret(&self) -> Zeroizing<[u8; SRP_LEN_BYTES]> {
+        Zeroizing::new(self.b.to_le_bytes())
     }
 }

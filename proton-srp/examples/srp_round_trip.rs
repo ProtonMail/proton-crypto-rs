@@ -1,4 +1,7 @@
-use proton_srp::{SRPAuth, SRPProofB64, SRPVerifierB64, ServerInteraction};
+use proton_srp::{
+    SRPAuth, SRPProofB64, SRPVerifierB64, ServerClientProof, ServerClientVerifier,
+    ServerInteraction,
+};
 
 const CLIENT_PASSWORD: &str = "password";
 
@@ -22,10 +25,11 @@ fn main() {
     println!("Client verifier: {client_verifier:?}\n");
 
     // Start dummy login with the verifier from the client above
+    let server_client_verifier = ServerClientVerifier::try_from(&client_verifier).expect("failed");
     let mut server = ServerInteraction::new_with_modulus_extractor(
         &modulus_verifier,
         MODULUS,
-        &client_verifier.verifier,
+        &server_client_verifier,
     )
     .expect("verifier generation failed");
     let server_challenge = server.generate_challenge();
@@ -43,26 +47,29 @@ fn main() {
     )
     .expect("client auth failed");
 
-    let proof: SRPProofB64 = client
+    let client_proof: SRPProofB64 = client
         .generate_proofs()
         .expect("client failed to generate a proof")
         .into();
 
-    println!("Client proof: {proof:?}\n");
+    println!("Client proof: {client_proof:?}\n");
 
     // Server verification
+    let server_client_proof =
+        ServerClientProof::try_from(&client_proof).expect("failed to decode client message");
     let server_proof = server
-        .verify_proof(&proof.client_ephemeral, &proof.client_proof)
+        .verify_proof(&server_client_proof)
         .expect("server side verification failed");
 
     println!("Server proof: {}\n", server_proof.encode_b64());
 
     // Client verification
-    assert!(proof.compare_server_proof(&server_proof.encode_b64()));
+    assert!(client_proof.compare_server_proof(&server_proof.encode_b64()));
 }
 
 #[cfg(not(feature = "pgpinternal"))]
 mod nopgp {
+    use proton_srp::{ModulusVerifyError, RawSRPModulus};
 
     pub struct NoOpVerifier {}
 
@@ -71,32 +78,10 @@ mod nopgp {
             &self,
             modulus: &str,
             _server_key: &str,
-        ) -> Result<String, proton_srp::ModulusVerifyError> {
-            Ok(extract_pgp_body(modulus))
+        ) -> Result<String, ModulusVerifyError> {
+            let raw_modulus = RawSRPModulus::new_with_pgp_modulus(modulus)
+                .map_err(|_| ModulusVerifyError::CleartextParse("failed".to_owned()))?;
+            Ok(raw_modulus.encode_b64())
         }
-    }
-
-    fn extract_pgp_body(input: &str) -> String {
-        let mut extracted_lines = Vec::new();
-        let mut in_body = false;
-
-        for line in input.lines() {
-            if line.starts_with("-----BEGIN PGP SIGNED MESSAGE-----") {
-                in_body = true;
-            } else if line.starts_with("-----BEGIN PGP SIGNATURE-----") {
-                break;
-            } else if in_body {
-                let trimmed = line.trim();
-                if !trimmed.is_empty()
-                    && trimmed
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || "+/=".contains(c))
-                {
-                    extracted_lines.push(trimmed.to_string());
-                }
-            }
-        }
-
-        extracted_lines.join("")
     }
 }

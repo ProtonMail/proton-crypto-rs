@@ -1,4 +1,7 @@
-use proton_srp::{SRPAuth, SRPProofB64, SRPVerifierB64, ServerInteraction};
+use proton_srp::{
+    SRPAuth, SRPProofB64, SRPVerifierB64, ServerClientProof, ServerClientVerifier,
+    ServerInteraction,
+};
 
 #[test]
 #[cfg(feature = "pgpinternal")]
@@ -94,8 +97,9 @@ fn srp_round_trip(verifier: &impl ModulusSignatureVerifier, password: &str, modu
             .into();
 
     // Start dummy login with the verifier from the client above
+    let server_client_verifier = ServerClientVerifier::try_from(&client_verifier).expect("failed");
     let mut server =
-        ServerInteraction::new_with_modulus_extractor(verifier, modulus, &client_verifier.verifier)
+        ServerInteraction::new_with_modulus_extractor(verifier, modulus, &server_client_verifier)
             .expect("verifier generation failed");
     let server_challenge = server.generate_challenge();
 
@@ -116,8 +120,10 @@ fn srp_round_trip(verifier: &impl ModulusSignatureVerifier, password: &str, modu
         .into();
 
     // Server verification
+    let server_client_proof =
+        ServerClientProof::try_from(&proof).expect("failed to decode client message");
     let server_proof = server
-        .verify_proof(&proof.client_ephemeral, &proof.client_proof)
+        .verify_proof(&server_client_proof)
         .expect("server side verification failed");
 
     // Client verification
