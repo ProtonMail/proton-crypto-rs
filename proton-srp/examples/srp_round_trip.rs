@@ -17,6 +17,7 @@ fn main() {
     #[cfg(not(feature = "pgpinternal"))]
     let modulus_verifier = nopgp::NoOpVerifier {};
 
+    // nosemgrep: generic.secrets.gitleaks.generic-api-key.generic-api-key
     let client_verifier: SRPVerifierB64 =
         SRPAuth::generate_verifier(&modulus_verifier, CLIENT_PASSWORD, None, MODULUS)
             .expect("verifier generation must succeed")
