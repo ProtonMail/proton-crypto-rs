@@ -7,7 +7,7 @@
 #![allow(improper_ctypes)]
 
 use std::error::Error;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::fmt::{Debug, Display, Formatter};
 use std::os::raw::{c_char, c_uchar, c_void};
 use std::ptr::null_mut;
@@ -226,14 +226,6 @@ impl OwnedCStr {
                 .unwrap_or_default()
                 .to_owned()
         }
-    }
-
-    pub fn to_cstring(&self) -> CString {
-        if self.cstr.is_null() {
-            return CString::default();
-        }
-        // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
-        unsafe { CString::from_raw(self.cstr) }
     }
 }
 
