@@ -24,25 +24,14 @@ extern "C" fn ext_buffer_write(
     size: usize,
 ) -> i64 {
     // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
-    unsafe {
-        // Extend from slice does a 1 by 1 copy of the data, we should use memcpy instead.
-        let buffer: *mut ExtBuffer = ptr.cast();
-        let data_bytes: &[u8] = std::slice::from_raw_parts(data.cast(), size);
-        let vec = &mut (*buffer).0;
-        let current_len = vec.len();
-        let new_size = current_len + size;
+    let this: &mut ExtBuffer = unsafe { &mut *ptr.cast() };
 
-        // Reserve enough space for the new size;
-        vec.reserve(new_size);
-        // Copy data.
-        let buffer_start = vec.as_mut_ptr().add(current_len);
-        std::ptr::copy_nonoverlapping(data_bytes.as_ptr(), buffer_start, size);
+    // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
+    let data: &[u8] = unsafe { std::slice::from_raw_parts(data.cast(), size) };
 
-        // Manually set the new size of the buffer.
-        vec.set_len(new_size);
+    this.0.extend_from_slice(data);
 
-        size as i64
-    }
+    size as i64
 }
 
 #[allow(clippy::box_collection)]
