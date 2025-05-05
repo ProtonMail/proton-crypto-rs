@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2024-00-00
 
+### Changed
+
+- Update GopenPGP to `v3.2.1-proton`
+- Remove `OwnedCStr::to_cstring`
+- Simplify logic in `ext_buffer_write()`
+
 ## [0.2.16] - 2025-03-24
 
 ### Changed
