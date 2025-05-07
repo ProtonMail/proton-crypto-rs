@@ -1,6 +1,6 @@
 //! API to perform PGP operations.
 //!
-//! This module provides API traits for encrypting, decrypting, singing, and verifying
+//! This module provides API traits for encrypting, decrypting, signing, and verifying
 //! `OpenPGP` messages. For each operation it provides an async and sync option.
 //! The top level trait to interact with `OpenPGP` is the `PGPProvider` with its respective sync `PGPProviderSync` and
 //! async `PGPProviderAsync` version. The provider allows to create a builder for each operation above:

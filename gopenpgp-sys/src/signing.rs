@@ -163,7 +163,7 @@ impl<'a> Signer<'a> {
         }
     }
 
-    pub fn sing_stream<T: io::Write>(
+    pub fn sign_stream<T: io::Write>(
         self,
         sign_writer: T,
         detached: bool,

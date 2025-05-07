@@ -75,14 +75,14 @@ impl<'a> SignerSync<'a> for GoSigner<'a> {
         self.0.sign_cleartext(data.as_ref()).map_err(Into::into)
     }
 
-    fn sing_stream<T: io::Write + 'a>(
+    fn sign_stream<T: io::Write + 'a>(
         self,
         sign_writer: T,
         detached: bool,
         data_encoding: crate::DataEncoding,
     ) -> crate::Result<Self::SignerWriter<'a, T>> {
         self.0
-            .sing_stream(sign_writer, detached, data_encoding.into())
+            .sign_stream(sign_writer, detached, data_encoding.into())
             .map(GoEncryptorWriter)
             .map_err(Into::into)
     }

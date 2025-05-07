@@ -508,7 +508,7 @@ fn test_api_sign_detached_stream() {
         .with_signing_key(&private_key)
         .with_signing_context(&signing_context)
         .at_signing_time(test_time)
-        .sing_stream(&mut buffer, true, DataEncoding::Bytes)
+        .sign_stream(&mut buffer, true, DataEncoding::Bytes)
         .unwrap();
     signature_writer
         .write_all(TEST_EXPECTED_PLAINTEXT.as_bytes())
@@ -540,7 +540,7 @@ fn test_api_sign_inline_stream() {
         .with_signing_key(&private_key)
         .with_signing_context(&signing_context)
         .at_signing_time(test_time)
-        .sing_stream(&mut buffer, false, DataEncoding::Armor)
+        .sign_stream(&mut buffer, false, DataEncoding::Armor)
         .unwrap();
     signature_writer
         .write_all(TEST_EXPECTED_PLAINTEXT.as_bytes())

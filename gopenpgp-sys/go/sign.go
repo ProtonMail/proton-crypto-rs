@@ -33,7 +33,7 @@ func pgp_signing_context_new_destroy(handle C.uintptr_t) {
 
 //export pgp_sign
 func pgp_sign(
-	sing_handle *C.PGP_CSignHandle,
+	sign_handle *C.PGP_CSignHandle,
 	data *C.cuchar_t,
 	data_len C.size_t,
 	encoding C.uchar_t,
@@ -45,7 +45,7 @@ func pgp_sign(
 			cErr = errorToPGPError(fmt.Errorf("go panic: %v", err))
 		}
 	}()
-	signer, err := handleToSigner(sing_handle, bool(detached))
+	signer, err := handleToSigner(sign_handle, bool(detached))
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize signer: %w", err))
 	}
@@ -72,7 +72,7 @@ func pgp_sign(
 
 //export pgp_sign_cleartext
 func pgp_sign_cleartext(
-	sing_handle *C.PGP_CSignHandle,
+	sign_handle *C.PGP_CSignHandle,
 	data *C.cuchar_t,
 	data_len C.size_t,
 	result_buffer C.PGP_ExtWriter,
@@ -82,7 +82,7 @@ func pgp_sign_cleartext(
 			cErr = errorToPGPError(fmt.Errorf("go panic: %v", err))
 		}
 	}()
-	signer, err := handleToSigner(sing_handle, false)
+	signer, err := handleToSigner(sign_handle, false)
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize signer: %w", err))
 	}
@@ -104,7 +104,7 @@ func pgp_sign_cleartext(
 
 //export pgp_sign_stream
 func pgp_sign_stream(
-	sing_handle *C.PGP_CSignHandle,
+	sign_handle *C.PGP_CSignHandle,
 	writer C.PGP_ExtWriter,
 	encoding C.uchar_t,
 	detached C.bool_t,
@@ -115,7 +115,7 @@ func pgp_sign_stream(
 			cErr = errorToPGPError(fmt.Errorf("go panic: %v", err))
 		}
 	}()
-	signer, err := handleToSigner(sing_handle, bool(detached))
+	signer, err := handleToSigner(sign_handle, bool(detached))
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("failed to initialize signer: %w", err))
 	}

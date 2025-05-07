@@ -38,7 +38,7 @@ crate::string_id! {
 pub enum ContactCardType {
     /// The card is in cleartext.
     ClearText = 0,
-    /// The card is encrypted but not singed.
+    /// The card is encrypted but not signed.
     Encrypted = 1,
     /// The card is signed.
     Signed = 2,

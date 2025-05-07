@@ -75,8 +75,10 @@ pub trait SignerSync<'a>: Signer<'a> {
         data: impl AsRef<[u8]>,
         out_encoding: DataEncoding,
     ) -> crate::Result<Vec<u8>>;
+
     /// Creates an `OpenPGP` cleartext signed message.
     fn sign_cleartext(self, data: impl AsRef<[u8]>) -> crate::Result<Vec<u8>>;
+
     /// Returns a writer that can be used to sign the data and write the output to `output_writer`.
     ///
     /// Returns a wrapper around the provided `output_writer` such that any write-operation via
@@ -84,7 +86,7 @@ pub trait SignerSync<'a>: Signer<'a> {
     /// The `output_encoding` argument defines the output encoding, i.e., Bytes or Armored
     /// Once all data has been written to the returned `SignerWriter`, `finalize` must be
     /// called to finalize the signature creation.
-    fn sing_stream<T: io::Write + 'a>(
+    fn sign_stream<T: io::Write + 'a>(
         self,
         sign_writer: T,
         detached: bool,

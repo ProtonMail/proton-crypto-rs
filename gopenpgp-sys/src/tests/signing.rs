@@ -135,7 +135,7 @@ fn test_sign_inline_stream() {
             .with_signing_key(&key)
             .with_signing_context(&signing_context)
             .at_signing_time(test_time - 1)
-            .sing_stream(&mut signature_buffer, false, DataEncoding::Armor)
+            .sign_stream(&mut signature_buffer, false, DataEncoding::Armor)
             .unwrap();
         pt_writer.write_all(plaintext.as_bytes()).unwrap();
         pt_writer.close().unwrap();
@@ -174,7 +174,7 @@ fn test_sign_detached_stream() {
             .with_signing_key(&key)
             .with_signing_context(&signing_context)
             .at_signing_time(test_time - 1)
-            .sing_stream(&mut signature_buffer, true, DataEncoding::Armor)
+            .sign_stream(&mut signature_buffer, true, DataEncoding::Armor)
             .unwrap();
         pt_writer.write_all(plaintext.as_bytes()).unwrap();
         pt_writer.close().unwrap();
