@@ -1,6 +1,6 @@
 [package]
 name = "gopenpgp-sys"
-version = "0.2.17"
+version = "0.2.18"
 edition.workspace = true
 license = "MIT"
 license-file = "LICENSE"
