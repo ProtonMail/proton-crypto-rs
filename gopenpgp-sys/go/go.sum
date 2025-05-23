@@ -1,7 +1,7 @@
-github.com/ProtonMail/go-crypto v1.2.0-proton h1:zPFHx2D6lXUIGccwfu5wqhgG7mNkgZkECQNYfO5fyqQ=
-github.com/ProtonMail/go-crypto v1.2.0-proton/go.mod h1:9whxjD8Rbs29b4XWbB8irEcE8KHMqaR2e7GWU1R+/PE=
-github.com/ProtonMail/gopenpgp/v3 v3.2.1-proton h1:e2CUWz0Xd79Sjq3zSXm/dcKXNBRoeOUUgn11ffRap4I=
-github.com/ProtonMail/gopenpgp/v3 v3.2.1-proton/go.mod h1:1W9lADUOE6M5X65xNYOUxYSDEacP2KIKAUpS4xEzPsE=
+github.com/ProtonMail/go-crypto v1.3.0-proton h1:tAQKQRZX/73VmzK6yHSCaRUOvS/3OYSQzhXQsrR7yUM=
+github.com/ProtonMail/go-crypto v1.3.0-proton/go.mod h1:9whxjD8Rbs29b4XWbB8irEcE8KHMqaR2e7GWU1R+/PE=
+github.com/ProtonMail/gopenpgp/v3 v3.3.0-proton h1:wg6GJ1AH37xi6Z5dIYYPh1UViUN8UVt6u5/JRfDatuo=
+github.com/ProtonMail/gopenpgp/v3 v3.3.0-proton/go.mod h1:wYEAmwKIfrMV4wgAyMTcSJLpf0DyDzOzfAh1Jkk4k/k=
 github.com/cloudflare/circl v1.6.0 h1:cr5JKic4HI+LkINy2lg3W2jF8sHCVTBncJr5gIIq7qk=
 github.com/cloudflare/circl v1.6.0/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZh3pJrofs=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
