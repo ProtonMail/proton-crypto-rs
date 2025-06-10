@@ -6,6 +6,7 @@ members = [
     "proton-crypto-account",
     "proton-device-verification",
     "proton-srp",
+    "proton-crypto-subtle",
 ]
 
 [workspace.package]
@@ -70,6 +71,11 @@ registry = "proton"
 
 [workspace.dependencies.proton-srp]
 path     = "proton-srp"
+version  = "0.7.0"
+registry = "proton"
+
+[workspace.dependencies.proton-crypto-subtle]
+path     = "proton-crypto-subtle"
 version  = "0.7.0"
 registry = "proton"
 
