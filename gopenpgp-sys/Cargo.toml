@@ -12,4 +12,4 @@ hex = { workspace = true }
 zeroize = { workspace = true }
 
 [build-dependencies]
-bindgen = "0.71"
+bindgen = "0.72"
