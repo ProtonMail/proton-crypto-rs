@@ -20,4 +20,7 @@ pub enum SubtleError {
 
     #[error("Failed to write data to the writer: {0}")]
     IoWrite(io::Error),
+
+    #[error("Invalid ciphertext encoding for cipher")]
+    InvalidCiphertext,
 }

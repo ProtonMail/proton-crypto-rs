@@ -16,13 +16,22 @@
 //! ```
 use std::io::Write;
 
+#[cfg(feature = "legacy")]
+use aes_gcm::aes::Aes256;
 use aes_gcm::{
-    aead::{Aead, Payload},
-    AeadCore, Aes256Gcm, Key, KeyInit, KeySizeUser,
+    aead::{consts::U16, Aead, Payload},
+    aes::cipher::{ArrayLength, BlockCipher, BlockEncrypt, BlockSizeUser},
+    AeadCore, Aes256Gcm, AesGcm, Key, KeyInit, KeySizeUser, Nonce,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{SubtleError, SubtleResult};
+
+#[cfg(feature = "legacy")]
+pub type Aes256GcmIv16 = AesGcm<Aes256, U16>;
+
+#[cfg(feature = "legacy")]
+pub const AES_GCM_256_IV_SIZE_LEGACY: usize = 16;
 
 pub const AES_GCM_256_IV_SIZE: usize = 12;
 pub const AES_GCM_256_KEY_SIZE: usize = 32;
@@ -31,7 +40,7 @@ pub const AES_GCM_256_KEY_SIZE: usize = 32;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AesGcmCiphertext {
     /// Stores the initialization vector (nonce) that was used to encrypt the data.
-    pub iv: [u8; AES_GCM_256_IV_SIZE],
+    pub iv: Vec<u8>,
 
     /// Stores encrypted data including the authentication tag.
     pub data: Vec<u8>,
@@ -39,14 +48,27 @@ pub struct AesGcmCiphertext {
 
 impl AesGcmCiphertext {
     fn new_from_slices(iv: &[u8], data: &[u8]) -> SubtleResult<Self> {
-        let ciphertext = AesGcmCiphertext {
-            iv: iv.try_into().map_err(|_| SubtleError::InvalidIvLength)?,
+        #[cfg(feature = "legacy")]
+        {
+            if !(iv.len() == AES_GCM_256_IV_SIZE || iv.len() == AES_GCM_256_IV_SIZE_LEGACY) {
+                return Err(SubtleError::InvalidIvLength);
+            }
+        }
+        #[cfg(not(feature = "legacy"))]
+        {
+            if iv.len() != AES_GCM_256_IV_SIZE {
+                return Err(SubtleError::InvalidIvLength);
+            }
+        }
+
+        let ciphertext = Self {
+            iv: iv.into(),
             data: data.into(),
         };
         Ok(ciphertext)
     }
 
-    /// Encodes the ciphertext into a byte vector as `iv (12 bytes)| encrypted data | tag (16 bytes)`.
+    /// Encodes the ciphertext into a byte vector as `iv | encrypted data | tag (16 bytes)`.
     pub fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::with_capacity(self.iv.len() + self.data.len());
         encoded.extend_from_slice(&self.iv);
@@ -54,7 +76,7 @@ impl AesGcmCiphertext {
         encoded
     }
 
-    /// Encodes the ciphertext as `iv (12 bytes)| encrypted data | tag (16 bytes)` and writes it to the writer.
+    /// Encodes the ciphertext as `iv | encrypted data | tag (16 bytes)` and writes it to the writer.
     ///
     /// Returns the number of bytes written.
     pub fn encode_and_write(&self, mut writer: impl Write) -> SubtleResult<usize> {
@@ -70,27 +92,53 @@ impl AesGcmCiphertext {
             &ciphertext.as_ref()[AES_GCM_256_IV_SIZE..],
         )
     }
+
+    /// Tries to decode the ciphertext from a byte slice as `iv (16 bytes)| encrypted data | tag (16 bytes)`.
+    ///
+    /// Legacy method that uses a 16-byte IV instead of the standard 12-byte IV.
+    /// This non-standard IV length for compatibility with existing legacy systems.
+    #[cfg(feature = "legacy")]
+    pub fn decode_legacy(ciphertext: impl AsRef<[u8]>) -> SubtleResult<Self> {
+        Self::new_from_slices(
+            &ciphertext.as_ref()[..AES_GCM_256_IV_SIZE_LEGACY],
+            &ciphertext.as_ref()[AES_GCM_256_IV_SIZE_LEGACY..],
+        )
+    }
+
+    #[cfg(feature = "legacy")]
+    pub fn is_legacy(&self) -> bool {
+        self.iv.len() == AES_GCM_256_IV_SIZE_LEGACY
+    }
 }
 
 /// A view into a AES-GCM-256 ciphertext.
 ///
 /// Only holds references to slices of the data.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AesGcmCiphertextView<'a> {
+pub struct AesGcmCiphertextRef<'a> {
     /// References the initialization vector (nonce) that was used to encrypt the data.
-    pub iv: &'a [u8; AES_GCM_256_IV_SIZE],
+    pub iv: &'a [u8],
 
     /// References the encrypted data including the authentication tag.
     pub data: &'a [u8],
 }
 
-impl<'a> AesGcmCiphertextView<'a> {
+impl<'a> AesGcmCiphertextRef<'a> {
     pub fn new(iv: &'a [u8], data: &'a [u8]) -> SubtleResult<Self> {
-        let ciphertext = Self {
-            iv: iv.try_into().map_err(|_| SubtleError::InvalidIvLength)?,
-            data,
-        };
-        Ok(ciphertext)
+        #[cfg(feature = "legacy")]
+        {
+            if !(iv.len() == AES_GCM_256_IV_SIZE || iv.len() == AES_GCM_256_IV_SIZE_LEGACY) {
+                return Err(SubtleError::InvalidIvLength);
+            }
+        }
+        #[cfg(not(feature = "legacy"))]
+        {
+            if iv.len() != AES_GCM_256_IV_SIZE {
+                return Err(SubtleError::InvalidIvLength);
+            }
+        }
+
+        Ok(Self { iv, data })
     }
 
     /// Encodes the ciphertext as `iv (12 bytes)| encrypted data | tag (16 bytes)` and writes it to the writer.
@@ -110,9 +158,26 @@ impl<'a> AesGcmCiphertextView<'a> {
             &ciphertext[AES_GCM_256_IV_SIZE..],
         )
     }
+
+    /// Tries to decode the ciphertext from a byte slice as `iv (16 bytes)| encrypted data | tag (16 bytes)`.
+    ///
+    /// Legacy method that uses a 16-byte IV instead of the standard 12-byte IV.
+    /// This non-standard IV length for compatibility with existing legacy systems.
+    #[cfg(feature = "legacy")]
+    pub fn decode_legacy(ciphertext: &'a [u8]) -> SubtleResult<Self> {
+        Self::new(
+            &ciphertext[..AES_GCM_256_IV_SIZE_LEGACY],
+            &ciphertext[AES_GCM_256_IV_SIZE_LEGACY..],
+        )
+    }
+
+    #[cfg(feature = "legacy")]
+    pub fn is_legacy(&self) -> bool {
+        self.iv.len() == AES_GCM_256_IV_SIZE_LEGACY
+    }
 }
 
-impl<'a> From<&'a AesGcmCiphertext> for AesGcmCiphertextView<'a> {
+impl<'a> From<&'a AesGcmCiphertext> for AesGcmCiphertextRef<'a> {
     fn from(ct: &'a AesGcmCiphertext) -> Self {
         Self {
             iv: &ct.iv,
@@ -121,7 +186,7 @@ impl<'a> From<&'a AesGcmCiphertext> for AesGcmCiphertextView<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for AesGcmCiphertextView<'a> {
+impl<'a> TryFrom<&'a [u8]> for AesGcmCiphertextRef<'a> {
     type Error = SubtleError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
@@ -177,14 +242,9 @@ impl AesGcmKey {
 
     /// Encrypts the given data using the key and an optional context.
     ///
-    /// This method generates the IV with a cryptographically secure random number generator.
+    /// This method generates the 12 byte IV with a cryptographically secure random number generator.
     /// The context is used to add additional authenticated data to the encryption. For example,
     /// the context can be used to bind the ciphertext to a specific application (e.g., username.app.proton.me)
-    ///
-    /// # Parameters
-    ///
-    /// * `data` - The data to encrypt.
-    /// * `context` - The context to use for encryption. If `None`, the context is not used.
     ///
     /// # Examples
     ///
@@ -204,33 +264,10 @@ impl AesGcmKey {
         let cipher = Aes256Gcm::new(&self.0);
         let nonce = Aes256Gcm::generate_nonce(&mut rng);
 
-        let ciphertext = match context {
-            Some(aad) => {
-                let payload = Payload {
-                    msg: data.as_ref(),
-                    aad: aad.as_bytes(),
-                };
-                cipher
-                    .encrypt(&nonce, payload)
-                    .map_err(SubtleError::Encrypt)?
-            }
-            None => cipher
-                .encrypt(&nonce, data.as_ref())
-                .map_err(SubtleError::Encrypt)?,
-        };
-
-        Ok(AesGcmCiphertext {
-            iv: nonce.into(),
-            data: ciphertext,
-        })
+        Self::encrypt_generic(&cipher, &nonce, data.as_ref(), context)
     }
 
     /// Decrypts the given ciphertext using the key and an optional context.
-    ///
-    /// # Parameters
-    ///
-    /// * `cipertext` - The ciphertext to decrypt.
-    /// * `context` - The context to use for decryption. If `None`, the context is not used.
     ///
     /// # Examples
     ///
@@ -246,11 +283,126 @@ impl AesGcmKey {
     /// ```
     pub fn decrypt<'a>(
         &'a self,
-        cipertext: impl Into<AesGcmCiphertextView<'a>>,
+        cipertext: impl Into<AesGcmCiphertextRef<'a>>,
         context: Option<&str>,
     ) -> SubtleResult<Vec<u8>> {
-        let ciphertext_view: AesGcmCiphertextView = cipertext.into();
+        let ciphertext_view: AesGcmCiphertextRef = cipertext.into();
         let cipher = Aes256Gcm::new(&self.0);
+
+        #[cfg(feature = "legacy")]
+        if ciphertext_view.is_legacy() {
+            return Err(SubtleError::InvalidCiphertext);
+        }
+
+        Self::decrypt_generic(&cipher, &ciphertext_view, context)
+    }
+
+    /// Encrypts the given data using the key and an optional context in legacy mode with 16 byte iv.
+    ///
+    /// **Use this function only when necessary for backwards compatibility.**  
+    /// For all other cases, prefer using [`Self::encrypt`].
+    ///
+    /// This method generates the 16 byte IV with a cryptographically secure random number generator.
+    /// The context is used to add additional authenticated data to the encryption. For example,
+    /// the context can be used to bind the ciphertext to a specific application (e.g., username.app.proton.me)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use proton_crypto_subtle::aead::{AesGcmKey, AesGcmCiphertext};
+    ///
+    /// let key = AesGcmKey::generate();
+    /// let plaintext = b"Hello, world!";
+    /// let ciphertext = key.encrypt_legacy(plaintext, Some("app.proton.me")).unwrap();
+    /// ```
+    #[cfg(feature = "legacy")]
+    pub fn encrypt_legacy(
+        &self,
+        data: impl AsRef<[u8]>,
+        context: Option<&str>,
+    ) -> SubtleResult<AesGcmCiphertext> {
+        let mut rng = rand::thread_rng();
+        let cipher = Aes256GcmIv16::new(&self.0);
+        let nonce = Aes256GcmIv16::generate_nonce(&mut rng);
+
+        Self::encrypt_generic(&cipher, &nonce, data.as_ref(), context)
+    }
+
+    /// Decrypts the given ciphertext using the key and an optional context.
+    ///
+    /// Assumes that the ciphertext was encrypted with a 16 byte iv.
+    ///
+    /// **Use this function only when necessary for backwards compatibility.**  
+    /// For all other cases, prefer using [`Self::decrypt`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use proton_crypto_subtle::aead::{AesGcmKey, AesGcmCiphertext};
+    ///
+    /// let key = AesGcmKey::generate();
+    /// let plaintext = b"Hello, world!";
+    /// let ciphertext = key.encrypt_legacy(plaintext, Some("app.proton.me")).unwrap();
+    ///
+    /// let decrypted = key.decrypt_legacy(&ciphertext, Some("app.proton.me")).unwrap();
+    /// assert_eq!(plaintext, decrypted.as_slice());
+    /// ```
+    #[cfg(feature = "legacy")]
+    pub fn decrypt_legacy<'a>(
+        &'a self,
+        cipertext: impl Into<AesGcmCiphertextRef<'a>>,
+        context: Option<&str>,
+    ) -> SubtleResult<Vec<u8>> {
+        let ciphertext_view: AesGcmCiphertextRef = cipertext.into();
+        let cipher = Aes256GcmIv16::new(&self.0);
+
+        if !ciphertext_view.is_legacy() {
+            return Err(SubtleError::InvalidCiphertext);
+        }
+
+        Self::decrypt_generic(&cipher, &ciphertext_view, context)
+    }
+
+    fn encrypt_generic<Aes, NonceSize>(
+        cipher: &AesGcm<Aes, NonceSize>,
+        nonce: &Nonce<NonceSize>,
+        data: &[u8],
+        context: Option<&str>,
+    ) -> SubtleResult<AesGcmCiphertext>
+    where
+        Aes: BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
+        NonceSize: ArrayLength<u8>,
+    {
+        let ciphertext = match context {
+            Some(aad) => {
+                let payload = Payload {
+                    msg: data,
+                    aad: aad.as_bytes(),
+                };
+                cipher
+                    .encrypt(nonce, payload)
+                    .map_err(SubtleError::Encrypt)?
+            }
+            None => cipher
+                .encrypt(nonce, data.as_ref())
+                .map_err(SubtleError::Encrypt)?,
+        };
+
+        Ok(AesGcmCiphertext {
+            iv: nonce.to_vec(),
+            data: ciphertext,
+        })
+    }
+
+    fn decrypt_generic<Aes, NonceSize>(
+        cipher: &AesGcm<Aes, NonceSize>,
+        ciphertext_view: &AesGcmCiphertextRef,
+        context: Option<&str>,
+    ) -> SubtleResult<Vec<u8>>
+    where
+        Aes: BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
+        NonceSize: ArrayLength<u8>,
+    {
         match context {
             Some(aad) => {
                 let payload = Payload {

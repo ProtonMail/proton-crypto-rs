@@ -76,7 +76,7 @@ registry = "proton"
 
 [workspace.dependencies.proton-crypto-subtle]
 path     = "proton-crypto-subtle"
-version  = "0.7.0"
+version  = "0.1.0"
 registry = "proton"
 
 [workspace.dependencies.proton-device-verification]
