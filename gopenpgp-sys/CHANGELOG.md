@@ -7,13 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
-## [0.3.0] - 2025-26-05
+## [0.3.1] - 2025-06-18
+
+### Changed
+
+- Bump bindgen to `0.72` to fix iOS compile issue.
+
+## [0.3.0] - 2025-05-26
 
 ### Changed
 
 - Update GopenPGP to `v3.3.0-proton`. Changes PQC to final draft, thus, breaking version upgrade.
 
-## [0.2.18] - 2025-15-05
+## [0.2.18] - 2025-05-15
 
 ### Changed
 
