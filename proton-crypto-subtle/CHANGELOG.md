@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+### Added
+
+- Add `HKDF` API for deriving an  `AES-GCM-256` key.
+
 ## [0.1.0] - 2025-06-18
 
 ### Added

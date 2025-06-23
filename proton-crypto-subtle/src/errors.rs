@@ -23,4 +23,7 @@ pub enum SubtleError {
 
     #[error("Invalid ciphertext encoding for cipher")]
     InvalidCiphertext,
+
+    #[error("The input secret must be at least 16 bytes long")]
+    InvalidSecretLen,
 }

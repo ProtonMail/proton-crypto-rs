@@ -49,6 +49,7 @@ opt-level = 3
 base64 = "0.22"
 hex = "0.4.3"
 rand = "0.8.5"
+sha2 = "0.10.9"
 thiserror = "1"
 zeroize = { version="1.7.0", features = ["zeroize_derive"]}
 serde = { version="1", features = ["derive"]}

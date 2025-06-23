@@ -7,3 +7,4 @@ mod errors;
 pub use errors::*;
 
 pub mod aead;
+pub mod hkdf;
