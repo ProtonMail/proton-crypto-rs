@@ -585,3 +585,43 @@ fn test_pgp_message_import() {
     let key_ids = message.encryption_key_ids();
     assert!(!key_ids.is_empty());
 }
+
+#[test]
+fn test_api_passphrase_encrypt_decrypt() {
+    let provider = proton_crypto::new_pgp_provider();
+    let data = "hello";
+    let password = "password";
+    let ct = provider
+        .new_encryptor()
+        .with_passphrase(password)
+        .encrypt_raw(data.as_bytes(), DataEncoding::Bytes)
+        .unwrap();
+
+    let pt = provider
+        .new_decryptor()
+        .with_passphrase(password)
+        .decrypt(ct, DataEncoding::Bytes)
+        .unwrap();
+    assert_eq!(pt.as_bytes(), data.as_bytes());
+}
+
+#[test]
+fn test_api_passphrase_encrypt_decrypt_session_key() {
+    let provider = proton_crypto::new_pgp_provider();
+    let password = "password";
+    let sk = provider
+        .session_key_generate(SessionKeyAlgorithm::Aes256)
+        .unwrap();
+    let ct = provider
+        .new_encryptor()
+        .with_passphrase(password)
+        .encrypt_session_key(&sk)
+        .unwrap();
+
+    let sk_out = provider
+        .new_decryptor()
+        .with_passphrase(password)
+        .decrypt_session_key(&ct)
+        .unwrap();
+    assert_eq!(sk.export().as_ref(), sk_out.export().as_ref());
+}

@@ -138,6 +138,9 @@ impl<'a> Encryptor<'a> for GoEncryptor<'a> {
     fn with_session_key_ref(self, session_key: &'a Self::SessionKey) -> Self {
         Self(self.0.with_session_key(&session_key.0))
     }
+    fn with_passphrase(self, passphrase: &'a str) -> Self {
+        Self(self.0.with_passphrase(passphrase))
+    }
 
     fn with_compression(self) -> Self {
         Self(self.0.with_compression())

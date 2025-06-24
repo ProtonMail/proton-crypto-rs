@@ -134,6 +134,9 @@ pub trait Encryptor<'a> {
     /// used with care and requires knowledge of the cryptographic implications.
     fn with_session_key(self, session_key: Self::SessionKey) -> Self;
 
+    /// Sets a password for encrypting the `OpenPGP` message.
+    fn with_passphrase(self, passphrase: &'a str) -> Self;
+
     /// Indicates if compression should be applied to the data before encryption.
     ///
     /// The default is false. Note that compression can leak information about the encrypted
