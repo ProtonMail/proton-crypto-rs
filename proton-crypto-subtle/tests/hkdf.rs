@@ -104,3 +104,16 @@ fn derive_aes_gcm_key_same_inputs_produce_same_keys() {
         "Same inputs should produce same keys"
     );
 }
+
+#[test]
+fn derive_aes_gcm_key_empty_salt() {
+    let secret = high_entropy_secret();
+    let salt1 = [0_u8; 32];
+    let salt2 = &[];
+    let info = b"my-info";
+
+    let key1 = hkdf::derive_aes_gcm_key(&secret, &salt1, info).unwrap();
+    let key2 = hkdf::derive_aes_gcm_key(&secret, salt2, info).unwrap();
+
+    assert_eq!(key1.as_bytes(), key2.as_bytes());
+}

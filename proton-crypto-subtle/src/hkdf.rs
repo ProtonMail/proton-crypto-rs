@@ -13,6 +13,7 @@ const MIN_SECRET_LEN: usize = 16;
 ///
 /// The `info` parameter is used bind the derived key to context.
 /// It is recommended that the number of salt bytes equlas the ouput length.
+/// If the salt is empty, the default salt is used i.e., a slice of zero bytes of the key output length.
 ///
 /// # Security
 ///
@@ -40,8 +41,11 @@ pub fn derive_aes_gcm_key(
         return Err(SubtleError::InvalidSecretLen);
     }
 
+    // Unify api behaviour to the web crypto api.
+    // If the salt slice is empty, the default salt is used.
+    let salt_option = (!salt.is_empty()).then_some(salt);
     let mut out = Zeroizing::new([0_u8; AES_GCM_256_KEY_SIZE]);
-    let hkdf = Hkdf::<Sha256>::new(Some(salt), high_entropy_secret);
+    let hkdf = Hkdf::<Sha256>::new(salt_option, high_entropy_secret);
     hkdf.expand(info, out.as_mut_slice())
         .map_err(|_| SubtleError::InvalidKeyLength)?;
     AesGcmKey::from_bytes(out)
