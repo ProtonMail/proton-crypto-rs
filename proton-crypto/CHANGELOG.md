@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.6.0] - 2025-06-30
+
 ### Added
 
 - Encrypt an OpenPGP message with a passphrase using the `PGPProvider`.

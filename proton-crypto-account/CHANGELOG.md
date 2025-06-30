@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.11.2] - 2025-06-30
+
+### Changed
+
+- Update `proton-crypto` to 0.6.0.
+
 ## [0.11.1] - 2025-06-18
 
 ### Changed
