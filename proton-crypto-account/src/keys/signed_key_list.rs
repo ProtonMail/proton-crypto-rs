@@ -184,7 +184,7 @@ impl SignedKeyList {
             .with_utf8_out();
         if let Some(timestamp) = verification_time {
             verifier = verifier.at_verification_time(timestamp);
-        };
+        }
         verifier
             .verify_detached(data.0.as_bytes(), signature, DataEncoding::Armor)
             .map(|info| info.signature_creation_time)
@@ -213,7 +213,7 @@ impl SignedKeyList {
             .with_utf8_out();
         if let Some(timestamp) = verification_time {
             verifier = verifier.at_verification_time(timestamp);
-        };
+        }
         verifier
             .verify_detached_async(data.0.as_bytes(), signature, DataEncoding::Armor)
             .await
