@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.12.0] - 2025-07-02
+
 ### Changed
 
 - Update `RecipientPublicKeyModel::from_public_keys_at_time` has an additional argument `prefer_v6`.
