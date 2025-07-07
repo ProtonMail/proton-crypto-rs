@@ -6,6 +6,15 @@ use pgp::{
 
 use crate::{DataEncoding, KeyOperationError, Profile, UnixTime};
 
+mod certifications;
+pub(crate) use certifications::*;
+
+mod component;
+pub(crate) use component::*;
+
+mod selection;
+pub(crate) use selection::*;
+
 /// A trait for types that can be converted to a `PublicKey` reference.
 pub trait AsPublicKeyRef {
     fn as_public_key(&self) -> &PublicKey;
@@ -371,4 +380,223 @@ impl PrivateKey {
 /// TODO.
 pub struct SessionKey {
     pub(crate) inner: PlainSessionKey,
+}
+
+#[cfg(test)]
+mod tests {
+    use pgp::crypto::public_key;
+
+    use crate::{
+        types::UnixTime, DataEncoding, KeyCertificationSelectionError, KeySelectionError,
+        LockedPrivateKey, PrivateKey, Profile, PublicKey, SignatureUsage,
+    };
+
+    use super::PublicKeySelectionExt;
+
+    pub const TEST_PRIVATE_KEY: &str = include_str!("../test-data/keys/locked_private_key_V6.asc");
+
+    pub const TEST_PRIVATE_KEY_PASSWORD: &str = "password";
+
+    #[test]
+    fn key_selection_experiments() {
+        let profile = Profile {};
+
+        let key = LockedPrivateKey::import(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let unlocked = key
+            .unlock(TEST_PRIVATE_KEY_PASSWORD.as_bytes())
+            .expect("Failed to unlock key");
+
+        println!("{:?}\n\n", unlocked.secret);
+
+        let component = unlocked
+            .as_signed_public_key()
+            .encryption_key(UnixTime::now().unwrap(), &profile)
+            .expect("Failed to get encryption key");
+
+        println!("{:?}\n", component.public_key);
+        println!("{:?}\n", component.primary_self_certification);
+        println!("{:?}\n", component.self_certification);
+
+        let verification_keys = unlocked
+            .as_signed_public_key()
+            .verification_keys(
+                UnixTime::now().unwrap(),
+                None,
+                SignatureUsage::Sign,
+                &profile,
+            )
+            .expect("Failed to get encryption key");
+
+        for key in verification_keys {
+            println!("{:?}\n", key.public_key);
+            println!("{:?}\n", key.primary_self_certification);
+            println!("{:?}\n", key.self_certification);
+        }
+    }
+
+    #[test]
+    fn multiple_user_ids() {
+        const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_multi_user_id.asc");
+        let time = UnixTime::new(1_751_881_317);
+        let profile = Profile::default();
+
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let (primary_user_id, _) = public_key
+            .as_signed_public_key()
+            .select_user_id_with_certification(time, &profile)
+            .expect("Failed to select primary user id");
+
+        assert_eq!(
+            primary_user_id.id.id(),
+            b"Bob Babbage <bob@openpgp.example>"
+        );
+    }
+
+    #[test]
+    fn multiple_user_ids_first_revoked() {
+        const TEST_KEY: &str =
+            include_str!("../test-data/keys/public_key_v4_multi_user_id_revoked.asc");
+        let time = UnixTime::new(1_751_881_317);
+        let profile = Profile::default();
+
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let (primary_user_id, _) = public_key
+            .as_signed_public_key()
+            .select_user_id_with_certification(time, &profile)
+            .expect("Failed to select primary user id");
+
+        assert_eq!(
+            primary_user_id.id.id(),
+            b"Golang Gopher <no-reply@golang.com>"
+        );
+    }
+
+    #[test]
+    fn no_user_id() {
+        const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4_no_user_id.asc");
+        let date = UnixTime::new(1_751_881_317);
+        let profile = Profile::default();
+
+        let private_key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let user_id_result = private_key
+            .as_signed_public_key()
+            .select_user_id_with_certification(date, &profile);
+
+        assert!(matches!(
+            user_id_result,
+            Err(KeyCertificationSelectionError::NoIdentity(_))
+        ));
+    }
+
+    #[test]
+    fn primary_key_expired() {
+        const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_expired.asc");
+        let not_expired = UnixTime::new(1_635_464_783);
+        let expired = UnixTime::new(1_751_881_317);
+        let profile = Profile::default();
+
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let check_result = public_key
+            .as_signed_public_key()
+            .check_primary_key(not_expired, &profile);
+
+        assert!(check_result.is_ok());
+
+        let check_result = public_key
+            .as_signed_public_key()
+            .check_primary_key(expired, &profile);
+
+        assert!(matches!(
+            check_result,
+            Err(KeyCertificationSelectionError::ExpiredKey {
+                date: _,
+                creation: _,
+                expiration: _,
+            })
+        ));
+    }
+
+    #[test]
+    fn primary_key_revoked() {
+        const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_revoked.asc");
+        let date = UnixTime::new(1_751_881_317);
+        let profile = Profile::default();
+
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let check_result = public_key
+            .as_signed_public_key()
+            .check_primary_key(date, &profile);
+
+        assert!(matches!(
+            check_result,
+            Err(KeyCertificationSelectionError::Revoked(_))
+        ));
+    }
+
+    #[test]
+    fn enc_key_selection_subkey_expired_binding_signature() {
+        const TEST_KEY: &str =
+            include_str!("../test-data/keys/public_key_v4_subkey_expired_binding_signature.asc");
+        let expired = UnixTime::new(1_751_881_317);
+        let profile = Profile::default();
+
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let selection_result = public_key
+            .as_signed_public_key()
+            .encryption_key(expired, &profile);
+
+        match selection_result {
+            Err(KeySelectionError::NoEncryptionKey(_, selection_errors)) => {
+                let selection_error = selection_errors.0.first().expect("No subkey error");
+                assert!(matches!(
+                    selection_error,
+                    KeySelectionError::KeySelfCertification(
+                        KeyCertificationSelectionError::NoSelfCertification(_)
+                    )
+                ));
+            }
+            _ => panic!("Expected NoEncryptionKey"),
+        }
+    }
+
+    #[test]
+    fn enc_key_selection_revoked() {
+        const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_subkey_revoked.asc");
+        let date = UnixTime::new(1_751_881_317);
+        let profile = Profile::default();
+
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let selection_result = public_key
+            .as_signed_public_key()
+            .encryption_key(date, &profile);
+
+        match selection_result {
+            Err(KeySelectionError::KeySelfCertification(
+                KeyCertificationSelectionError::NoIdentity(selection_errors),
+            )) => {
+                let selection_error = selection_errors.0.first().expect("No subkey error");
+                assert!(matches!(
+                    selection_error,
+                    KeyCertificationSelectionError::Revoked(_)
+                ));
+            }
+            _ => panic!("Expected KeySelectionError with Certification"),
+        }
+    }
 }
