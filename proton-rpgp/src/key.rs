@@ -1,0 +1,374 @@
+use pgp::{
+    composed::{ArmorOptions, Deserializable, PlainSessionKey, SignedPublicKey, SignedSecretKey},
+    ser::Serialize,
+    types::{Fingerprint, KeyDetails, KeyId, KeyVersion, Password},
+};
+
+use crate::{DataEncoding, KeyOperationError, Profile, UnixTime};
+
+/// A trait for types that can be converted to a `PublicKey` reference.
+pub trait AsPublicKeyRef {
+    fn as_public_key(&self) -> &PublicKey;
+}
+
+/// A generic `OpenPGP` public key.
+/// An `OpenPGP` key consitst of a primary key and zero or more subkeys.
+#[derive(Debug, Clone)]
+pub struct PublicKey {
+    /// The inner type from rPGP.
+    pub(crate) inner: SignedPublicKey,
+}
+
+impl AsPublicKeyRef for PublicKey {
+    fn as_public_key(&self) -> &PublicKey {
+        self
+    }
+}
+
+impl AsRef<PublicKey> for PublicKey {
+    fn as_ref(&self) -> &PublicKey {
+        self
+    }
+}
+
+impl PublicKey {
+    pub(crate) fn as_signed_public_key(&self) -> &SignedPublicKey {
+        &self.inner
+    }
+
+    /// Import an `OpenPGP` public key from a byte slice.
+    pub fn import(key_data: &[u8], encoding: DataEncoding) -> Result<Self, KeyOperationError> {
+        let signed_public_key = match encoding {
+            DataEncoding::Armor => SignedPublicKey::from_armor_single(key_data)
+                .map_err(KeyOperationError::Decode)
+                .map(|(signed_public, _)| signed_public)?,
+            DataEncoding::Bytes => {
+                SignedPublicKey::from_bytes(key_data).map_err(KeyOperationError::Decode)?
+            }
+        };
+
+        Ok(Self {
+            inner: signed_public_key,
+        })
+    }
+
+    /// Export the public key.
+    pub fn export(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
+        match encoding {
+            DataEncoding::Armor => self
+                .inner
+                .to_armored_bytes(ArmorOptions {
+                    headers: None,
+                    include_checksum: !(self.inner.version() == KeyVersion::V6),
+                })
+                .map_err(KeyOperationError::Encode),
+            DataEncoding::Bytes => {
+                let mut buf = Vec::new();
+                self.inner
+                    .to_writer(&mut buf)
+                    .map_err(KeyOperationError::Encode)?;
+                Ok(buf)
+            }
+        }
+    }
+
+    /// Returns the key id of the `OpenPGP` primary key.
+    pub fn key_id(&self) -> KeyId {
+        self.inner.key_id()
+    }
+
+    /// Returns the fingerprint of the `OpenPGP` primary key.
+    pub fn fingerprint(&self) -> Fingerprint {
+        self.inner.fingerprint()
+    }
+
+    /// Checks if the key can encrypt at the given unixtime.
+    pub fn can_encrypt(&self, profile: &Profile, date: UnixTime) -> bool {
+        self.as_signed_public_key()
+            .encryption_key(date, profile)
+            .is_ok()
+    }
+
+    /// Checks if the primray key is expired at the given date.
+    ///
+    /// Also retruns `true` if no valid primary self-certification can be found.
+    pub fn is_expired(&self, profile: &Profile, date: UnixTime) -> bool {
+        let Ok(self_signature) = self
+            .as_signed_public_key()
+            .primary_self_signature(date, profile)
+        else {
+            return true;
+        };
+
+        check_key_expired(self.as_signed_public_key(), self_signature, date).is_err()
+    }
+}
+
+/// A generic locked `OpenPGP` secret key.
+/// An `OpenPGP` key consitst of a primary key and zero or more subkeys.
+/// The secret key's private key material might be encrypted with a password.
+pub struct LockedPrivateKey(PrivateKey);
+
+impl AsRef<PublicKey> for LockedPrivateKey {
+    fn as_ref(&self) -> &PublicKey {
+        &self.0.public
+    }
+}
+
+impl AsPublicKeyRef for LockedPrivateKey {
+    fn as_public_key(&self) -> &PublicKey {
+        &self.0.public
+    }
+}
+
+impl From<LockedPrivateKey> for PublicKey {
+    fn from(locked: LockedPrivateKey) -> Self {
+        locked.0.public
+    }
+}
+
+impl From<&LockedPrivateKey> for PublicKey {
+    fn from(value: &LockedPrivateKey) -> Self {
+        value.0.public.clone()
+    }
+}
+
+impl From<PrivateKey> for PublicKey {
+    fn from(private: PrivateKey) -> Self {
+        private.public
+    }
+}
+
+impl From<&PrivateKey> for PublicKey {
+    fn from(value: &PrivateKey) -> Self {
+        value.public.clone()
+    }
+}
+
+impl LockedPrivateKey {
+    fn new(secret: SignedSecretKey) -> Self {
+        Self(PrivateKey::new(secret))
+    }
+
+    pub(crate) fn as_signed_public_key(&self) -> &SignedPublicKey {
+        &self.0.public.inner
+    }
+
+    /// Check if the secret key is locked.
+    ///
+    /// A secret key is locked if its private key material is encrypted with a password.
+    pub fn is_locked(&self) -> bool {
+        self.0.secret.secret_params().is_encrypted()
+            || self
+                .0
+                .secret
+                .secret_subkeys
+                .iter()
+                .any(|sub_key| sub_key.secret_params().is_encrypted())
+    }
+
+    /// Unlock the secret key with a key password.
+    pub fn unlock(&self, password: &[u8]) -> Result<PrivateKey, KeyOperationError> {
+        let local_password = Password::from(password);
+        let mut secret_copy = self.0.secret.clone();
+        secret_copy
+            .primary_key
+            .remove_password(&local_password)
+            .map_err(|e| KeyOperationError::Unlock(secret_copy.primary_key.key_id(), e))?;
+        for subkey in &mut secret_copy.secret_subkeys {
+            subkey
+                .key
+                .remove_password(&local_password)
+                .map_err(|err| KeyOperationError::Unlock(subkey.key.key_id(), err))?;
+        }
+        Ok(PrivateKey::new(secret_copy))
+    }
+
+    /// Import a locked `OpenPGP` secret key from a byte slice.
+    ///
+    /// Does not check if the key is locked or not.
+    pub fn import(key_data: &[u8], encoding: DataEncoding) -> Result<Self, KeyOperationError> {
+        let secret = match encoding {
+            DataEncoding::Armor => SignedSecretKey::from_armor_single(key_data)
+                .map_err(KeyOperationError::Decode)
+                .map(|(secret, _)| secret)?,
+            DataEncoding::Bytes => {
+                SignedSecretKey::from_bytes(key_data).map_err(KeyOperationError::Decode)?
+            }
+        };
+        Ok(Self::new(secret))
+    }
+
+    /// Export the locked key.
+    pub fn export(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
+        // The key is already locked.
+        self.0.export_unlocked(encoding)
+    }
+
+    /// Returns the key id of the `OpenPGP` primary key.
+    pub fn key_id(&self) -> KeyId {
+        self.0.key_id()
+    }
+
+    /// Returns the fingerprint of the `OpenPGP` primary key.
+    pub fn fingerprint(&self) -> Fingerprint {
+        self.0.fingerprint()
+    }
+}
+
+/// A generic unlocked `OpenPGP` secret key.
+/// An `OpenPGP` key consitst of a primary key and zero or more subkeys.
+/// The secret key contains all the unlocked private key material.
+#[derive(Debug, Clone)]
+pub struct PrivateKey {
+    /// We keep a copy of the public key part of the secret key.
+    /// This allows to pass a secret key to act as a public key in verification and encryption operations.
+    pub(crate) public: PublicKey,
+
+    /// The inner secret ley type from rPGP.
+    pub(crate) secret: SignedSecretKey,
+}
+
+impl AsRef<PublicKey> for PrivateKey {
+    fn as_ref(&self) -> &PublicKey {
+        &self.public
+    }
+}
+
+impl AsPublicKeyRef for PrivateKey {
+    fn as_public_key(&self) -> &PublicKey {
+        &self.public
+    }
+}
+
+impl PrivateKey {
+    fn new(secret: SignedSecretKey) -> Self {
+        let signed_public = SignedPublicKey::from(secret.clone());
+        Self {
+            public: PublicKey {
+                inner: signed_public,
+            },
+            secret,
+        }
+    }
+
+    fn as_signed_public_key(&self) -> &SignedPublicKey {
+        &self.public.inner
+    }
+
+    /// Import and unlock `OpenPGP` secret key from a byte slice.
+    pub fn import(
+        key_data: &[u8],
+        password: &[u8],
+        encoding: DataEncoding,
+    ) -> Result<PrivateKey, KeyOperationError> {
+        let locked = LockedPrivateKey::import(key_data, encoding)?;
+        if !locked.is_locked() {
+            return Ok(locked.0);
+        }
+        locked.unlock(password)
+    }
+
+    /// Import an unlocked `OpenPGP` secret key from a byte slice.
+    ///
+    /// Returns an [`KeyOperationError::Locked`] if the imported key is locked.
+    pub fn import_unlocked(
+        key_data: &[u8],
+        encoding: DataEncoding,
+    ) -> Result<PrivateKey, KeyOperationError> {
+        let locked = LockedPrivateKey::import(key_data, encoding)?;
+        if locked.is_locked() {
+            return Err(KeyOperationError::Locked);
+        }
+        locked.unlock("".as_bytes())
+    }
+
+    /// Lock the secret key with a password and export it.
+    pub fn export(
+        &self,
+        profile: &Profile,
+        password: &[u8],
+        encoding: DataEncoding,
+    ) -> Result<Vec<u8>, KeyOperationError> {
+        let locked_key = self.lock(profile, password)?;
+        match encoding {
+            DataEncoding::Armor => locked_key
+                .0
+                .secret
+                .to_armored_bytes(ArmorOptions {
+                    headers: None,
+                    include_checksum: !(self.secret.version() == KeyVersion::V6),
+                })
+                .map_err(KeyOperationError::Encode),
+            DataEncoding::Bytes => {
+                let mut buf = Vec::new();
+                locked_key
+                    .0
+                    .secret
+                    .to_writer(&mut buf)
+                    .map_err(KeyOperationError::Encode)?;
+                Ok(buf)
+            }
+        }
+    }
+
+    /// Export the key in unlocked fromat.
+    ///
+    /// # Security
+    /// Note that a key exported in unlocked format is not protected by a password.
+    /// If unsure use [`Self::export`] instead.
+    pub fn export_unlocked(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
+        match encoding {
+            DataEncoding::Armor => self
+                .secret
+                .to_armored_bytes(ArmorOptions {
+                    headers: None,
+                    include_checksum: !(self.secret.version() == KeyVersion::V6),
+                })
+                .map_err(KeyOperationError::Encode),
+            DataEncoding::Bytes => {
+                let mut buf = Vec::new();
+                self.secret
+                    .to_writer(&mut buf)
+                    .map_err(KeyOperationError::Encode)?;
+                Ok(buf)
+            }
+        }
+    }
+
+    /// Lock the secret key with a password.
+    pub fn lock(
+        &self,
+        profile: &Profile,
+        password: &[u8],
+    ) -> Result<LockedPrivateKey, KeyOperationError> {
+        let mut secret_copy = self.secret.clone();
+        let password = Password::from(password);
+        secret_copy
+            .primary_key
+            .set_password_with_s2k(&password, profile.key_s2k_params())
+            .map_err(|e| KeyOperationError::Lock(self.key_id(), e))?;
+        for subkey in &mut secret_copy.secret_subkeys {
+            subkey
+                .key
+                .set_password_with_s2k(&password, profile.key_s2k_params())
+                .map_err(|e| KeyOperationError::Lock(self.key_id(), e))?;
+        }
+        Ok(LockedPrivateKey::new(secret_copy))
+    }
+
+    /// Returns the key id of the `OpenPGP` primary key.
+    pub fn key_id(&self) -> KeyId {
+        self.public.inner.key_id()
+    }
+
+    /// Returns the fingerprint of the `OpenPGP` primary key.
+    pub fn fingerprint(&self) -> Fingerprint {
+        self.public.inner.fingerprint()
+    }
+}
+
+/// TODO.
+pub struct SessionKey {
+    pub(crate) inner: PlainSessionKey,
+}
