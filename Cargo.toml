@@ -7,6 +7,7 @@ members = [
     "proton-device-verification",
     "proton-srp",
     "proton-crypto-subtle",
+    "proton-rpgp"
 ]
 
 [workspace.package]
@@ -84,6 +85,12 @@ registry = "proton"
 path     = "proton-device-verification"
 version  = "0.1.0"
 registry = "proton"
+
+[workspace.dependencies.proton-rpgp]
+path     = "proton-rpgp"
+version  = "0.1.0"
+registry = "proton"
+
 
 [profile.dev.package.proton-srp]
 opt-level = 2
