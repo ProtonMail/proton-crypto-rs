@@ -1,3 +1,4 @@
+mod decryption;
 mod encryption;
 mod errors;
 mod key;
@@ -8,6 +9,7 @@ mod types;
 /// Re-export the `pgp` crate.
 pub use pgp;
 
+pub use decryption::*;
 pub use encryption::*;
 pub use errors::*;
 pub use key::*;
