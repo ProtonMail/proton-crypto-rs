@@ -12,7 +12,7 @@ use crate::{
 
 /// Trait for selecting the best self-certification for a key part.
 ///
-/// This can be used on ``UserIds``, Signed Subkeys, Signed Primary key.
+/// This can be used on `UserIds`, Signed Subkeys, Signed Primary key.
 pub trait CertifiationSelectionExt {
     /// Iterates over the self-certifications of this key part ignoring revocations.
     fn iter_self_certifications(&self) -> impl DoubleEndedIterator<Item = &packet::Signature>;
@@ -87,12 +87,16 @@ pub trait CertifiationSelectionExt {
     fn revoked<K: PublicKeyTrait + Serialize>(
         &self,
         primary_key: &K,
-        self_signature: &packet::Signature,
+        self_signature: Option<&packet::Signature>,
         date: UnixTime,
         profile: &Profile,
     ) -> bool {
-        let self_signature_creation_time =
-            self_signature.unix_created().unwrap_or(UnixTime::zero());
+        let self_signature_creation_time = if let Some(self_signature) = self_signature {
+            self_signature.unix_created().unwrap_or(UnixTime::zero())
+        } else {
+            UnixTime::zero()
+        };
+
         // Helper closure to verify signature + details
         let is_valid = |sig: &packet::Signature, date: UnixTime| {
             self.verify_certification(primary_key, sig, date, profile)
@@ -130,7 +134,7 @@ pub trait CertifiationSelectionExt {
         profile: &Profile,
     ) -> Result<&packet::Signature, KeyCertificationSelectionError> {
         let self_signature = self.latest_valid_self_certification(primary_key, date, profile)?;
-        if self.revoked(primary_key, self_signature, date, profile) {
+        if self.revoked(primary_key, Some(self_signature), date, profile) {
             return Err(KeyCertificationSelectionError::Revoked(Box::new(
                 self_signature.to_owned(),
             )));

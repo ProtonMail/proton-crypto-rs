@@ -1,9 +1,11 @@
 use std::{
-    fmt,
+    fmt::{self, Display},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use chrono::{DateTime, Utc};
+
+use crate::FingerprintError;
 
 /// Possible encodings of an `OpenPGP` message.
 ///
@@ -88,5 +90,46 @@ impl From<DateTime<Utc>> for UnixTime {
         // Ok to transform to u64 without checks.
         #[allow(clippy::cast_sign_loss)]
         Self(value.timestamp() as u64)
+    }
+}
+
+/// A sha256 fingerprint.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct FingerprintSha256(pub(crate) [u8; 32]);
+
+impl FingerprintSha256 {
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub fn from_hex(hex: &str) -> Result<Self, FingerprintError> {
+        let bytes = hex::decode(hex)?;
+        let len = bytes.len();
+        let raw_fp: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| FingerprintError::InvalidLength(len))?;
+        Ok(Self(raw_fp))
+    }
+
+    pub fn to_hex(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl AsRef<[u8]> for FingerprintSha256 {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<[u8; 32]> for FingerprintSha256 {
+    fn from(value: [u8; 32]) -> Self {
+        Self::new(value)
+    }
+}
+
+impl Display for FingerprintSha256 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
     }
 }

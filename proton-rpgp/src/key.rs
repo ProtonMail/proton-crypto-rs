@@ -1,10 +1,10 @@
 use pgp::{
     composed::{ArmorOptions, Deserializable, PlainSessionKey, SignedPublicKey, SignedSecretKey},
     ser::Serialize,
-    types::{Fingerprint, KeyDetails, KeyId, KeyVersion, Password},
+    types::{KeyDetails, KeyVersion, Password},
 };
 
-use crate::{DataEncoding, KeyOperationError, Profile, UnixTime};
+use crate::{DataEncoding, KeyOperationError, Profile};
 
 mod certifications;
 pub(crate) use certifications::*;
@@ -14,6 +14,9 @@ pub(crate) use component::*;
 
 mod selection;
 pub(crate) use selection::*;
+
+mod info;
+pub use info::*;
 
 /// A trait for types that can be converted to a `PublicKey` reference.
 pub trait AsPublicKeyRef {
@@ -79,37 +82,6 @@ impl PublicKey {
                 Ok(buf)
             }
         }
-    }
-
-    /// Returns the key id of the `OpenPGP` primary key.
-    pub fn key_id(&self) -> KeyId {
-        self.inner.key_id()
-    }
-
-    /// Returns the fingerprint of the `OpenPGP` primary key.
-    pub fn fingerprint(&self) -> Fingerprint {
-        self.inner.fingerprint()
-    }
-
-    /// Checks if the key can encrypt at the given unixtime.
-    pub fn can_encrypt(&self, profile: &Profile, date: UnixTime) -> bool {
-        self.as_signed_public_key()
-            .encryption_key(date, profile)
-            .is_ok()
-    }
-
-    /// Checks if the primray key is expired at the given date.
-    ///
-    /// Also retruns `true` if no valid primary self-certification can be found.
-    pub fn is_expired(&self, profile: &Profile, date: UnixTime) -> bool {
-        let Ok(self_signature) = self
-            .as_signed_public_key()
-            .primary_self_signature(date, profile)
-        else {
-            return true;
-        };
-
-        check_key_expired(self.as_signed_public_key(), self_signature, date).is_err()
     }
 }
 
@@ -212,16 +184,6 @@ impl LockedPrivateKey {
     pub fn export(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
         // The key is already locked.
         self.0.export_unlocked(encoding)
-    }
-
-    /// Returns the key id of the `OpenPGP` primary key.
-    pub fn key_id(&self) -> KeyId {
-        self.0.key_id()
-    }
-
-    /// Returns the fingerprint of the `OpenPGP` primary key.
-    pub fn fingerprint(&self) -> Fingerprint {
-        self.0.fingerprint()
     }
 }
 
@@ -365,16 +327,6 @@ impl PrivateKey {
         }
         Ok(LockedPrivateKey::new(secret_copy))
     }
-
-    /// Returns the key id of the `OpenPGP` primary key.
-    pub fn key_id(&self) -> KeyId {
-        self.public.inner.key_id()
-    }
-
-    /// Returns the fingerprint of the `OpenPGP` primary key.
-    pub fn fingerprint(&self) -> Fingerprint {
-        self.public.inner.fingerprint()
-    }
 }
 
 /// TODO.
@@ -384,8 +336,6 @@ pub struct SessionKey {
 
 #[cfg(test)]
 mod tests {
-    use pgp::crypto::public_key;
-
     use crate::{
         types::UnixTime, DataEncoding, KeyCertificationSelectionError, KeySelectionError,
         LockedPrivateKey, PrivateKey, Profile, PublicKey, SignatureUsage,

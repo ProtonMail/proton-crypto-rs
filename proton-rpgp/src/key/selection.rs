@@ -108,7 +108,7 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
 
         if self.revoked(
             self.primary_key(),
-            primary_self_certification,
+            Some(primary_self_certification),
             date,
             profile,
         ) {
@@ -117,7 +117,7 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
             )));
         }
 
-        key_expired(self.primary_key(), primary_self_certification, date)?;
+        check_key_expired(self.primary_key(), primary_self_certification, date)?;
 
         Ok(primary_self_certification)
     }
@@ -209,6 +209,7 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
     /// Selects all valid keys to verify a signature from `OpenPGP` key.
     ///
     /// The verification keys can be filtered by `KeyId` or `usage`.
+    /// If there are no verification keys, an error is returned.
     fn verification_keys(
         &self,
         date: UnixTime,
@@ -281,7 +282,12 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
             ));
         }
 
-        // If we have found a subkey that is a valid encryption key, return it.
+        if verification_keys.is_empty() {
+            return Err(KeySelectionError::NoVerificationKeys(
+                primary_key.key_id(),
+                errors.into(),
+            ));
+        }
         Ok(verification_keys)
     }
 }
@@ -396,9 +402,10 @@ fn prefer_identity_over(current: &packet::Signature, potential: &packet::Signatu
 
 /// Checks if the key is expired at the given date based on its self-certification.
 ///
+/// Returns an error if the key is expired.
 /// The key is expired if it is in the future or if it has an expiration time
 /// that is before the given date.
-fn key_expired<K: PublicKeyTrait + Serialize>(
+pub(crate) fn check_key_expired<K: PublicKeyTrait + Serialize>(
     key: &K,
     self_signature: &packet::Signature,
     date: UnixTime,
@@ -465,8 +472,8 @@ fn check_key_requirements(
                 if profile.reject_ecc_curve(&curve) {
                     return Err(KeyRequirementError::WeakEccAlgorithm(curve));
                 }
-                if public_key.version() == KeyVersion::V6 && curve == ECCCurve::Ed25519
-                    || curve == ECCCurve::Curve25519
+                if public_key.version() == KeyVersion::V6
+                    && (curve == ECCCurve::Ed25519 || curve == ECCCurve::Curve25519)
                 {
                     return Err(KeyRequirementError::MixedLegacyAlgorithms(curve));
                 }

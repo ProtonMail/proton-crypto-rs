@@ -1,5 +1,6 @@
 use proton_rpgp::{
-    DataEncoding, KeyOperationError, LockedPrivateKey, PrivateKey, Profile, PublicKey,
+    DataEncoding, KeyInfo, KeyOperationError, LockedPrivateKey, PrivateKey, Profile, PublicKey,
+    UnixTime,
 };
 
 pub const TEST_PRIVATE_KEY: &str = include_str!("../test-data/keys/locked_private_key_v6.asc");
@@ -7,7 +8,7 @@ pub const TEST_PUBLIC_KEY: &str = include_str!("../test-data/keys/public_key_v4.
 pub const TEST_PRIVATE_KEY_PASSWORD: &str = "password";
 
 #[test]
-fn import_and_unlock_private_key() {
+fn key_import_and_unlock_private_key() {
     let key = LockedPrivateKey::import(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
 
@@ -18,7 +19,7 @@ fn import_and_unlock_private_key() {
 }
 
 #[test]
-fn import_and_unlock_private_key_fail() {
+fn key_import_and_unlock_private_key_fail() {
     let key = LockedPrivateKey::import(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
 
@@ -27,7 +28,7 @@ fn import_and_unlock_private_key_fail() {
 }
 
 #[test]
-fn import_public_key() {
+fn key_import_public_key() {
     let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
 
@@ -35,7 +36,7 @@ fn import_public_key() {
 }
 
 #[test]
-fn export_import_locked_key() {
+fn key_export_import_locked_key() {
     let key = LockedPrivateKey::import(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
 
@@ -51,7 +52,7 @@ fn export_import_locked_key() {
 }
 
 #[test]
-fn export_import_unlock_key() {
+fn key_export_import_unlock_key() {
     let key = LockedPrivateKey::import(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
 
@@ -78,7 +79,7 @@ fn export_import_unlock_key() {
 }
 
 #[test]
-fn export_import_unlocked_key() {
+fn key_export_import_unlocked_key() {
     let key = LockedPrivateKey::import(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
 
@@ -98,4 +99,89 @@ fn export_import_unlocked_key() {
     let failure_result =
         PrivateKey::import_unlocked(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armor);
     assert!(matches!(failure_result, Err(KeyOperationError::Locked)));
+}
+
+#[test]
+fn key_is_revoked() {
+    const LOCAL_TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_revoked.asc");
+
+    let date = UnixTime::new(1_751_881_317);
+
+    let key_revoked = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+    let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+
+    let expect_is_revoked = key_revoked.is_revoked(&Profile::default(), date);
+    let expect_is_not_revoked = key.is_revoked(&Profile::default(), date);
+
+    assert!(expect_is_revoked && !expect_is_not_revoked);
+}
+
+#[test]
+fn key_is_expired() {
+    const LOCAL_TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_expired.asc");
+    let profile = Profile::default();
+
+    let not_expired = UnixTime::new(1_635_464_783);
+    let expired = UnixTime::new(1_751_881_317);
+
+    let key = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+
+    let expect_expired = key.is_expired(&profile, expired);
+    let expect_not_expired = key.is_expired(&profile, not_expired);
+
+    assert!(expect_expired && !expect_not_expired);
+}
+
+#[test]
+fn key_can_encrypt() {
+    const LOCAL_TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_subkey_revoked.asc");
+    let profile = Profile::default();
+    let date = UnixTime::new(1_751_881_317);
+
+    let sub_key_revoked = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+    let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+
+    let expect_can_encrypt = key.can_encrypt(&profile, date);
+    let expect_cannot_encrypt = sub_key_revoked.can_encrypt(&profile, date);
+
+    assert!(expect_can_encrypt.is_ok() && expect_cannot_encrypt.is_err());
+}
+
+#[test]
+fn key_can_verify() {
+    const LOCAL_TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_revoked.asc");
+    let profile = Profile::default();
+    let date = UnixTime::new(1_751_881_317);
+
+    let key_revoked = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+    let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+
+    let expect_can_verify = key.can_verify(&profile, date);
+    let expect_cannot_verify = key_revoked.can_verify(&profile, date);
+
+    assert!(expect_can_verify.is_ok() && expect_cannot_verify.is_err());
+}
+
+#[test]
+fn key_sha256_fingerprints() {
+    const EXPECTED_FINGERPRINTS: [&str; 2] = [
+        "15b2ad6ca439fce7913d09ab0317dfcd3836bc59f3eed8da6807dd32c26a3c11",
+        "af0bc6f2b6e0773a1e4baab336dfbcfea940eeaa242402750055b6d85991e5a6",
+    ];
+
+    let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+
+    let fingerprints = key.fingerprints_sha256();
+    assert_eq!(fingerprints.len(), EXPECTED_FINGERPRINTS.len());
+    for (i, fingerprint) in fingerprints.iter().enumerate() {
+        assert_eq!(fingerprint.to_string(), EXPECTED_FINGERPRINTS[i]);
+    }
 }

@@ -89,8 +89,10 @@ pub enum KeySelectionError {
     PrimaryRequirement(KeyId, KeyRequirementError),
     #[error("Subkey {0} does not meet requirements: {1}")]
     SubkeyRequirement(KeyId, KeyRequirementError),
-    #[error("No encryption key found in key with primary key id {0}: {1:?}")]
+    #[error("No encryption key found in key with primary key id {0}: {1}")]
     NoEncryptionKey(KeyId, ErrorList<KeySelectionError>),
+    #[error("No verification key found in key with primary key id {0}: {1}")]
+    NoVerificationKeys(KeyId, ErrorList<KeySelectionError>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -123,6 +125,14 @@ pub enum DecryptionError {
 pub enum EncryptionError {
     #[error("Failed to select encryption key: {0:?}")]
     EncryptionKeySelection(ErrorList<KeySelectionError>),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum FingerprintError {
+    #[error("Failed to decode hex string: {0}")]
+    HexDecode(#[from] hex::FromHexError),
+    #[error("Invalid fingerprint length: {0}")]
+    InvalidLength(usize),
 }
 
 #[derive(Debug)]
