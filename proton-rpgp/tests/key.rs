@@ -32,7 +32,10 @@ fn key_import_public_key() {
     let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
 
-    assert_eq!(key.key_id().to_string(), "1900ce9499886588");
+    assert_eq!(
+        key.fingerprint().to_string(),
+        "c8e74badf4d2221719212f994faefe8fff37c1e7"
+    );
 }
 
 #[test]
@@ -139,7 +142,7 @@ fn key_is_expired() {
 fn key_can_encrypt() {
     const LOCAL_TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_subkey_revoked.asc");
     let profile = Profile::default();
-    let date = UnixTime::new(1_751_881_317);
+    let date = UnixTime::new(1_751_984_424);
 
     let sub_key_revoked = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
@@ -156,7 +159,7 @@ fn key_can_encrypt() {
 fn key_can_verify() {
     const LOCAL_TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_revoked.asc");
     let profile = Profile::default();
-    let date = UnixTime::new(1_751_881_317);
+    let date = UnixTime::new(1_751_984_424);
 
     let key_revoked = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
@@ -172,8 +175,8 @@ fn key_can_verify() {
 #[test]
 fn key_sha256_fingerprints() {
     const EXPECTED_FINGERPRINTS: [&str; 2] = [
-        "15b2ad6ca439fce7913d09ab0317dfcd3836bc59f3eed8da6807dd32c26a3c11",
-        "af0bc6f2b6e0773a1e4baab336dfbcfea940eeaa242402750055b6d85991e5a6",
+        "c661eb295d86ca96733f4a18237f0e7b0bbf599e0060795302546fc644f3c9e3",
+        "361d3c849b69bdd269cd0054f9dcee6df5f45f23c758ec3f805457684683996d",
     ];
 
     let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)

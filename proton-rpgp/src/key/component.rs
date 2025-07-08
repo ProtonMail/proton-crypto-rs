@@ -64,6 +64,20 @@ pub(crate) struct PrivateComponentKey<'a> {
     pub(crate) self_certification: &'a packet::Signature,
 }
 
+impl<'a> PrivateComponentKey<'a> {
+    pub(crate) fn new(
+        private_key: AnySecretKey<'a>,
+        primary_self_certification: &'a packet::Signature,
+        self_certification: &'a packet::Signature,
+    ) -> Self {
+        Self {
+            private_key,
+            primary_self_certification,
+            self_certification,
+        }
+    }
+}
+
 /// The [`SecretKeyTrait`] does not expose decryption methods. Thus, we
 /// need an explicit enum type covering all secret key types.
 /// [`AnySecretKey`] either represents a secret primary or secret subkey.

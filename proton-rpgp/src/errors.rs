@@ -89,10 +89,16 @@ pub enum KeySelectionError {
     PrimaryRequirement(KeyId, KeyRequirementError),
     #[error("Subkey {0} does not meet requirements: {1}")]
     SubkeyRequirement(KeyId, KeyRequirementError),
-    #[error("No encryption key found in key with primary key id {0}: {1}")]
+    #[error("Key {0} does not match requested key-id: {1}")]
+    NoMatch(KeyId, KeyId),
+    #[error("No valid encryption key found in key with primary key-id {0}: {1}")]
     NoEncryptionKey(KeyId, ErrorList<KeySelectionError>),
-    #[error("No verification key found in key with primary key id {0}: {1}")]
+    #[error("No valid verification keys found in key with primary key-id {0}: {1}")]
     NoVerificationKeys(KeyId, ErrorList<KeySelectionError>),
+    #[error("No valid decryption keys found in key with primary key-id {0}: {1}")]
+    NoDecryptionKeys(KeyId, ErrorList<KeySelectionError>),
+    #[error("No valid signing key found in key with primary key-id {0}: {1}")]
+    NoSigningKey(KeyId, ErrorList<KeySelectionError>),
 }
 
 #[derive(Debug, thiserror::Error)]

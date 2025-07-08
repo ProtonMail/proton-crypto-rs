@@ -1,5 +1,5 @@
 use pgp::{
-    composed::{SignedPublicKey, SignedPublicSubKey},
+    composed::{SignedPublicKey, SignedPublicSubKey, SignedSecretKey, SignedSecretSubKey},
     crypto::{ecc_curve::ECCCurve, public_key::PublicKeyAlgorithm},
     packet::{self, KeyFlags},
     ser::Serialize,
@@ -7,8 +7,9 @@ use pgp::{
 };
 
 use crate::{
-    types::UnixTime, CertifiationSelectionExt, KeyCertificationSelectionError, KeyRequirementError,
-    KeySelectionError, Profile, PublicComponentKey, SignatureExt,
+    types::UnixTime, AnySecretKey, CertifiationSelectionExt, KeyCertificationSelectionError,
+    KeyRequirementError, KeySelectionError, PrivateComponentKey, Profile, PublicComponentKey,
+    SignatureExt,
 };
 
 use rsa::traits::PublicKeyParts;
@@ -247,6 +248,7 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
             // Filter by key id if present.
             if let Some(key_id) = key_id {
                 if sub_key.key_id() != key_id {
+                    errors.push(KeySelectionError::NoMatch(sub_key.key_id(), key_id));
                     continue;
                 }
             }
@@ -289,6 +291,198 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
             ));
         }
         Ok(verification_keys)
+    }
+}
+
+/// Extension trait for selecting a matching singning/decryption key from an `OpenPGP` key.
+pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
+    /// Return the primary secret key.
+    fn primary_secret_key(&self) -> &packet::SecretKey;
+
+    /// Returns an iterator over the private subkeys of the `OpenPGP` key.
+    fn iter_private_subkeys(&self) -> impl Iterator<Item = &SignedSecretSubKey>;
+
+    /// Selects a signing key from the `OpenPGP` key.
+    ///
+    /// The signing key can be filtered by `KeyId` or `usage`.
+    /// If there are no signing keys, an error is returned.
+    fn signing_key(
+        &self,
+        date: UnixTime,
+        key_id: Option<KeyId>,
+        usage: SignatureUsage,
+        profile: &Profile,
+    ) -> Result<PrivateComponentKey<'_>, KeySelectionError> {
+        // Check if the primary key is a valid.
+        let primary_self_certification = self.check_primary_key(date, profile)?;
+
+        let primary_key = self.primary_key();
+        check_key_requirements(primary_key, profile)
+            .map_err(|err| KeySelectionError::PrimaryRequirement(primary_key.key_id(), err))?;
+
+        let mut signing_key = None;
+        let mut max_time = None;
+        let mut errors = Vec::new();
+        for sub_key in self.iter_private_subkeys() {
+            // Filter by key id if present.
+            if let Some(key_id) = key_id {
+                if sub_key.key_id() != key_id {
+                    errors.push(KeySelectionError::NoMatch(sub_key.key_id(), key_id));
+                    continue;
+                }
+            }
+
+            // Check subkey certifcations.
+            let sub_key_self_certification =
+                match sub_key.check_validility(primary_key, date, profile) {
+                    Ok(self_certification) => self_certification,
+                    Err(err) => {
+                        errors.push(KeySelectionError::KeySelfCertification(err));
+                        continue;
+                    }
+                };
+
+            // Check if the subkey is a valid singing key.
+            if !check_signing_key_flags(
+                &sub_key.key.public_key(),
+                sub_key_self_certification,
+                profile,
+                usage,
+            ) {
+                errors.push(KeySelectionError::SubkeyRequirement(
+                    sub_key.key_id(),
+                    KeyRequirementError::InvalidKeyFlags,
+                ));
+                continue;
+            }
+
+            // Check key requirements enforced by the profile.
+            if let Err(err) = check_key_requirements(sub_key.key.public_key(), profile) {
+                errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
+                continue;
+            }
+
+            let should_prefer = max_time.is_none_or(|current_max_time| {
+                sub_key.public_key().created_at() > &current_max_time
+            });
+
+            if should_prefer {
+                signing_key = Some(PrivateComponentKey::new(
+                    AnySecretKey::SecretSubKey(&sub_key.key),
+                    primary_self_certification,
+                    sub_key_self_certification,
+                ));
+                max_time = Some(*sub_key.public_key().created_at());
+            }
+        }
+
+        if let Some(signing_subkey) = signing_key {
+            return Ok(signing_subkey);
+        }
+
+        // Check if the primary key is a valid signing key.
+        if let Some(key_id) = key_id {
+            if primary_key.key_id() != key_id {
+                errors.push(KeySelectionError::NoMatch(primary_key.key_id(), key_id));
+                return Err(KeySelectionError::NoSigningKey(
+                    primary_key.key_id(),
+                    errors.into(),
+                ));
+            }
+        }
+
+        if !check_signing_key_flags(primary_key, primary_self_certification, profile, usage) {
+            errors.push(KeySelectionError::PrimaryRequirement(
+                primary_key.key_id(),
+                KeyRequirementError::InvalidKeyFlags,
+            ));
+            return Err(KeySelectionError::NoSigningKey(
+                primary_key.key_id(),
+                errors.into(),
+            ));
+        }
+
+        Ok(PrivateComponentKey::new(
+            AnySecretKey::PrimarySecretKey(self.primary_secret_key()),
+            primary_self_certification,
+            primary_self_certification,
+        ))
+    }
+
+    /// Selects all valid keys to decrypt a message from the `OpenPGP` key.
+    ///
+    /// The decryption keys can be filtered by `KeyId`.
+    /// If there are no decryption keys, an error is returned.
+    fn decryption_keys(
+        &self,
+        date: UnixTime,
+        key_id: Option<KeyId>,
+        profile: &Profile,
+    ) -> Result<Vec<PrivateComponentKey<'_>>, KeySelectionError> {
+        let primary_key = self.primary_key();
+        let primary_self_certification = self.primary_self_signature(date, profile)?;
+
+        let mut errors = Vec::new();
+        let mut decryption_keys = Vec::new();
+
+        for sub_key in self.iter_private_subkeys() {
+            // Filter by key-id if present.
+            if let Some(key_id) = key_id {
+                if sub_key.key_id() != key_id {
+                    errors.push(KeySelectionError::NoMatch(sub_key.key_id(), key_id));
+                    continue;
+                }
+            }
+
+            // Check subkey self-certification.
+            let subkey_self_certification =
+                match sub_key.latest_valid_self_certification(primary_key, date, profile) {
+                    Ok(subkey_self_certification) => subkey_self_certification,
+                    Err(err) => {
+                        errors.push(KeySelectionError::KeySelfCertification(err));
+                        continue;
+                    }
+                };
+
+            // Check if the subkey is a valid decryption key.
+            if let Err(err) = is_valid_encryption_key(
+                sub_key.key.public_key(),
+                subkey_self_certification,
+                profile,
+            ) {
+                errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
+                continue;
+            }
+
+            decryption_keys.push(PrivateComponentKey::new(
+                AnySecretKey::SecretSubKey(&sub_key.key),
+                primary_self_certification,
+                subkey_self_certification,
+            ));
+        }
+
+        // Check if we can decrypt with the primary key for compatibility.
+        if let Err(err) = is_valid_encryption_key(primary_key, primary_self_certification, profile)
+        {
+            errors.push(KeySelectionError::PrimaryRequirement(
+                primary_key.key_id(),
+                err,
+            ));
+        } else {
+            decryption_keys.push(PrivateComponentKey::new(
+                AnySecretKey::PrimarySecretKey(self.primary_secret_key()),
+                primary_self_certification,
+                primary_self_certification,
+            ));
+        }
+
+        if decryption_keys.is_empty() {
+            return Err(KeySelectionError::NoDecryptionKeys(
+                primary_key.key_id(),
+                errors.into(),
+            ));
+        }
+        Ok(decryption_keys)
     }
 }
 
@@ -495,5 +689,29 @@ impl PublicKeySelectionExt for SignedPublicKey {
 
     fn iter_subkeys(&self) -> impl Iterator<Item = &SignedPublicSubKey> {
         self.public_subkeys.iter()
+    }
+}
+
+impl PublicKeySelectionExt for SignedSecretKey {
+    fn primary_key(&self) -> &packet::PublicKey {
+        self.primary_key.public_key()
+    }
+
+    fn iter_identities(&self) -> impl Iterator<Item = &SignedUser> {
+        self.details.users.iter()
+    }
+
+    fn iter_subkeys(&self) -> impl Iterator<Item = &SignedPublicSubKey> {
+        self.public_subkeys.iter()
+    }
+}
+
+impl PrivateKeySelectionExt for SignedSecretKey {
+    fn primary_secret_key(&self) -> &packet::SecretKey {
+        &self.primary_key
+    }
+
+    fn iter_private_subkeys(&self) -> impl Iterator<Item = &SignedSecretSubKey> {
+        self.secret_subkeys.iter()
     }
 }

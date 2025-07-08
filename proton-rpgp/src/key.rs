@@ -336,9 +336,11 @@ pub struct SessionKey {
 
 #[cfg(test)]
 mod tests {
+    use pgp::types::KeyDetails;
+
     use crate::{
         types::UnixTime, DataEncoding, KeyCertificationSelectionError, KeySelectionError,
-        LockedPrivateKey, PrivateKey, Profile, PublicKey, SignatureUsage,
+        LockedPrivateKey, PrivateKey, PrivateKeySelectionExt, Profile, PublicKey, SignatureUsage,
     };
 
     use super::PublicKeySelectionExt;
@@ -548,5 +550,86 @@ mod tests {
             }
             _ => panic!("Expected KeySelectionError with Certification"),
         }
+    }
+
+    #[test]
+    fn enc_key_selection() {
+        const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
+        let date = UnixTime::new(1_751_984_424);
+        let profile = Profile::default();
+
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let selection_result = public_key
+            .as_signed_public_key()
+            .encryption_key(date, &profile)
+            .expect("key selected");
+
+        assert_eq!(
+            selection_result.public_key.fingerprint().to_string(),
+            "b21caed66abfe03ae31fcf4a27b3a9160a712c96"
+        );
+    }
+
+    #[test]
+    fn signing_key_selection() {
+        const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
+        let date = UnixTime::new(1_751_984_424);
+        let profile = Profile::default();
+
+        let private_key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let selection_result = private_key
+            .secret
+            .signing_key(date, None, SignatureUsage::Sign, &profile)
+            .expect("key selected");
+        assert_eq!(
+            selection_result.private_key.fingerprint().to_string(),
+            "c8e74badf4d2221719212f994faefe8fff37c1e7"
+        );
+    }
+
+    #[test]
+    fn verification_key_selection() {
+        const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
+        let date = UnixTime::new(1_751_984_424);
+        let profile = Profile::default();
+
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let selection_result = public_key
+            .as_signed_public_key()
+            .verification_keys(date, None, SignatureUsage::Sign, &profile)
+            .expect("key selected");
+
+        let selected = selection_result.into_iter().next().unwrap();
+        assert_eq!(
+            selected.public_key.fingerprint().to_string(),
+            "c8e74badf4d2221719212f994faefe8fff37c1e7"
+        );
+    }
+
+    #[test]
+    fn decryption_key_selection() {
+        const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
+        let date = UnixTime::new(1_751_984_424);
+        let profile = Profile::default();
+
+        let private_key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armor)
+            .expect("Failed to import key");
+
+        let selection_result = private_key
+            .secret
+            .decryption_keys(date, None, &profile)
+            .expect("key selected");
+
+        let selected = selection_result.into_iter().next().unwrap();
+        assert_eq!(
+            selected.private_key.fingerprint().to_string(),
+            "b21caed66abfe03ae31fcf4a27b3a9160a712c96"
+        );
     }
 }
