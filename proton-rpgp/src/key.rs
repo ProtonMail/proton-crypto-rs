@@ -223,7 +223,7 @@ impl PrivateKey {
         }
     }
 
-    fn as_signed_public_key(&self) -> &SignedPublicKey {
+    pub(crate) fn as_signed_public_key(&self) -> &SignedPublicKey {
         &self.public.inner
     }
 
@@ -331,7 +331,7 @@ impl PrivateKey {
 
 /// TODO.
 pub struct SessionKey {
-    pub(crate) inner: PlainSessionKey,
+    pub(crate) _inner: PlainSessionKey,
 }
 
 #[cfg(test)]
@@ -340,53 +340,10 @@ mod tests {
 
     use crate::{
         types::UnixTime, DataEncoding, KeyCertificationSelectionError, KeySelectionError,
-        LockedPrivateKey, PrivateKey, PrivateKeySelectionExt, Profile, PublicKey, SignatureUsage,
+        PrivateKey, PrivateKeySelectionExt, Profile, PublicKey, SignatureUsage,
     };
 
     use super::PublicKeySelectionExt;
-
-    pub const TEST_PRIVATE_KEY: &str = include_str!("../test-data/keys/locked_private_key_V6.asc");
-
-    pub const TEST_PRIVATE_KEY_PASSWORD: &str = "password";
-
-    #[test]
-    fn key_selection_experiments() {
-        let profile = Profile {};
-
-        let key = LockedPrivateKey::import(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armor)
-            .expect("Failed to import key");
-
-        let unlocked = key
-            .unlock(TEST_PRIVATE_KEY_PASSWORD.as_bytes())
-            .expect("Failed to unlock key");
-
-        println!("{:?}\n\n", unlocked.secret);
-
-        let component = unlocked
-            .as_signed_public_key()
-            .encryption_key(UnixTime::now().unwrap(), &profile)
-            .expect("Failed to get encryption key");
-
-        println!("{:?}\n", component.public_key);
-        println!("{:?}\n", component.primary_self_certification);
-        println!("{:?}\n", component.self_certification);
-
-        let verification_keys = unlocked
-            .as_signed_public_key()
-            .verification_keys(
-                UnixTime::now().unwrap(),
-                None,
-                SignatureUsage::Sign,
-                &profile,
-            )
-            .expect("Failed to get encryption key");
-
-        for key in verification_keys {
-            println!("{:?}\n", key.public_key);
-            println!("{:?}\n", key.primary_self_certification);
-            println!("{:?}\n", key.self_certification);
-        }
-    }
 
     #[test]
     fn multiple_user_ids() {

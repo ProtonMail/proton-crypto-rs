@@ -4,8 +4,8 @@ use pgp::{
 };
 
 use crate::{
-    encryption, profile, types::UnixTime, DataEncoding, EncryptionError, Error, Profile,
-    PublicComponentKey, PublicKey, PublicKeySelectionExt,
+    types::UnixTime, DataEncoding, EncryptionError, Profile, PublicComponentKey, PublicKey,
+    PublicKeySelectionExt,
 };
 
 pub struct Encryptor<'a> {

@@ -633,7 +633,6 @@ pub(crate) fn check_key_not_expired<K: PublicKeyTrait + Serialize>(
 /// - The key algorithm is accepted by the profile.
 /// - The key has enough bits for the RSA algorithm.
 /// - The key has a valid curve for the ECC algorithm.
-/// - The key has valid key flags for the usage.
 fn check_key_requirements(
     public_key: impl PublicKeyTrait,
     profile: &Profile,

@@ -14,5 +14,5 @@ pub use encryption::*;
 pub use errors::*;
 pub use key::*;
 pub use profile::*;
-pub use signature::*;
+use signature::{check_key_signature_details, SignatureExt};
 pub use types::*;

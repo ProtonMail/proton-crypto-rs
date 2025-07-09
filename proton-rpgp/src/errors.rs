@@ -1,8 +1,6 @@
-use chrono::DateTime;
 use pgp::{
-    bytes::Bytes,
     crypto::{ecc_curve::ECCCurve, hash::HashAlgorithm, public_key::PublicKeyAlgorithm},
-    packet::{self, UserId},
+    packet::{self},
     types::{KeyId, PkeskVersion},
 };
 

@@ -71,7 +71,7 @@ impl UnixTime {
     }
 }
 
-impl fmt::Display for UnixTime {
+impl Display for UnixTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }

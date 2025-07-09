@@ -65,19 +65,19 @@ impl Profile {
         PREFERRED_AEAD_ALGORITHMS
     }
 
-    pub fn reject_hash_algorithm(&self, hash: Option<HashAlgorithm>) -> bool {
+    pub fn reject_hash_algorithm(&self, _hash: Option<HashAlgorithm>) -> bool {
         false
     }
 
-    pub fn accept_critical_notation(&self, notation: &Notation) -> bool {
+    pub fn accept_critical_notation(&self, _notation: &Notation) -> bool {
         true
     }
 
-    pub fn reject_public_key_algorithm(&self, algorithm: PublicKeyAlgorithm) -> bool {
+    pub fn reject_public_key_algorithm(&self, _algorithm: PublicKeyAlgorithm) -> bool {
         false
     }
 
-    pub fn reject_ecc_curve(&self, curve: &ECCCurve) -> bool {
+    pub fn reject_ecc_curve(&self, _curve: &ECCCurve) -> bool {
         false
     }
 
