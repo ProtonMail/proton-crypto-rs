@@ -149,8 +149,8 @@ fn key_can_encrypt() {
     let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
 
-    let expect_can_encrypt = key.can_encrypt(&profile, date);
-    let expect_cannot_encrypt = sub_key_revoked.can_encrypt(&profile, date);
+    let expect_can_encrypt = key.check_can_encrypt(&profile, date);
+    let expect_cannot_encrypt = sub_key_revoked.check_can_encrypt(&profile, date);
 
     assert!(expect_can_encrypt.is_ok() && expect_cannot_encrypt.is_err());
 }
@@ -166,8 +166,8 @@ fn key_can_verify() {
     let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
         .expect("Failed to import key");
 
-    let expect_can_verify = key.can_verify(&profile, date);
-    let expect_cannot_verify = key_revoked.can_verify(&profile, date);
+    let expect_can_verify = key.check_can_verify(&profile, date);
+    let expect_cannot_verify = key_revoked.check_can_verify(&profile, date);
 
     assert!(expect_can_verify.is_ok() && expect_cannot_verify.is_err());
 }

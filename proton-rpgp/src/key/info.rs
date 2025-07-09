@@ -2,7 +2,7 @@ use pgp::types::{Fingerprint, Imprint, KeyDetails, KeyId, KeyVersion};
 use sha2::Sha256;
 
 use crate::{
-    check_key_expired, AsPublicKeyRef, CertifiationSelectionExt, FingerprintSha256,
+    check_key_not_expired, AsPublicKeyRef, CertificationSelectionExt, FingerprintSha256,
     KeySelectionError, Profile, PublicKeySelectionExt, SignatureUsage, UnixTime,
 };
 
@@ -31,14 +31,15 @@ pub trait KeyInfo {
     /// Checks if the key can encrypt at the given unixtime.
     ///
     /// Returns an error if no valid encryption key can be found.
-    fn can_encrypt(&self, profile: &Profile, date: UnixTime) -> Result<(), KeySelectionError>;
+    fn check_can_encrypt(&self, profile: &Profile, date: UnixTime)
+        -> Result<(), KeySelectionError>;
 
     /// Checks if any of the keys can be used for verification at the given date.
     ///
     /// Returns an error if no valid verification keys can be found.
-    fn can_verify(&self, profile: &Profile, date: UnixTime) -> Result<(), KeySelectionError>;
+    fn check_can_verify(&self, profile: &Profile, date: UnixTime) -> Result<(), KeySelectionError>;
 
-    /// Checks if the primray key is expired at the given date.
+    /// Checks if the primary key is expired at the given date.
     ///
     /// Also retruns `true` if no valid primary self-certification can be found.
     fn is_expired(&self, profile: &Profile, date: UnixTime) -> bool;
@@ -119,7 +120,11 @@ impl<T: AsPublicKeyRef> KeyInfo for T {
     /// Checks if the key can encrypt at the given unixtime.
     ///
     /// Returns an error if no valid encryption key can be found.
-    fn can_encrypt(&self, profile: &Profile, date: UnixTime) -> Result<(), KeySelectionError> {
+    fn check_can_encrypt(
+        &self,
+        profile: &Profile,
+        date: UnixTime,
+    ) -> Result<(), KeySelectionError> {
         self.as_public_key()
             .as_signed_public_key()
             .encryption_key(date, profile)
@@ -129,14 +134,14 @@ impl<T: AsPublicKeyRef> KeyInfo for T {
     /// Checks if any of the keys can be used for verification at the given date.
     ///
     /// Returns an error if no valid verification keys can be found.
-    fn can_verify(&self, profile: &Profile, date: UnixTime) -> Result<(), KeySelectionError> {
+    fn check_can_verify(&self, profile: &Profile, date: UnixTime) -> Result<(), KeySelectionError> {
         self.as_public_key()
             .as_signed_public_key()
             .verification_keys(date, None, SignatureUsage::Sign, profile)
             .map(|_| ())
     }
 
-    /// Checks if the primray key is expired at the given date.
+    /// Checks if the primary key is expired at the given date.
     ///
     /// Also retruns `true` if no valid primary self-certification can be found.
     fn is_expired(&self, profile: &Profile, date: UnixTime) -> bool {
@@ -145,7 +150,7 @@ impl<T: AsPublicKeyRef> KeyInfo for T {
             return true;
         };
 
-        check_key_expired(pub_key_ref, self_signature, date).is_err()
+        check_key_not_expired(pub_key_ref, self_signature, date).is_err()
     }
 
     /// Checks if the primary key is revoked at the given date.

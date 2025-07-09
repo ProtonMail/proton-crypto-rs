@@ -22,7 +22,7 @@ pub enum DataEncoding {
     #[default]
     Armor,
     /// The data is encoded as raw bytes.
-    Bytes,
+    Binary,
 }
 
 impl DataEncoding {
@@ -60,12 +60,12 @@ impl UnixTime {
         self.0 == 0
     }
 
-    /// Indicates if the timestamp is zero.
+    /// Indicates if time check should be disabled.
     pub fn checks_disabled(&self) -> bool {
         self.is_zero()
     }
 
-    /// Indicates if the timestamp is zero.
+    /// Returns the Unix timestamp as a u64.
     pub fn unix_seconds(&self) -> u64 {
         self.0
     }

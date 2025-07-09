@@ -13,7 +13,7 @@ use crate::{
 /// Trait for selecting the best self-certification for a key part.
 ///
 /// This can be used on `UserIds`, Signed Subkeys, Signed Primary key.
-pub trait CertifiationSelectionExt {
+pub trait CertificationSelectionExt {
     /// Iterates over the self-certifications of this key part ignoring revocations.
     fn iter_self_certifications(&self) -> impl DoubleEndedIterator<Item = &packet::Signature>;
 
@@ -49,7 +49,7 @@ pub trait CertifiationSelectionExt {
         for signature in self
             .iter_self_certifications()
             .rev()
-            .filter(|sig| sig.matches(&primary_key) && !sig.is_revocation())
+            .filter(|sig| sig.is_issued_by(&primary_key) && !sig.is_revocation())
         {
             let sig_creation_time = signature.unix_created()?;
             let selected_sig_creation_time = selected_signature
@@ -107,7 +107,7 @@ pub trait CertifiationSelectionExt {
         if self
             .iter_self_revocations()
             .filter(|sig| {
-                sig.matches(primary_key) && sig.is_revocation() && sig.is_hard_revocation()
+                sig.is_issued_by(primary_key) && sig.is_revocation() && sig.is_hard_revocation()
             })
             .any(|sig| is_valid(sig, UnixTime::zero()))
         {
@@ -116,7 +116,7 @@ pub trait CertifiationSelectionExt {
 
         // 2. Check soft revocations
         self.iter_self_revocations()
-            .filter(|sig| sig.matches(primary_key) && sig.is_revocation())
+            .filter(|sig| sig.is_issued_by(primary_key) && sig.is_revocation())
             .filter_map(|sig| sig.unix_created().ok().map(|time| (sig, time)))
             .filter(|(_, time)| *time >= self_signature_creation_time)
             .any(|(sig, _)| is_valid(sig, date))
@@ -127,7 +127,7 @@ pub trait CertifiationSelectionExt {
     /// # Errors
     ///
     /// Returns an error if there is no valid self-certification or if the self-certification is revoked.
-    fn check_validility<K: PublicKeyTrait + Serialize>(
+    fn check_validity<K: PublicKeyTrait + Serialize>(
         &self,
         primary_key: &K,
         date: UnixTime,
@@ -143,7 +143,7 @@ pub trait CertifiationSelectionExt {
     }
 }
 
-impl CertifiationSelectionExt for SignedUser {
+impl CertificationSelectionExt for SignedUser {
     fn iter_self_certifications(&self) -> impl DoubleEndedIterator<Item = &packet::Signature> {
         self.signatures
             .iter()
@@ -170,7 +170,7 @@ impl CertifiationSelectionExt for SignedUser {
     }
 }
 
-impl CertifiationSelectionExt for SignedPublicSubKey {
+impl CertificationSelectionExt for SignedPublicSubKey {
     fn iter_self_certifications(&self) -> impl DoubleEndedIterator<Item = &packet::Signature> {
         self.signatures.iter().filter(|sig| !sig.is_revocation())
     }
@@ -190,7 +190,7 @@ impl CertifiationSelectionExt for SignedPublicSubKey {
     }
 }
 
-impl CertifiationSelectionExt for SignedSecretSubKey {
+impl CertificationSelectionExt for SignedSecretSubKey {
     fn iter_self_certifications(&self) -> impl DoubleEndedIterator<Item = &packet::Signature> {
         self.signatures.iter().filter(|sig| !sig.is_revocation())
     }
@@ -249,7 +249,7 @@ where
     Ok(())
 }
 
-impl CertifiationSelectionExt for SignedPublicKey {
+impl CertificationSelectionExt for SignedPublicKey {
     fn iter_self_certifications(&self) -> impl DoubleEndedIterator<Item = &packet::Signature> {
         self.details.direct_signatures.iter()
     }
@@ -272,7 +272,7 @@ impl CertifiationSelectionExt for SignedPublicKey {
     }
 }
 
-impl CertifiationSelectionExt for SignedSecretKey {
+impl CertificationSelectionExt for SignedSecretKey {
     fn iter_self_certifications(&self) -> impl DoubleEndedIterator<Item = &packet::Signature> {
         self.details.direct_signatures.iter()
     }

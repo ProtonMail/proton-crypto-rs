@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use pgp::{
     composed::{SignedPublicKey, SignedPublicSubKey, SignedSecretKey, SignedSecretSubKey},
     crypto::{ecc_curve::ECCCurve, public_key::PublicKeyAlgorithm},
@@ -7,7 +9,7 @@ use pgp::{
 };
 
 use crate::{
-    types::UnixTime, AnySecretKey, CertifiationSelectionExt, KeyCertificationSelectionError,
+    types::UnixTime, AnySecretKey, CertificationSelectionExt, KeyCertificationSelectionError,
     KeyRequirementError, KeySelectionError, PrivateComponentKey, Profile, PublicComponentKey,
     SignatureExt,
 };
@@ -25,7 +27,7 @@ pub enum SignatureUsage {
 }
 
 /// Extension trait for selecting a matching encryption/verification key from an `OpenPGP` key.
-pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
+pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
     /// Returns a reference to the primary key of the `OpenPGP` key.
     fn primary_key(&self) -> &packet::PublicKey;
 
@@ -51,7 +53,7 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
         let mut valid_identities: Vec<_> = self
             .iter_identities()
             .filter_map(|identity| {
-                match identity.check_validility(self.primary_key(), date, profile) {
+                match identity.check_validity(self.primary_key(), date, profile) {
                     Ok(signature) => Some((identity, signature)),
                     Err(err) => {
                         errors.push(err);
@@ -62,15 +64,7 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
             .collect();
 
         // Determine the main user-id.
-        valid_identities.sort_by(|(_, a), (_, b)| {
-            if prefer_identity_over(a, b) {
-                std::cmp::Ordering::Less
-            } else if prefer_identity_over(b, a) {
-                std::cmp::Ordering::Greater
-            } else {
-                std::cmp::Ordering::Equal
-            }
-        });
+        valid_identities.sort_by(|(_, a), (_, b)| compare_identities(a, b));
         valid_identities
             .into_iter()
             .next()
@@ -118,7 +112,7 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
             )));
         }
 
-        check_key_expired(self.primary_key(), primary_self_certification, date)?;
+        check_key_not_expired(self.primary_key(), primary_self_certification, date)?;
 
         Ok(primary_self_certification)
     }
@@ -145,7 +139,7 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
         for sub_key in self.iter_subkeys() {
             // Check subkey certifcations.
             let sub_key_self_certification =
-                match sub_key.check_validility(primary_key, date, profile) {
+                match sub_key.check_validity(primary_key, date, profile) {
                     Ok(self_certification) => self_certification,
                     Err(err) => {
                         subkey_errors.push(KeySelectionError::KeySelfCertification(err));
@@ -154,7 +148,8 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
                 };
 
             // Check if the subkey is a valid encryption key.
-            if let Err(err) = is_valid_encryption_key(sub_key, sub_key_self_certification, profile)
+            if let Err(err) =
+                check_valid_encryption_key(sub_key, sub_key_self_certification, profile)
             {
                 subkey_errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
@@ -188,7 +183,8 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
         }
 
         // Check if the primary key is a valid encryption key.
-        if let Err(err) = is_valid_encryption_key(primary_key, primary_self_certification, profile)
+        if let Err(err) =
+            check_valid_encryption_key(primary_key, primary_self_certification, profile)
         {
             subkey_errors.push(KeySelectionError::PrimaryRequirement(
                 primary_key.key_id(),
@@ -255,7 +251,7 @@ pub(crate) trait PublicKeySelectionExt: CertifiationSelectionExt {
 
             // Check subkey certifcations.
             let sub_key_self_certification =
-                match sub_key.check_validility(primary_key, date, profile) {
+                match sub_key.check_validity(primary_key, date, profile) {
                     Ok(self_certification) => self_certification,
                     Err(err) => {
                         errors.push(KeySelectionError::KeySelfCertification(err));
@@ -334,7 +330,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
 
             // Check subkey certifcations.
             let sub_key_self_certification =
-                match sub_key.check_validility(primary_key, date, profile) {
+                match sub_key.check_validity(primary_key, date, profile) {
                     Ok(self_certification) => self_certification,
                     Err(err) => {
                         errors.push(KeySelectionError::KeySelfCertification(err));
@@ -445,7 +441,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 };
 
             // Check if the subkey is a valid decryption key.
-            if let Err(err) = is_valid_encryption_key(
+            if let Err(err) = check_valid_encryption_key(
                 sub_key.key.public_key(),
                 subkey_self_certification,
                 profile,
@@ -462,7 +458,8 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         }
 
         // Check if we can decrypt with the primary key for compatibility.
-        if let Err(err) = is_valid_encryption_key(primary_key, primary_self_certification, profile)
+        if let Err(err) =
+            check_valid_encryption_key(primary_key, primary_self_certification, profile)
         {
             errors.push(KeySelectionError::PrimaryRequirement(
                 primary_key.key_id(),
@@ -493,21 +490,20 @@ fn check_signing_key_flags(
     usage: SignatureUsage,
 ) -> bool {
     match usage {
-        SignatureUsage::Certify | SignatureUsage::Sign => {
-            (usage == SignatureUsage::Certify
-                && is_valid_certification_key(public_key, self_certification, profile).is_ok())
-                || (usage == SignatureUsage::Sign
-                    && is_valid_signing_key(public_key, self_certification, profile).is_ok())
-                || (usage != SignatureUsage::Certify && usage != SignatureUsage::Sign)
+        SignatureUsage::Certify => {
+            check_valid_certification_key(public_key, self_certification, profile).is_ok()
+        }
+        SignatureUsage::Sign => {
+            check_valid_signing_key(public_key, self_certification, profile).is_ok()
         }
         SignatureUsage::All => {
-            is_valid_certification_key(public_key, self_certification, profile).is_ok()
-                && is_valid_signing_key(public_key, self_certification, profile).is_ok()
+            check_valid_certification_key(public_key, self_certification, profile).is_ok()
+                || check_valid_signing_key(public_key, self_certification, profile).is_ok()
         }
     }
 }
 
-fn is_valid_encryption_key(
+fn check_valid_encryption_key(
     public_key: &impl PublicKeyTrait,
     signature: &packet::Signature,
     profile: &Profile,
@@ -533,27 +529,27 @@ fn is_valid_encryption_key(
     Ok(())
 }
 
-fn is_valid_certification_key(
+fn check_valid_certification_key(
     public_key: &impl PublicKeyTrait,
     signature: &packet::Signature,
     profile: &Profile,
 ) -> Result<(), KeyRequirementError> {
-    is_valid_key_with_flags(public_key, signature, profile, KeyFlags::certify)
+    check_valid_key_with_flags(public_key, signature, profile, KeyFlags::certify)
 }
 
-fn is_valid_signing_key(
+fn check_valid_signing_key(
     public_key: &impl PublicKeyTrait,
     signature: &packet::Signature,
     profile: &Profile,
 ) -> Result<(), KeyRequirementError> {
-    is_valid_key_with_flags(public_key, signature, profile, KeyFlags::sign)
+    check_valid_key_with_flags(public_key, signature, profile, KeyFlags::sign)
 }
 
-fn is_valid_key_with_flags<F>(
+fn check_valid_key_with_flags<F>(
     public_key: &impl PublicKeyTrait,
     signature: &packet::Signature,
     profile: &Profile,
-    flag_check: F,
+    check_flag: F,
 ) -> Result<(), KeyRequirementError>
 where
     F: Fn(&KeyFlags) -> bool,
@@ -572,23 +568,26 @@ where
 
     // Check the key flags.
     let key_flags = signature.key_flags();
-    if !flag_check(&key_flags) {
+    if !check_flag(&key_flags) {
         return Err(KeyRequirementError::InvalidKeyFlags);
     }
 
     Ok(())
 }
 
-fn prefer_identity_over(current: &packet::Signature, potential: &packet::Signature) -> bool {
+/// Helper comparision function to determine the order of user-ids.
+///
+/// Is used to sort the user-ids in ascending order, and select the first one in the list.
+fn compare_identities(current: &packet::Signature, potential: &packet::Signature) -> Ordering {
     match (current.is_primary(), potential.is_primary()) {
-        (true, false) => true,
-        (false, true) => false,
+        (true, false) => Ordering::Less,    // Prefer current
+        (false, true) => Ordering::Greater, // Prefer potential
         _ => {
             // Both have same primary status, compare by creation time
             match (current.unix_created(), potential.unix_created()) {
-                (Ok(current_time), Ok(potential_time)) => potential_time <= current_time,
-                (Err(_), Ok(_)) => false, // Prefer potential if current has no valid time
-                _ => true,                // Prefer current if potential has no valid time
+                (Ok(current_time), Ok(potential_time)) => potential_time.cmp(&current_time), // Prefer newer
+                (Err(_), Ok(_)) => Ordering::Greater, // Prefer potential if current has no valid time
+                _ => Ordering::Less, // Prefer current if potential has no valid time
             }
         }
     }
@@ -599,7 +598,7 @@ fn prefer_identity_over(current: &packet::Signature, potential: &packet::Signatu
 /// Returns an error if the key is expired.
 /// The key is expired if it is in the future or if it has an expiration time
 /// that is before the given date.
-pub(crate) fn check_key_expired<K: PublicKeyTrait + Serialize>(
+pub(crate) fn check_key_not_expired<K: PublicKeyTrait + Serialize>(
     key: &K,
     self_signature: &packet::Signature,
     date: UnixTime,

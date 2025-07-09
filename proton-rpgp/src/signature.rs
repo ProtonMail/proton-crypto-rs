@@ -7,7 +7,7 @@ use pgp::{
 use crate::{types::UnixTime, Profile, SignatureError};
 
 pub(crate) trait SignatureExt {
-    fn matches<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool;
+    fn is_issued_by<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool;
 
     fn is_revocation(&self) -> bool;
 
@@ -15,11 +15,11 @@ pub(crate) trait SignatureExt {
 
     fn unix_created(&self) -> Result<UnixTime, SignatureError>;
 
-    fn expired(&self, date: UnixTime) -> Result<(), SignatureError>;
+    fn check_not_expired(&self, date: UnixTime) -> Result<(), SignatureError>;
 }
 
 impl SignatureExt for packet::Signature {
-    fn matches<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool {
+    fn is_issued_by<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool {
         self.issuer_fingerprint()
             .into_iter()
             .any(|fp| *fp == key.fingerprint())
@@ -55,7 +55,7 @@ impl SignatureExt for packet::Signature {
             .ok_or(SignatureError::NoCreationTime)
     }
 
-    fn expired(&self, date: UnixTime) -> Result<(), SignatureError> {
+    fn check_not_expired(&self, date: UnixTime) -> Result<(), SignatureError> {
         if date.checks_disabled() {
             return Ok(());
         }
@@ -104,6 +104,6 @@ pub(crate) fn check_key_signature_details(
     }
 
     // Check signature expiration.
-    signature.expired(date)?;
+    signature.check_not_expired(date)?;
     Ok(())
 }

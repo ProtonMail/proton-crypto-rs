@@ -54,7 +54,7 @@ impl PublicKey {
             DataEncoding::Armor => SignedPublicKey::from_armor_single(key_data)
                 .map_err(KeyOperationError::Decode)
                 .map(|(signed_public, _)| signed_public)?,
-            DataEncoding::Bytes => {
+            DataEncoding::Binary => {
                 SignedPublicKey::from_bytes(key_data).map_err(KeyOperationError::Decode)?
             }
         };
@@ -74,7 +74,7 @@ impl PublicKey {
                     include_checksum: !(self.inner.version() == KeyVersion::V6),
                 })
                 .map_err(KeyOperationError::Encode),
-            DataEncoding::Bytes => {
+            DataEncoding::Binary => {
                 let mut buf = Vec::new();
                 self.inner
                     .to_writer(&mut buf)
@@ -173,7 +173,7 @@ impl LockedPrivateKey {
             DataEncoding::Armor => SignedSecretKey::from_armor_single(key_data)
                 .map_err(KeyOperationError::Decode)
                 .map(|(secret, _)| secret)?,
-            DataEncoding::Bytes => {
+            DataEncoding::Binary => {
                 SignedSecretKey::from_bytes(key_data).map_err(KeyOperationError::Decode)?
             }
         };
@@ -271,7 +271,7 @@ impl PrivateKey {
                     include_checksum: !(self.secret.version() == KeyVersion::V6),
                 })
                 .map_err(KeyOperationError::Encode),
-            DataEncoding::Bytes => {
+            DataEncoding::Binary => {
                 let mut buf = Vec::new();
                 locked_key
                     .0
@@ -297,7 +297,7 @@ impl PrivateKey {
                     include_checksum: !(self.secret.version() == KeyVersion::V6),
                 })
                 .map_err(KeyOperationError::Encode),
-            DataEncoding::Bytes => {
+            DataEncoding::Binary => {
                 let mut buf = Vec::new();
                 self.secret
                     .to_writer(&mut buf)
