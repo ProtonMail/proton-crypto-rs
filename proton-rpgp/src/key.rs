@@ -24,7 +24,7 @@ pub trait AsPublicKeyRef {
 }
 
 /// A generic `OpenPGP` public key.
-/// An `OpenPGP` key consitst of a primary key and zero or more subkeys.
+/// An `OpenPGP` key consists of a primary key and zero or more subkeys.
 #[derive(Debug, Clone)]
 pub struct PublicKey {
     /// The inner type from rPGP.
@@ -86,7 +86,7 @@ impl PublicKey {
 }
 
 /// A generic locked `OpenPGP` secret key.
-/// An `OpenPGP` key consitst of a primary key and zero or more subkeys.
+/// An `OpenPGP` key consists of a primary key and zero or more subkeys.
 /// The secret key's private key material might be encrypted with a password.
 pub struct LockedPrivateKey(PrivateKey);
 
@@ -188,7 +188,7 @@ impl LockedPrivateKey {
 }
 
 /// A generic unlocked `OpenPGP` secret key.
-/// An `OpenPGP` key consitst of a primary key and zero or more subkeys.
+/// An `OpenPGP` key consists of a primary key and zero or more subkeys.
 /// The secret key contains all the unlocked private key material.
 #[derive(Debug, Clone)]
 pub struct PrivateKey {
@@ -196,7 +196,7 @@ pub struct PrivateKey {
     /// This allows to pass a secret key to act as a public key in verification and encryption operations.
     pub(crate) public: PublicKey,
 
-    /// The inner secret ley type from rPGP.
+    /// The inner secret key type from rPGP.
     pub(crate) secret: SignedSecretKey,
 }
 
@@ -283,7 +283,7 @@ impl PrivateKey {
         }
     }
 
-    /// Export the key in unlocked fromat.
+    /// Export the key in unlocked format.
     ///
     /// # Security
     /// Note that a key exported in unlocked format is not protected by a password.

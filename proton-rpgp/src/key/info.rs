@@ -41,7 +41,7 @@ pub trait KeyInfo {
 
     /// Checks if the primary key is expired at the given date.
     ///
-    /// Also retruns `true` if no valid primary self-certification can be found.
+    /// Also returns `true` if no valid primary self-certification can be found.
     fn is_expired(&self, profile: &Profile, date: UnixTime) -> bool;
 
     /// Checks if the primary key is revoked at the given date.

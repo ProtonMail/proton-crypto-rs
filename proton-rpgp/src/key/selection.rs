@@ -42,7 +42,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
     /// Selects the main user-id of the key at the given date.
     ///
     /// Only considers user-ids that are valid at the given date,
-    /// and prefers user-ids marked as primary or thathave the newest date.
+    /// and prefers user-ids marked as primary or that have the newest date.
     fn select_user_id_with_certification(
         &self,
         date: UnixTime,
@@ -90,7 +90,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         }
     }
 
-    /// Validates if the primary key is a valid at the given date.
+    /// Validates if the primary key is valid at the given date.
     ///
     /// Checks if the primary key has a valid self-certification at the given date,
     /// the self-certification is not revoked, and the key is not expired.
@@ -123,7 +123,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         date: UnixTime,
         profile: &Profile,
     ) -> Result<PublicComponentKey<'_>, KeySelectionError> {
-        // Check if the primary key is a valid.
+        // Check if the primary key is valid.
         let primary_self_certification = self.check_primary_key(date, profile)?;
 
         let primary_key = self.primary_key();
@@ -137,7 +137,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         let mut max_time = None;
 
         for sub_key in self.iter_subkeys() {
-            // Check subkey certifcations.
+            // Check subkey certifications.
             let sub_key_self_certification =
                 match sub_key.check_validity(primary_key, date, profile) {
                     Ok(self_certification) => self_certification,
@@ -259,7 +259,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
                     }
                 };
 
-            // Check if the subkey is a valid singing key.
+            // Check if the subkey is a valid signing key.
             if !check_signing_key_flags(&sub_key.key, sub_key_self_certification, profile, usage) {
                 errors.push(KeySelectionError::SubkeyRequirement(
                     sub_key.key_id(),
@@ -309,7 +309,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         usage: SignatureUsage,
         profile: &Profile,
     ) -> Result<PrivateComponentKey<'_>, KeySelectionError> {
-        // Check if the primary key is a valid.
+        // Check if the primary key is valid.
         let primary_self_certification = self.check_primary_key(date, profile)?;
 
         let primary_key = self.primary_key();
@@ -328,7 +328,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 }
             }
 
-            // Check subkey certifcations.
+            // Check subkey certifications.
             let sub_key_self_certification =
                 match sub_key.check_validity(primary_key, date, profile) {
                     Ok(self_certification) => self_certification,
@@ -338,7 +338,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
                     }
                 };
 
-            // Check if the subkey is a valid singing key.
+            // Check if the subkey is a valid signing key.
             if !check_signing_key_flags(
                 &sub_key.key.public_key(),
                 sub_key_self_certification,
@@ -575,7 +575,7 @@ where
     Ok(())
 }
 
-/// Helper comparision function to determine the order of user-ids.
+/// Helper comparison function to determine the order of user-ids.
 ///
 /// Is used to sort the user-ids in ascending order, and select the first one in the list.
 fn compare_identities(current: &packet::Signature, potential: &packet::Signature) -> Ordering {

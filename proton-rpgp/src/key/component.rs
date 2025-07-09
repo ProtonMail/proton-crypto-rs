@@ -10,10 +10,10 @@ use pgp::{
 
 use crate::DecryptionError;
 
-/// Represents a view on a selected pulic component key in an `OpenPGP` key.
+/// Represents a view on a selected public component key in an `OpenPGP` key.
 ///
 /// Since an `OpenPGP` key can contain multiple actual keys, an operation must
-/// select one. A public component key represenst such a selected key.
+/// select one. A public component key represents such a selected key.
 
 #[derive(Debug)]
 pub(crate) struct PublicComponentKey<'a> {
@@ -47,7 +47,7 @@ impl<'a> PublicComponentKey<'a> {
 /// Represents a view on a selected secret component key in an `OpenPGP` key.
 ///
 /// Since an `OpenPGP` key can contain multiple actual keys, an operation must
-/// select one. A secret component key represenst such a selected key.
+/// select one. A secret component key represents such a selected key.
 #[derive(Debug)]
 pub(crate) struct PrivateComponentKey<'a> {
     /// The secret key part of the component key (either a primary or subkey).

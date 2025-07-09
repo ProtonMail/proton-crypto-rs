@@ -43,7 +43,7 @@ pub enum KeyCertificationSelectionError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SignatureError {
-    #[error("Signature has not creation time")]
+    #[error("Signature has no creation time")]
     NoCreationTime,
     #[error("Signature verification failed: ")]
     Verification(#[from] pgp::errors::Error),
@@ -67,9 +67,9 @@ pub enum SignatureError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum KeyOperationError {
-    #[error("Failed to lock private OpenPGP key with key id{0}: {1}")]
+    #[error("Failed to lock private OpenPGP key with key id {0}: {1}")]
     Lock(KeyId, pgp::errors::Error),
-    #[error("Failed to unlock private OpenPGP key with key id{0}: {1}")]
+    #[error("Failed to unlock private OpenPGP key with key id {0}: {1}")]
     Unlock(KeyId, pgp::errors::Error),
     #[error("Failed to encode OpenPGP key: {0}")]
     Encode(pgp::errors::Error),
@@ -103,7 +103,7 @@ pub enum KeySelectionError {
 pub enum KeyRequirementError {
     #[error("Rejected public key algorithm: {0:?}")]
     WeakAlgorithm(PublicKeyAlgorithm),
-    #[error("Rejected rsa pulbic key algorithm: not enough bits got: {0} want {1}")]
+    #[error("Rejected rsa public key algorithm: not enough bits got: {0} want {1}")]
     WeakRsaAlgorithm(usize, usize),
     #[error("Rejected ecc curve: {0:?}")]
     WeakEccAlgorithm(ECCCurve),

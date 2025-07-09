@@ -36,7 +36,7 @@ impl DataEncoding {
 pub struct UnixTime(u64);
 
 impl UnixTime {
-    /// Creates new unix timestamp.
+    /// Creates a new unix timestamp.
     pub fn new(unix_time: u64) -> Self {
         Self(unix_time)
     }
@@ -48,9 +48,9 @@ impl UnixTime {
         }
     }
 
-    /// Creates unix timestamp with the zero value.
+    /// Creates a unix timestamp with the zero value.
     ///
-    /// If a zero value is supplied to the API expirations checks are skipped.
+    /// If a zero value is supplied to the API, expiration checks are skipped.
     pub fn zero() -> Self {
         Self(0)
     }
