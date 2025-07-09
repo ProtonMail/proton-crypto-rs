@@ -5,6 +5,9 @@ mod key;
 mod profile;
 mod signature;
 mod types;
+mod verify;
+
+pub mod armor;
 
 /// Re-export the `pgp` crate.
 pub use pgp;
@@ -14,5 +17,6 @@ pub use encryption::*;
 pub use errors::*;
 pub use key::*;
 pub use profile::*;
-use signature::{check_key_signature_details, SignatureExt};
+pub use signature::*;
 pub use types::*;
+pub use verify::*;

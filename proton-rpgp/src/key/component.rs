@@ -1,14 +1,19 @@
+use std::io::Read;
+
 use pgp::{
     composed::PlainSessionKey,
     crypto::public_key::PublicKeyAlgorithm,
-    packet::{self, PublicKeyEncryptedSessionKey},
+    packet::{self, PublicKeyEncryptedSessionKey, Signature},
     types::{
         Fingerprint, KeyDetails, KeyId, KeyVersion, PkeskVersion, PublicKeyTrait, SecretKeyTrait,
         SecretParams,
     },
 };
 
-use crate::DecryptionError;
+use crate::{
+    signature::check_message_signature_details, DecryptionError, MessageSignatureError, Profile,
+    SignatureError, UnixTime,
+};
 
 /// Represents a view on a selected public component key in an `OpenPGP` key.
 ///
@@ -18,29 +23,49 @@ use crate::DecryptionError;
 #[derive(Debug)]
 pub(crate) struct PublicComponentKey<'a> {
     /// The public key part of the component key (either a primary or subkey).
-    pub(crate) public_key: &'a dyn PublicKeyTrait,
+    pub(crate) public_key: AnyPublicKey<'a>,
 
     /// The primary self-certification of the component key.
-    pub(crate) primary_self_certification: &'a packet::Signature,
+    pub(crate) primary_self_certification: &'a Signature,
 
     /// The self-certification of the component key.
     ///
     /// If the component key is a primary key, it points to the same signature
     /// as `primary_self_certification`
-    pub(crate) self_certification: &'a packet::Signature,
+    pub(crate) self_certification: &'a Signature,
 }
 
 impl<'a> PublicComponentKey<'a> {
     pub fn new(
-        public_key: &'a dyn PublicKeyTrait,
-        primary_self_certification: &'a packet::Signature,
-        self_certification: &'a packet::Signature,
+        public_key: AnyPublicKey<'a>,
+        primary_self_certification: &'a Signature,
+        self_certification: &'a Signature,
     ) -> Self {
         Self {
             public_key,
             primary_self_certification,
             self_certification,
         }
+    }
+
+    /// Verify a message signature using the public component key.
+    pub fn verify_message_signature<R: Read>(
+        &self,
+        date: UnixTime,
+        signature: &Signature,
+        data_to_verify: R,
+        profile: &Profile,
+    ) -> Result<(), MessageSignatureError> {
+        signature
+            .verify(&self.public_key, data_to_verify)
+            .map_err(|err| MessageSignatureError::Failed(SignatureError::Verification(err)))?;
+        check_message_signature_details(date, signature, self, profile)
+            .map_err(MessageSignatureError::Failed)
+    }
+
+    /// Get the unix creation time of the public component key.
+    pub fn unix_created_at(&self) -> UnixTime {
+        self.public_key.created_at().into()
     }
 }
 
@@ -57,18 +82,18 @@ pub(crate) struct PrivateComponentKey<'a> {
     pub(crate) private_key: AnySecretKey<'a>,
 
     /// The primary self-certification of the component key.
-    pub(crate) primary_self_certification: &'a packet::Signature,
+    pub(crate) primary_self_certification: &'a Signature,
 
     /// The self-certification of the component key.
     ///
-    pub(crate) self_certification: &'a packet::Signature,
+    pub(crate) self_certification: &'a Signature,
 }
 
 impl<'a> PrivateComponentKey<'a> {
     pub(crate) fn new(
         private_key: AnySecretKey<'a>,
-        primary_self_certification: &'a packet::Signature,
-        self_certification: &'a packet::Signature,
+        primary_self_certification: &'a Signature,
+        self_certification: &'a Signature,
     ) -> Self {
         Self {
             private_key,
@@ -181,6 +206,84 @@ impl AnySecretKey<'_> {
                 }
                 SecretParams::Encrypted(_) => Err(DecryptionError::LockedKey),
             },
+        }
+    }
+}
+
+/// [`AnyPublicKey`] either represents a public primary or public subkey.
+///
+/// The [`Signature::verify`] method does not allow to pass dyn reference to a public key implementing [`PublicKeyTrait`].
+/// Thus, we need an explicit enum type covering all public key types.
+#[derive(Debug, Clone)]
+pub enum AnyPublicKey<'a> {
+    /// A secret primary key.
+    PrimaryPublicKey(&'a packet::PublicKey),
+
+    /// A secret subkey.
+    PublicSubKey(&'a packet::PublicSubkey),
+}
+
+impl KeyDetails for AnyPublicKey<'_> {
+    fn version(&self) -> KeyVersion {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.version(),
+            AnyPublicKey::PublicSubKey(key) => key.version(),
+        }
+    }
+
+    fn fingerprint(&self) -> Fingerprint {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.fingerprint(),
+            AnyPublicKey::PublicSubKey(key) => key.fingerprint(),
+        }
+    }
+
+    fn key_id(&self) -> KeyId {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.key_id(),
+            AnyPublicKey::PublicSubKey(key) => key.key_id(),
+        }
+    }
+
+    fn algorithm(&self) -> PublicKeyAlgorithm {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.algorithm(),
+            AnyPublicKey::PublicSubKey(key) => key.algorithm(),
+        }
+    }
+}
+
+impl PublicKeyTrait for AnyPublicKey<'_> {
+    fn verify_signature(
+        &self,
+        hash: pgp::crypto::hash::HashAlgorithm,
+        data: &[u8],
+        signature: &pgp::types::SignatureBytes,
+    ) -> pgp::errors::Result<()> {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.verify_signature(hash, data, signature),
+            AnyPublicKey::PublicSubKey(key) => key.verify_signature(hash, data, signature),
+        }
+    }
+
+    fn created_at(&self) -> &chrono::DateTime<chrono::Utc> {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.created_at(),
+            AnyPublicKey::PublicSubKey(key) => key.created_at(),
+        }
+    }
+
+    fn expiration(&self) -> Option<u16> {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.expiration(),
+            AnyPublicKey::PublicSubKey(key) => key.expiration(),
+        }
+    }
+
+    fn public_params(&self) -> &pgp::types::PublicParams {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.public_params(),
+            AnyPublicKey::PublicSubKey(key) => key.public_params(),
         }
     }
 }

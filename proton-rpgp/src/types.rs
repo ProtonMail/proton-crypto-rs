@@ -4,6 +4,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
+use pgp::{packet::KeyFlags, types::KeyId};
 
 use crate::FingerprintError;
 
@@ -131,5 +132,73 @@ impl From<[u8; 32]> for FingerprintSha256 {
 impl Display for FingerprintSha256 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+#[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
+pub struct KeyIdList(pub(crate) Vec<KeyId>);
+
+impl From<Vec<KeyId>> for KeyIdList {
+    fn from(value: Vec<KeyId>) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Vec<&KeyId>> for KeyIdList {
+    fn from(value: Vec<&KeyId>) -> Self {
+        Self(value.into_iter().copied().collect())
+    }
+}
+
+impl From<KeyId> for KeyIdList {
+    fn from(value: KeyId) -> Self {
+        Self(vec![value])
+    }
+}
+
+impl Display for KeyIdList {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut key_ids = self.0.iter();
+
+        write!(f, "[")?;
+        if let Some(first) = key_ids.next() {
+            write!(f, "{first}")?;
+            for err in key_ids {
+                write!(f, ", {err}")?;
+            }
+        }
+        write!(f, "]")
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct PrettyKeyFlags(pub KeyFlags);
+
+impl From<KeyFlags> for PrettyKeyFlags {
+    fn from(value: KeyFlags) -> Self {
+        Self(value)
+    }
+}
+
+impl Display for PrettyKeyFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Flags set:")?;
+
+        if self.0.authentication() {
+            write!(f, " authetication",)?;
+        }
+        if self.0.sign() {
+            write!(f, " sign",)?;
+        }
+        if self.0.certify() {
+            write!(f, " certify",)?;
+        }
+        if self.0.encrypt_comms() {
+            write!(f, " encrypt-communications",)?;
+        }
+        if self.0.encrypt_storage() {
+            write!(f, " encrypt-storage",)?;
+        }
+        Ok(())
     }
 }

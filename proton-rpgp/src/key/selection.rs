@@ -9,9 +9,9 @@ use pgp::{
 };
 
 use crate::{
-    types::UnixTime, AnySecretKey, CertificationSelectionExt, KeyCertificationSelectionError,
-    KeyRequirementError, KeySelectionError, PrivateComponentKey, Profile, PublicComponentKey,
-    SignatureExt,
+    types::UnixTime, AnyPublicKey, AnySecretKey, CertificationSelectionExt,
+    KeyCertificationSelectionError, KeyRequirementError, KeySelectionError, PrivateComponentKey,
+    Profile, PublicComponentKey, SignatureExt,
 };
 
 use rsa::traits::PublicKeyParts;
@@ -168,7 +168,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
 
             if should_prefer {
                 subkey_selection = Some(PublicComponentKey::new(
-                    &sub_key.key,
+                    AnyPublicKey::PublicSubKey(&sub_key.key),
                     primary_self_certification,
                     sub_key_self_certification,
                 ));
@@ -197,7 +197,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         }
 
         Ok(PublicComponentKey::new(
-            primary_key,
+            AnyPublicKey::PrimaryPublicKey(primary_key),
             primary_self_certification,
             primary_self_certification,
         ))
@@ -210,7 +210,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
     fn verification_keys(
         &self,
         date: UnixTime,
-        key_id: Option<KeyId>,
+        key_ids: Vec<&KeyId>,
         usage: SignatureUsage,
         profile: &Profile,
     ) -> Result<Vec<PublicComponentKey<'_>>, KeySelectionError> {
@@ -224,29 +224,36 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         check_key_requirements(primary_key, profile)
             .map_err(|err| KeySelectionError::PrimaryRequirement(primary_key.key_id(), err))?;
 
-        let consider_primary = key_id.is_none_or(|key_id| primary_key.key_id() == key_id);
+        let consider_primary = key_ids.is_empty()
+            || key_ids
+                .iter()
+                .any(|&key_id| *key_id == primary_key.key_id());
+
         if consider_primary
             && check_signing_key_flags(primary_key, primary_self_certification, profile, usage)
         {
             verification_keys.push(PublicComponentKey::new(
-                primary_key,
+                AnyPublicKey::PrimaryPublicKey(primary_key),
                 primary_self_certification,
                 primary_self_certification,
             ));
         } else {
             errors.push(KeySelectionError::PrimaryRequirement(
                 primary_key.key_id(),
-                KeyRequirementError::InvalidKeyFlags,
+                KeyRequirementError::InvalidSigningKeyFlags(
+                    primary_self_certification.key_flags().into(),
+                ),
             ));
         }
 
         for sub_key in self.iter_subkeys() {
             // Filter by key id if present.
-            if let Some(key_id) = key_id {
-                if sub_key.key_id() != key_id {
-                    errors.push(KeySelectionError::NoMatch(sub_key.key_id(), key_id));
-                    continue;
-                }
+            if !key_ids.is_empty() && !key_ids.iter().any(|&key_id| *key_id == sub_key.key_id()) {
+                errors.push(KeySelectionError::NoMatchList(
+                    sub_key.key_id(),
+                    key_ids.clone().into(),
+                ));
+                continue;
             }
 
             // Check subkey certifcations.
@@ -263,7 +270,9 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
             if !check_signing_key_flags(&sub_key.key, sub_key_self_certification, profile, usage) {
                 errors.push(KeySelectionError::SubkeyRequirement(
                     sub_key.key_id(),
-                    KeyRequirementError::InvalidKeyFlags,
+                    KeyRequirementError::InvalidSigningKeyFlags(
+                        sub_key_self_certification.key_flags().into(),
+                    ),
                 ));
                 continue;
             }
@@ -274,7 +283,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
                 continue;
             }
             verification_keys.push(PublicComponentKey::new(
-                &sub_key.key,
+                AnyPublicKey::PublicSubKey(&sub_key.key),
                 primary_self_certification,
                 sub_key_self_certification,
             ));
@@ -347,7 +356,9 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
             ) {
                 errors.push(KeySelectionError::SubkeyRequirement(
                     sub_key.key_id(),
-                    KeyRequirementError::InvalidKeyFlags,
+                    KeyRequirementError::InvalidSigningKeyFlags(
+                        sub_key_self_certification.key_flags().into(),
+                    ),
                 ));
                 continue;
             }
@@ -390,7 +401,9 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         if !check_signing_key_flags(primary_key, primary_self_certification, profile, usage) {
             errors.push(KeySelectionError::PrimaryRequirement(
                 primary_key.key_id(),
-                KeyRequirementError::InvalidKeyFlags,
+                KeyRequirementError::InvalidSigningKeyFlags(
+                    primary_self_certification.key_flags().into(),
+                ),
             ));
             return Err(KeySelectionError::NoSigningKey(
                 primary_key.key_id(),
@@ -523,7 +536,9 @@ fn check_valid_encryption_key(
     // Check the key flags.
     let key_flags = signature.key_flags();
     if !(key_flags.encrypt_comms() || key_flags.encrypt_storage()) {
-        return Err(KeyRequirementError::InvalidKeyFlags);
+        return Err(KeyRequirementError::InvalidEncryptionKeyFlags(
+            key_flags.into(),
+        ));
     }
 
     Ok(())
@@ -569,7 +584,9 @@ where
     // Check the key flags.
     let key_flags = signature.key_flags();
     if !check_flag(&key_flags) {
-        return Err(KeyRequirementError::InvalidKeyFlags);
+        return Err(KeyRequirementError::InvalidSigningKeyFlags(
+            key_flags.into(),
+        ));
     }
 
     Ok(())
@@ -584,7 +601,7 @@ fn compare_identities(current: &packet::Signature, potential: &packet::Signature
         (false, true) => Ordering::Greater, // Prefer potential
         _ => {
             // Both have same primary status, compare by creation time
-            match (current.unix_created(), potential.unix_created()) {
+            match (current.unix_created_at(), potential.unix_created_at()) {
                 (Ok(current_time), Ok(potential_time)) => potential_time.cmp(&current_time), // Prefer newer
                 (Err(_), Ok(_)) => Ordering::Greater, // Prefer potential if current has no valid time
                 _ => Ordering::Less, // Prefer current if potential has no valid time

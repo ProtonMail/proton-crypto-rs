@@ -1,13 +1,17 @@
-use pgp::types::{Fingerprint, Imprint, KeyDetails, KeyId, KeyVersion};
+use pgp::{
+    crypto::public_key::PublicKeyAlgorithm,
+    types::{Fingerprint, Imprint, KeyDetails, KeyId, KeyVersion},
+};
 use sha2::Sha256;
 
 use crate::{
     check_key_not_expired, AsPublicKeyRef, CertificationSelectionExt, FingerprintSha256,
-    KeySelectionError, Profile, PublicKeySelectionExt, SignatureUsage, UnixTime,
+    KeySelectionError, Profile, PublicComponentKey, PublicKeySelectionExt, SignatureUsage,
+    UnixTime,
 };
 
 /// A trait for types that can provide information about an `OpenPGP` key.
-pub trait KeyInfo {
+pub trait AccessKeyInfo {
     /// Returns the `OpenPGP` key version.
     fn version(&self) -> u8;
 
@@ -52,7 +56,7 @@ pub trait KeyInfo {
 }
 
 // Implement the `KeyInfo` trait for types that can access a `PublicKey` reference.
-impl<T: AsPublicKeyRef> KeyInfo for T {
+impl<T: AsPublicKeyRef> AccessKeyInfo for T {
     /// Returns the `OpenPGP` key version.
     fn version(&self) -> u8 {
         let version = self.as_public_key().as_signed_public_key().version();
@@ -137,7 +141,7 @@ impl<T: AsPublicKeyRef> KeyInfo for T {
     fn check_can_verify(&self, profile: &Profile, date: UnixTime) -> Result<(), KeySelectionError> {
         self.as_public_key()
             .as_signed_public_key()
-            .verification_keys(date, None, SignatureUsage::Sign, profile)
+            .verification_keys(date, Vec::default(), SignatureUsage::Sign, profile)
             .map(|_| ())
     }
 
@@ -160,5 +164,22 @@ impl<T: AsPublicKeyRef> KeyInfo for T {
     fn is_revoked(&self, profile: &Profile, date: UnixTime) -> bool {
         let pub_key_ref = self.as_public_key().as_signed_public_key();
         pub_key_ref.revoked(pub_key_ref.primary_key(), None, date, profile)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyInfo {
+    pub key_id: KeyId,
+    pub fingerprint: Fingerprint,
+    pub algorithm: PublicKeyAlgorithm,
+}
+
+impl<'a> From<PublicComponentKey<'a>> for KeyInfo {
+    fn from(key: PublicComponentKey<'a>) -> Self {
+        Self {
+            key_id: key.public_key.key_id(),
+            fingerprint: key.public_key.fingerprint(),
+            algorithm: key.public_key.algorithm(),
+        }
     }
 }

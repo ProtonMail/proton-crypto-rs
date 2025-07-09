@@ -6,7 +6,7 @@ use pgp::{
 };
 
 use crate::{
-    check_key_signature_details, types::UnixTime, KeyCertificationSelectionError, Profile,
+    check_signature_details, types::UnixTime, KeyCertificationSelectionError, Profile,
     SignatureError, SignatureExt,
 };
 
@@ -51,9 +51,9 @@ pub trait CertificationSelectionExt {
             .rev()
             .filter(|sig| sig.is_issued_by(&primary_key) && !sig.is_revocation())
         {
-            let sig_creation_time = signature.unix_created()?;
+            let sig_creation_time = signature.unix_created_at()?;
             let selected_sig_creation_time = selected_signature
-                .map(SignatureExt::unix_created)
+                .map(SignatureExt::unix_created_at)
                 .transpose()?;
 
             // Check if the signature is not in the future with date as a reference.
@@ -92,7 +92,7 @@ pub trait CertificationSelectionExt {
         profile: &Profile,
     ) -> bool {
         let self_signature_creation_time = if let Some(self_signature) = self_signature {
-            self_signature.unix_created().unwrap_or(UnixTime::zero())
+            self_signature.unix_created_at().unwrap_or(UnixTime::zero())
         } else {
             UnixTime::zero()
         };
@@ -117,7 +117,7 @@ pub trait CertificationSelectionExt {
         // 2. Check soft revocations
         self.iter_self_revocations()
             .filter(|sig| sig.is_issued_by(primary_key) && sig.is_revocation())
-            .filter_map(|sig| sig.unix_created().ok().map(|time| (sig, time)))
+            .filter_map(|sig| sig.unix_created_at().ok().map(|time| (sig, time)))
             .filter(|(_, time)| *time >= self_signature_creation_time)
             .any(|(sig, _)| is_valid(sig, date))
     }
@@ -166,7 +166,7 @@ impl CertificationSelectionExt for SignedUser {
         self_signature
             .verify_certification(key, Tag::UserId, &self.id)
             .map_err(SignatureError::Verification)?;
-        check_key_signature_details(self_signature, date, profile)
+        check_signature_details(self_signature, date, profile)
     }
 }
 
@@ -230,7 +230,7 @@ where
     self_signature
         .verify_subkey_binding(signing_key, subkey)
         .map_err(SignatureError::Verification)?;
-    check_key_signature_details(self_signature, date, profile)?;
+    check_signature_details(self_signature, date, profile)?;
 
     if !self_signature.is_revocation() && self_signature.key_flags().sign() {
         match self_signature.embedded_signature() {
@@ -238,7 +238,7 @@ where
                 embedded
                     .verify_primary_key_binding(subkey, signing_key)
                     .map_err(SignatureError::Verification)?;
-                check_key_signature_details(embedded, date, profile)?;
+                check_signature_details(embedded, date, profile)?;
             }
             None => {
                 return Err(SignatureError::MissingCrossSignature(subkey.key_id()));
@@ -268,7 +268,7 @@ impl CertificationSelectionExt for SignedPublicKey {
         key_signature
             .verify_key(key)
             .map_err(SignatureError::Verification)?;
-        check_key_signature_details(key_signature, date, profile)
+        check_signature_details(key_signature, date, profile)
     }
 }
 
@@ -291,6 +291,6 @@ impl CertificationSelectionExt for SignedSecretKey {
         key_signature
             .verify_key(key)
             .map_err(SignatureError::Verification)?;
-        check_key_signature_details(key_signature, date, profile)
+        check_signature_details(key_signature, date, profile)
     }
 }

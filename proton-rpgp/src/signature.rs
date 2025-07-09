@@ -1,24 +1,29 @@
 use pgp::{
-    packet::{self, RevocationCode, SignatureType, Subpacket, SubpacketData},
+    packet::{RevocationCode, Signature, SignatureType, Subpacket, SubpacketData},
     ser::Serialize,
     types::PublicKeyTrait,
 };
 
-use crate::{types::UnixTime, Profile, SignatureError};
+use crate::{types::UnixTime, KeyIdList, Profile, PublicComponentKey, SignatureError};
+
+mod message;
+pub use message::*;
 
 pub(crate) trait SignatureExt {
     fn is_issued_by<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool;
+
+    fn issuer_list(&self) -> KeyIdList;
 
     fn is_revocation(&self) -> bool;
 
     fn is_hard_revocation(&self) -> bool;
 
-    fn unix_created(&self) -> Result<UnixTime, SignatureError>;
+    fn unix_created_at(&self) -> Result<UnixTime, SignatureError>;
 
     fn check_not_expired(&self, date: UnixTime) -> Result<(), SignatureError>;
 }
 
-impl SignatureExt for packet::Signature {
+impl SignatureExt for Signature {
     fn is_issued_by<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool {
         self.issuer_fingerprint()
             .into_iter()
@@ -49,7 +54,7 @@ impl SignatureExt for packet::Signature {
             )
     }
 
-    fn unix_created(&self) -> Result<UnixTime, SignatureError> {
+    fn unix_created_at(&self) -> Result<UnixTime, SignatureError> {
         self.created()
             .map(UnixTime::from)
             .ok_or(SignatureError::NoCreationTime)
@@ -72,10 +77,14 @@ impl SignatureExt for packet::Signature {
         }
         Ok(())
     }
+
+    fn issuer_list(&self) -> KeyIdList {
+        self.issuer().into()
+    }
 }
 
-pub(crate) fn check_key_signature_details(
-    signature: &packet::Signature,
+pub(crate) fn check_signature_details(
+    signature: &Signature,
     date: UnixTime,
     profile: &Profile,
 ) -> Result<(), SignatureError> {
@@ -105,5 +114,37 @@ pub(crate) fn check_key_signature_details(
 
     // Check signature expiration.
     signature.check_not_expired(date)?;
+    Ok(())
+}
+
+pub(crate) fn check_message_signature_details(
+    date: UnixTime,
+    signature: &Signature,
+    selected_key: &PublicComponentKey<'_>,
+    profile: &Profile,
+) -> Result<(), SignatureError> {
+    // Check the siganture details of the signature.
+    check_signature_details(signature, date, profile)?;
+
+    // Check if the signature is older than the key.
+    let signature_creation_time = signature.unix_created_at()?;
+    let key_creation_time = selected_key.unix_created_at();
+    if signature_creation_time < key_creation_time {
+        return Err(SignatureError::SignatureOlderThanKey {
+            signature_date: signature_creation_time,
+            key_date: key_creation_time,
+        });
+    }
+
+    // Check key signatures details at the signature creation time.
+    let check_time = if date.checks_disabled() {
+        date
+    } else {
+        // Todo: This is dangerous with a 0 unix time. We should change it to optional. CRYPTO-291.
+        signature_creation_time
+    };
+    check_signature_details(selected_key.primary_self_certification, check_time, profile)?;
+    check_signature_details(selected_key.self_certification, check_time, profile)?;
+
     Ok(())
 }

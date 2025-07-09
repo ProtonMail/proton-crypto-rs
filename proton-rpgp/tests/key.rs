@@ -1,6 +1,6 @@
 use proton_rpgp::{
-    DataEncoding, KeyInfo, KeyOperationError, LockedPrivateKey, PrivateKey, Profile, PublicKey,
-    UnixTime,
+    AccessKeyInfo, DataEncoding, KeyOperationError, LockedPrivateKey, PrivateKey, Profile,
+    PublicKey, UnixTime,
 };
 
 pub const TEST_PRIVATE_KEY: &str = include_str!("../test-data/keys/locked_private_key_v6.asc");
@@ -65,7 +65,7 @@ fn key_export_import_unlock_key() {
 
     let exported = unlocked_key
         .export(
-            &Profile {},
+            &Profile::default(),
             TEST_PRIVATE_KEY_PASSWORD.as_bytes(),
             DataEncoding::Armor,
         )

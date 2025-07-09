@@ -37,12 +37,18 @@ pub const PREFERRED_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
     CompressionAlgorithm::ZLIB,
 ];
 
-#[derive(Default, Debug, Clone)]
-pub struct Profile {}
+use std::sync::LazyLock;
+
+pub static DEFAULT_PROFILE: LazyLock<Profile> = LazyLock::new(Profile::new);
+
+#[derive(Debug, Clone)]
+pub struct Profile {
+    pub min_rsa_bits: usize,
+}
 
 impl Profile {
     pub fn new() -> Self {
-        Self {}
+        Self { min_rsa_bits: 1024 }
     }
 
     pub fn rng(&self) -> impl Rng + CryptoRng {
@@ -86,10 +92,16 @@ impl Profile {
     }
 
     pub fn min_rsa_bits(&self) -> usize {
-        1024
+        self.min_rsa_bits
     }
 
     pub fn key_s2k_params(&self) -> S2kParams {
         S2kParams::new_default(self.rng(), KeyVersion::V4)
+    }
+}
+
+impl Default for Profile {
+    fn default() -> Self {
+        Self::new()
     }
 }

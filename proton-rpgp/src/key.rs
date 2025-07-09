@@ -23,6 +23,12 @@ pub trait AsPublicKeyRef {
     fn as_public_key(&self) -> &PublicKey;
 }
 
+impl<T: AsPublicKeyRef> AsPublicKeyRef for &T {
+    fn as_public_key(&self) -> &PublicKey {
+        (*self).as_public_key()
+    }
+}
+
 /// A generic `OpenPGP` public key.
 /// An `OpenPGP` key consists of a primary key and zero or more subkeys.
 #[derive(Debug, Clone)]
@@ -131,7 +137,7 @@ impl LockedPrivateKey {
         Self(PrivateKey::new(secret))
     }
 
-    pub(crate) fn as_signed_public_key(&self) -> &SignedPublicKey {
+    fn as_signed_public_key(&self) -> &SignedPublicKey {
         &self.0.public.inner
     }
 
@@ -559,7 +565,7 @@ mod tests {
 
         let selection_result = public_key
             .as_signed_public_key()
-            .verification_keys(date, None, SignatureUsage::Sign, &profile)
+            .verification_keys(date, Vec::default(), SignatureUsage::Sign, &profile)
             .expect("key selected");
 
         let selected = selection_result.into_iter().next().unwrap();
