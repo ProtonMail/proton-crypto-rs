@@ -129,3 +129,33 @@ pub fn verify_detached_signature_multiple_signatures() {
         }
     }
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_detached_signature_v4_text() {
+    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v4_text.asc");
+    const TEXT: &[u8] = b"hello world\n with line endings.   \n";
+
+    let date = UnixTime::new(1_752_223_468);
+
+    let verification_key =
+        PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor).expect("Failed to import key");
+
+    let verification_result = Verifier::default()
+        .with_verification_key(&verification_key)
+        .at_date(date)
+        .verify_detached(TEXT, SIGANTURE.as_bytes(), DataEncoding::Armor);
+
+    match verification_result {
+        Ok(verification_information) => {
+            assert_eq!(verification_information.key_id, verification_key.key_id());
+            assert_eq!(
+                verification_information.signature_creation_time,
+                UnixTime::new(1_752_223_419)
+            );
+        }
+        Err(verification_error) => {
+            panic!("Verification failed: {verification_error}");
+        }
+    }
+}
