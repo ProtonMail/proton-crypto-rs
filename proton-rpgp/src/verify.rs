@@ -55,6 +55,26 @@ impl<'a> Verifier<'a> {
     }
 
     /// Verifies a detached signature against the data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, UnixTime};
+    ///
+    /// // Assume `public_key` is a valid PublicKey, and `signature` is a detached signature.
+    /// let public_key = include_str!("../test-data/keys/public_key_v4.asc");
+    /// let signature = include_str!("../test-data/signatures/signature_v4.asc");
+    /// let data = b"hello world";
+    /// let date = UnixTime::now().unwrap();
+    ///
+    /// let public_key = PublicKey::import(public_key.as_bytes(), DataEncoding::Armor).unwrap();
+    ///
+    /// let result = Verifier::default()
+    ///     .with_verification_key(&public_key)
+    ///     .at_date(date)
+    ///     .verify_detached(data, signature, DataEncoding::Armor);
+    /// assert!(result.is_ok());
+    /// ```
     pub fn verify_detached(
         self,
         data: impl AsRef<[u8]>,
