@@ -6,6 +6,7 @@
 mod errors;
 mod key;
 mod profile;
+mod sign;
 mod signature;
 mod types;
 mod verify;
@@ -20,6 +21,7 @@ pub use pgp;
 pub use errors::*;
 pub use key::*;
 pub use profile::*;
+pub use sign::*;
 pub use signature::*;
 pub use types::*;
 pub use verify::*;

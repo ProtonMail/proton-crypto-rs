@@ -77,7 +77,7 @@ impl RecipientsSelection {
         let mut selection = Self::default();
 
         let mut candidate_hashes_to_sign = profile.hash_algorithms().to_vec();
-        let mut candidate_symmetric_algorithms = profile.symmmetric_key_algorithms().to_vec();
+        let mut candidate_symmetric_algorithms = profile.symmetric_key_algorithms().to_vec();
         let mut candidate_compression_algorithms = profile.compression_algorithms().to_vec();
         let mut candidate_aead_algorithms = profile.aead_algorithms().to_vec();
         for key in keys {

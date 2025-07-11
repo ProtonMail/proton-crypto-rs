@@ -86,7 +86,7 @@ impl<'a> Verifier<'a> {
 
         // Check encoding.
         let parser =
-            handle_signature_encoding(&mut buffer, signature.as_ref(), signature_encoding)?;
+            handle_signature_decoding(&mut buffer, signature.as_ref(), signature_encoding)?;
 
         // Verify signatures.
         let verified_signatures: Vec<_> = parser
@@ -116,7 +116,7 @@ impl Default for Verifier<'_> {
     }
 }
 
-fn handle_signature_encoding<'a>(
+fn handle_signature_decoding<'a>(
     buffer: &'a mut Vec<u8>,
     signature: &'a [u8],
     signature_encoding: DataEncoding,

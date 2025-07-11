@@ -15,6 +15,8 @@ pub(crate) use component::*;
 mod selection;
 pub(crate) use selection::*;
 
+pub(crate) mod preferences;
+
 mod info;
 pub use info::*;
 

@@ -97,6 +97,13 @@ impl From<DateTime<Utc>> for UnixTime {
     }
 }
 
+impl From<UnixTime> for DateTime<Utc> {
+    fn from(value: UnixTime) -> Self {
+        let seconds = i64::try_from(value.unix_seconds()).unwrap_or_default();
+        DateTime::from_timestamp(seconds, 0).unwrap_or_default()
+    }
+}
+
 /// A sha256 fingerprint.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct FingerprintSha256(pub(crate) [u8; 32]);
@@ -233,5 +240,22 @@ impl Display for PrettyKeyFlags {
             write!(f, " encrypt-storage",)?;
         }
         Ok(())
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SignatureMode {
+    #[default]
+    Binary,
+
+    Text,
+}
+
+impl From<SignatureMode> for pgp::packet::SignatureType {
+    fn from(value: SignatureMode) -> Self {
+        match value {
+            SignatureMode::Binary => pgp::packet::SignatureType::Binary,
+            SignatureMode::Text => pgp::packet::SignatureType::Text,
+        }
     }
 }

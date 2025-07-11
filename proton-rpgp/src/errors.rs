@@ -186,6 +186,33 @@ pub enum EncryptionError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum SignError {
+    #[error("{ERROR_PREFIX}: Failed to serialize signatures: {0}")]
+    Serialize(pgp::errors::Error),
+
+    #[error("{ERROR_PREFIX}: Failed to select signing key: {0}")]
+    KeySelection(#[from] KeySelectionError),
+
+    #[error("{ERROR_PREFIX}: Invalid signing key version")]
+    InvalidKeyVersion,
+
+    #[error("{ERROR_PREFIX}: {0}")]
+    HashAlgorithm(#[from] SignHashSelectionError),
+
+    #[error("{ERROR_PREFIX}: Failed to sign data: {0}")]
+    Sign(pgp::errors::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SignHashSelectionError {
+    #[error("Failed to load valid primary self-certification for hash selection: {0}")]
+    PrimaryCertification(#[from] KeyCertificationSelectionError),
+
+    #[error("Failed to select hash algorithm")]
+    HashAlgorithm,
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum FingerprintError {
     #[error("Failed to decode hex string: {0}")]
     HexDecode(#[from] hex::FromHexError),
@@ -199,10 +226,10 @@ pub enum ArmorError {
     #[error("No armor header found")]
     DecodeHeader,
 
-    #[error("Wronger header, got: {0} expected {1}")]
+    #[error("Wrong header, got: {0} expected {1}")]
     DecodeWrongHeader(String, BlockType),
 
-    #[error("Failed to decode armor due to io : {0}")]
+    #[error("Failed to decode armor due to io: {0}")]
     Decode(io::Error),
 }
 

@@ -1,8 +1,14 @@
-use pgp::{packet::Signature, types::KeyId};
+use pgp::{
+    armor,
+    packet::{PacketTrait, Signature, SignatureVersion},
+    ser::Serialize,
+    types::KeyId,
+};
 
 use crate::{
-    types::UnixTime, AsPublicKeyRef, GenricKeyIdentifierList, KeyInfo, MessageSignatureError,
-    Profile, PublicComponentKey, PublicKeySelectionExt, SignatureExt, SignatureUsage, ERROR_PREFIX,
+    check_signature_details, types::UnixTime, AsPublicKeyRef, GenricKeyIdentifierList, KeyInfo,
+    MessageSignatureError, Profile, PublicComponentKey, PublicKeySelectionExt, SignatureError,
+    SignatureExt, SignatureUsage, ERROR_PREFIX,
 };
 
 /// The result of verifying signature in an `OpenPGP` message.
@@ -208,4 +214,100 @@ impl VerifiedSignature {
             )),
         }
     }
+}
+
+/// Helper type for a collection of standalone signatures.
+///
+/// [`pgp::composed::StandaloneSignature`] only supports one signature,
+/// but there might be multiple signatures in a deteched signature message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StandaloneSignatures {
+    pub signature: Vec<Signature>,
+}
+
+impl StandaloneSignatures {
+    pub fn new(signatures: Vec<Signature>) -> Self {
+        Self {
+            signature: signatures,
+        }
+    }
+
+    pub fn to_armored_writer(&self, writer: &mut impl std::io::Write) -> pgp::errors::Result<()> {
+        let all_v6 = self
+            .signature
+            .iter()
+            .all(|s| s.version() == SignatureVersion::V6);
+
+        armor::write(self, armor::BlockType::Signature, writer, None, !all_v6)
+    }
+
+    pub fn to_armored_bytes(&self) -> pgp::errors::Result<Vec<u8>> {
+        let mut buf = Vec::new();
+
+        self.to_armored_writer(&mut buf)?;
+
+        Ok(buf)
+    }
+}
+
+impl Serialize for StandaloneSignatures {
+    fn to_writer<W: std::io::Write>(&self, writer: &mut W) -> pgp::errors::Result<()> {
+        for signature in &self.signature {
+            signature.to_writer_with_header(writer)?;
+        }
+        Ok(())
+    }
+
+    fn write_len(&self) -> usize {
+        self.signature
+            .iter()
+            .map(PacketTrait::write_len_with_header)
+            .sum()
+    }
+}
+
+impl From<Signature> for StandaloneSignatures {
+    fn from(signature: Signature) -> Self {
+        Self {
+            signature: vec![signature],
+        }
+    }
+}
+
+impl From<Vec<Signature>> for StandaloneSignatures {
+    fn from(signature: Vec<Signature>) -> Self {
+        Self::new(signature)
+    }
+}
+
+pub(crate) fn check_message_signature_details(
+    date: UnixTime,
+    signature: &Signature,
+    selected_key: &PublicComponentKey<'_>,
+    profile: &Profile,
+) -> Result<(), SignatureError> {
+    // Check the signature details of the signature.
+    check_signature_details(signature, date, profile)?;
+
+    // Check if the signature is older than the key.
+    let signature_creation_time = signature.unix_created_at()?;
+    let key_creation_time = selected_key.unix_created_at();
+    if signature_creation_time < key_creation_time {
+        return Err(SignatureError::SignatureOlderThanKey {
+            signature_date: signature_creation_time,
+            key_date: key_creation_time,
+        });
+    }
+
+    // Check key signatures details at the signature creation time.
+    let check_time = if date.checks_disabled() {
+        date
+    } else {
+        // Todo: This is dangerous with a 0 unix time. We should change it to optional. CRYPTO-291.
+        signature_creation_time
+    };
+    check_signature_details(selected_key.primary_self_certification, check_time, profile)?;
+    check_signature_details(selected_key.self_certification, check_time, profile)?;
+
+    Ok(())
 }

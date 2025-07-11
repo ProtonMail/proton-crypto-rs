@@ -515,7 +515,7 @@ fn check_valid_encryption_key(
         ));
     }
 
-    // Check the the key flags if the profile does not ignore them.
+    // Check the key flags if the profile does not ignore them.
     if profile.ignore_key_flags() {
         return Ok(());
     }
@@ -563,7 +563,7 @@ where
         ));
     }
 
-    // Check the the key flags if the profile does not ignore them.
+    // Check the key flags if the profile does not ignore them.
     if profile.ignore_key_flags() {
         return Ok(());
     }

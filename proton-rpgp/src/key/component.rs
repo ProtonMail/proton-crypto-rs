@@ -2,17 +2,17 @@ use std::io::Read;
 
 use pgp::{
     composed::PlainSessionKey,
-    crypto::public_key::PublicKeyAlgorithm,
+    crypto::{hash::HashAlgorithm, public_key::PublicKeyAlgorithm},
     packet::{self, PublicKeyEncryptedSessionKey, Signature},
     types::{
-        Fingerprint, KeyDetails, KeyId, KeyVersion, PkeskVersion, PublicKeyTrait, SecretKeyTrait,
-        SecretParams,
+        Fingerprint, KeyDetails, KeyId, KeyVersion, Password, PkeskVersion, PublicKeyTrait,
+        SecretKeyTrait, SecretParams,
     },
 };
 
 use crate::{
-    signature::check_message_signature_details, DecryptionError, MessageSignatureError, Profile,
-    SignatureError, UnixTime,
+    core, signature::check_message_signature_details, DecryptionError, MessageSignatureError,
+    Profile, SignError, SignatureError, SignatureMode, UnixTime,
 };
 
 /// Represents a view on a selected public component key in an `OpenPGP` key.
@@ -101,6 +101,27 @@ impl<'a> PrivateComponentKey<'a> {
             self_certification,
         }
     }
+
+    pub(crate) fn sign_data(
+        &self,
+        data: &[u8],
+        at_date: UnixTime,
+        signature_mode: SignatureMode,
+        hash_algorithm: HashAlgorithm,
+        profile: &Profile,
+    ) -> Result<Signature, SignError> {
+        let config = core::configure_signature(
+            &self.private_key,
+            at_date,
+            signature_mode,
+            hash_algorithm,
+            profile,
+        )?;
+
+        config
+            .sign(&self.private_key, &Password::default(), data.as_ref())
+            .map_err(SignError::Sign)
+    }
 }
 
 /// The [`SecretKeyTrait`] does not expose decryption methods. Thus, we
@@ -148,8 +169,8 @@ impl KeyDetails for AnySecretKey<'_> {
 impl SecretKeyTrait for AnySecretKey<'_> {
     fn create_signature(
         &self,
-        key_pw: &pgp::types::Password,
-        hash: pgp::crypto::hash::HashAlgorithm,
+        key_pw: &Password,
+        hash: HashAlgorithm,
         data: &[u8],
     ) -> pgp::errors::Result<pgp::types::SignatureBytes> {
         match self {
@@ -158,7 +179,7 @@ impl SecretKeyTrait for AnySecretKey<'_> {
         }
     }
 
-    fn hash_alg(&self) -> pgp::crypto::hash::HashAlgorithm {
+    fn hash_alg(&self) -> HashAlgorithm {
         match self {
             AnySecretKey::PrimarySecretKey(key) => key.hash_alg(),
             AnySecretKey::SecretSubKey(key) => key.hash_alg(),
@@ -256,7 +277,7 @@ impl KeyDetails for AnyPublicKey<'_> {
 impl PublicKeyTrait for AnyPublicKey<'_> {
     fn verify_signature(
         &self,
-        hash: pgp::crypto::hash::HashAlgorithm,
+        hash: HashAlgorithm,
         data: &[u8],
         signature: &pgp::types::SignatureBytes,
     ) -> pgp::errors::Result<()> {

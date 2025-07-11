@@ -9,6 +9,8 @@ use crate::{types::UnixTime, GenericKeyIdentifier, Profile, PublicComponentKey, 
 mod message;
 pub use message::*;
 
+pub(crate) mod core;
+
 pub(crate) trait SignatureExt {
     fn is_issued_by<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool;
 
@@ -124,37 +126,5 @@ pub(crate) fn check_signature_details(
 
     // Check signature expiration.
     signature.check_not_expired(date)?;
-    Ok(())
-}
-
-pub(crate) fn check_message_signature_details(
-    date: UnixTime,
-    signature: &Signature,
-    selected_key: &PublicComponentKey<'_>,
-    profile: &Profile,
-) -> Result<(), SignatureError> {
-    // Check the siganture details of the signature.
-    check_signature_details(signature, date, profile)?;
-
-    // Check if the signature is older than the key.
-    let signature_creation_time = signature.unix_created_at()?;
-    let key_creation_time = selected_key.unix_created_at();
-    if signature_creation_time < key_creation_time {
-        return Err(SignatureError::SignatureOlderThanKey {
-            signature_date: signature_creation_time,
-            key_date: key_creation_time,
-        });
-    }
-
-    // Check key signatures details at the signature creation time.
-    let check_time = if date.checks_disabled() {
-        date
-    } else {
-        // Todo: This is dangerous with a 0 unix time. We should change it to optional. CRYPTO-291.
-        signature_creation_time
-    };
-    check_signature_details(selected_key.primary_self_certification, check_time, profile)?;
-    check_signature_details(selected_key.self_certification, check_time, profile)?;
-
     Ok(())
 }

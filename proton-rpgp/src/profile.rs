@@ -59,7 +59,11 @@ impl Profile {
         PREFERRED_HASH_ALGORITHMS
     }
 
-    pub fn symmmetric_key_algorithms(&self) -> &[SymmetricKeyAlgorithm] {
+    pub fn msg_hash(&self) -> HashAlgorithm {
+        HashAlgorithm::Sha512
+    }
+
+    pub fn symmetric_key_algorithms(&self) -> &[SymmetricKeyAlgorithm] {
         PREFERRED_SYMMETRIC_KEY_ALGORITHMS
     }
 
