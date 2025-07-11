@@ -17,7 +17,7 @@ pub struct VerificationInformation {
     /// The creation time of the selected signature.
     pub signature_creation_time: UnixTime,
 
-    /// The `OpenPGP` signature the has been verified.
+    /// The `OpenPGP` signature that has been verified.
     pub signature: Signature,
 }
 
@@ -58,7 +58,7 @@ pub enum VerificationError {
     #[error("{ERROR_PREFIX}: No valid verification keys found for signature {0}: {1}")]
     NoVerifier(KeyIdList, String),
 
-    #[error("{ERROR_PREFIX}: Signature verifcation failed: {1}")]
+    #[error("{ERROR_PREFIX}: Signature verification failed: {1}")]
     Failed(Box<VerificationInformation>, String),
 
     /// Signature context did not match verification context.
@@ -76,7 +76,7 @@ pub(crate) struct VerificationResultCreator {}
 impl VerificationResultCreator {
     /// Create a verification result from a list of verified signatures.
     ///
-    /// Selects result forthe first signature that is valid or the last one if no valid signature is found.
+    /// Selects result for the first signature that is valid or the last one if no valid signature is found.
     pub fn with_signatures(verifications: Vec<VerifiedSignature>) -> VerificationResult {
         let mut selected_signature = None;
         for verification in verifications {

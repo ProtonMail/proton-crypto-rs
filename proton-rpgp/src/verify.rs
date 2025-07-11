@@ -11,7 +11,7 @@ use crate::{
     DataEncoding, Profile, PublicKey, UnixTime, DEFAULT_PROFILE,
 };
 
-/// Verifer type to verify `OpenPGP` signatures.
+/// Verifier type to verify `OpenPGP` signatures.
 #[derive(Debug, Clone)]
 pub struct Verifier<'a> {
     /// The profile to use for verification.

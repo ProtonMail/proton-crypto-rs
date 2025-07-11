@@ -185,7 +185,7 @@ impl Display for PrettyKeyFlags {
         write!(f, "Flags set:")?;
 
         if self.0.authentication() {
-            write!(f, " authetication",)?;
+            write!(f, " authentication",)?;
         }
         if self.0.sign() {
             write!(f, " sign",)?;
