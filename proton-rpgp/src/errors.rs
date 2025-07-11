@@ -3,7 +3,7 @@ use std::io;
 use pgp::{
     armor::BlockType,
     crypto::{ecc_curve::ECCCurve, hash::HashAlgorithm, public_key::PublicKeyAlgorithm},
-    packet::{self, KeyFlags},
+    packet::{self},
     types::{KeyId, PkeskVersion},
 };
 

@@ -167,10 +167,16 @@ impl<T: AsPublicKeyRef> AccessKeyInfo for T {
     }
 }
 
+/// Information about an `OpenPGP` key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyInfo {
+    /// The key id of the `OpenPGP` key.
     pub key_id: KeyId,
+
+    /// The fingerprint of the `OpenPGP` key.
     pub fingerprint: Fingerprint,
+
+    /// The public key algorithm of the `OpenPGP` key.
     pub algorithm: PublicKeyAlgorithm,
 }
 

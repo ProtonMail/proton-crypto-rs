@@ -35,8 +35,8 @@ impl VerificationInformation {
             // Fallback to the first issuer if no key info is provided.
             signature
                 .issuer()
-                .first()
-                .copied()
+                .into_iter()
+                .next()
                 .copied()
                 .unwrap_or(KeyId::new([0_u8; 8]))
         };

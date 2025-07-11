@@ -4,15 +4,13 @@ use pgp::{
     types::PublicKeyTrait,
 };
 
-use crate::{types::UnixTime, KeyIdList, Profile, PublicComponentKey, SignatureError};
+use crate::{types::UnixTime, Profile, PublicComponentKey, SignatureError};
 
 mod message;
 pub use message::*;
 
 pub(crate) trait SignatureExt {
     fn is_issued_by<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool;
-
-    fn issuer_list(&self) -> KeyIdList;
 
     fn is_revocation(&self) -> bool;
 
@@ -76,10 +74,6 @@ impl SignatureExt for Signature {
             }
         }
         Ok(())
-    }
-
-    fn issuer_list(&self) -> KeyIdList {
-        self.issuer().into()
     }
 }
 
