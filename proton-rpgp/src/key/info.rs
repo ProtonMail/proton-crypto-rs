@@ -1,13 +1,13 @@
 use pgp::{
     crypto::public_key::PublicKeyAlgorithm,
-    types::{Fingerprint, Imprint, KeyDetails, KeyId, KeyVersion},
+    types::{Fingerprint, Imprint, KeyDetails, KeyId, KeyVersion, PublicKeyTrait},
 };
 use sha2::Sha256;
 
 use crate::{
     check_key_not_expired, AsPublicKeyRef, CertificationSelectionExt, FingerprintSha256,
-    KeySelectionError, Profile, PublicComponentKey, PublicKeySelectionExt, SignatureUsage,
-    UnixTime,
+    GenericKeyIdentifier, KeySelectionError, Profile, PublicComponentKey, PublicKeySelectionExt,
+    SignatureUsage, UnixTime,
 };
 
 /// A trait for types that can provide information about an `OpenPGP` key.
@@ -189,3 +189,12 @@ impl<'a> From<PublicComponentKey<'a>> for KeyInfo {
         }
     }
 }
+
+pub trait PublicKeyExt: PublicKeyTrait {
+    /// Returns the key identifier of the `OpenPGP` key.
+    fn generic_identifier(&self) -> GenericKeyIdentifier {
+        GenericKeyIdentifier::Both(self.key_id(), self.fingerprint())
+    }
+}
+
+impl<T: PublicKeyTrait> PublicKeyExt for T {}

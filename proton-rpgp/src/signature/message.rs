@@ -1,8 +1,8 @@
 use pgp::{packet::Signature, types::KeyId};
 
 use crate::{
-    types::UnixTime, AsPublicKeyRef, KeyIdList, KeyInfo, MessageSignatureError, Profile,
-    PublicComponentKey, PublicKeySelectionExt, SignatureExt, SignatureUsage, ERROR_PREFIX,
+    types::UnixTime, AsPublicKeyRef, GenricKeyIdentifierList, KeyInfo, MessageSignatureError,
+    Profile, PublicComponentKey, PublicKeySelectionExt, SignatureExt, SignatureUsage, ERROR_PREFIX,
 };
 
 /// The result of verifying signature in an `OpenPGP` message.
@@ -56,7 +56,7 @@ pub enum VerificationError {
     NotSigned,
 
     #[error("{ERROR_PREFIX}: No valid verification keys found for signature {0}: {1}")]
-    NoVerifier(KeyIdList, String),
+    NoVerifier(GenricKeyIdentifierList, String),
 
     #[error("{ERROR_PREFIX}: Signature verification failed: {1}")]
     Failed(Box<VerificationInformation>, String),
@@ -168,7 +168,7 @@ impl VerifiedSignature {
                 .as_signed_public_key()
                 .verification_keys(
                     signature_creation_time,
-                    signature.issuer(),
+                    signature.issuer_generic_identifier(),
                     SignatureUsage::Sign,
                     profile,
                 ) {
@@ -203,7 +203,7 @@ impl VerifiedSignature {
                 err.to_string(),
             )),
             Err(MessageSignatureError::NoMatchingKey(err)) => Err(VerificationError::NoVerifier(
-                self.signature.issuer().into(),
+                self.signature.issuer_generic_identifier().into(),
                 err.to_string(),
             )),
         }

@@ -9,9 +9,9 @@ use pgp::{
 };
 
 use crate::{
-    types::UnixTime, AnyPublicKey, AnySecretKey, CertificationSelectionExt,
+    types::UnixTime, AnyPublicKey, AnySecretKey, CertificationSelectionExt, GenericKeyIdentifier,
     KeyCertificationSelectionError, KeyRequirementError, KeySelectionError, PrivateComponentKey,
-    Profile, PublicComponentKey, SignatureExt,
+    Profile, PublicComponentKey, PublicKeyExt, SignatureExt,
 };
 
 use rsa::traits::PublicKeyParts;
@@ -22,8 +22,6 @@ pub enum SignatureUsage {
     Certify,
     /// The key can be used to sign data.
     Sign,
-    /// The key can be used to both certify and sign.
-    All,
 }
 
 /// Extension trait for selecting a matching encryption/verification key from an `OpenPGP` key.
@@ -210,7 +208,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
     fn verification_keys(
         &self,
         date: UnixTime,
-        key_ids: Vec<&KeyId>,
+        key_ids: Vec<GenericKeyIdentifier>,
         usage: SignatureUsage,
         profile: &Profile,
     ) -> Result<Vec<PublicComponentKey<'_>>, KeySelectionError> {
@@ -224,33 +222,36 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         check_key_requirements(primary_key, profile)
             .map_err(|err| KeySelectionError::PrimaryRequirement(primary_key.key_id(), err))?;
 
-        let consider_primary = key_ids.is_empty()
-            || key_ids
-                .iter()
-                .any(|&key_id| *key_id == primary_key.key_id());
-
-        if consider_primary
-            && check_signing_key_flags(primary_key, primary_self_certification, profile, usage)
-        {
-            verification_keys.push(PublicComponentKey::new(
-                AnyPublicKey::PrimaryPublicKey(primary_key),
-                primary_self_certification,
-                primary_self_certification,
+        let primary_identifier = primary_key.generic_identifier();
+        if !key_ids.is_empty() && !key_ids.iter().any(|key_id| key_id == &primary_identifier) {
+            errors.push(KeySelectionError::NoMatchList(
+                primary_key.generic_identifier(),
+                key_ids.clone().into(),
             ));
         } else {
-            errors.push(KeySelectionError::PrimaryRequirement(
-                primary_key.key_id(),
-                KeyRequirementError::InvalidSigningKeyFlags(
-                    primary_self_certification.key_flags().into(),
-                ),
-            ));
+            match check_signing_key_flags(primary_key, primary_self_certification, profile, usage) {
+                Ok(()) => {
+                    verification_keys.push(PublicComponentKey::new(
+                        AnyPublicKey::PrimaryPublicKey(primary_key),
+                        primary_self_certification,
+                        primary_self_certification,
+                    ));
+                }
+                Err(err) => {
+                    errors.push(KeySelectionError::PrimaryRequirement(
+                        primary_key.key_id(),
+                        err,
+                    ));
+                }
+            }
         }
 
         for sub_key in self.iter_subkeys() {
             // Filter by key id if present.
-            if !key_ids.is_empty() && !key_ids.iter().any(|&key_id| *key_id == sub_key.key_id()) {
+            let generic_identifier = sub_key.key.generic_identifier();
+            if !key_ids.is_empty() && !key_ids.iter().any(|key_id| key_id == &generic_identifier) {
                 errors.push(KeySelectionError::NoMatchList(
-                    sub_key.key_id(),
+                    generic_identifier,
                     key_ids.clone().into(),
                 ));
                 continue;
@@ -267,13 +268,10 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
                 };
 
             // Check if the subkey is a valid signing key.
-            if !check_signing_key_flags(&sub_key.key, sub_key_self_certification, profile, usage) {
-                errors.push(KeySelectionError::SubkeyRequirement(
-                    sub_key.key_id(),
-                    KeyRequirementError::InvalidSigningKeyFlags(
-                        sub_key_self_certification.key_flags().into(),
-                    ),
-                ));
+            if let Err(err) =
+                check_signing_key_flags(&sub_key.key, sub_key_self_certification, profile, usage)
+            {
+                errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
@@ -348,18 +346,13 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 };
 
             // Check if the subkey is a valid signing key.
-            if !check_signing_key_flags(
+            if let Err(err) = check_signing_key_flags(
                 &sub_key.key.public_key(),
                 sub_key_self_certification,
                 profile,
                 usage,
             ) {
-                errors.push(KeySelectionError::SubkeyRequirement(
-                    sub_key.key_id(),
-                    KeyRequirementError::InvalidSigningKeyFlags(
-                        sub_key_self_certification.key_flags().into(),
-                    ),
-                ));
+                errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
@@ -398,12 +391,12 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
             }
         }
 
-        if !check_signing_key_flags(primary_key, primary_self_certification, profile, usage) {
+        if let Err(err) =
+            check_signing_key_flags(primary_key, primary_self_certification, profile, usage)
+        {
             errors.push(KeySelectionError::PrimaryRequirement(
                 primary_key.key_id(),
-                KeyRequirementError::InvalidSigningKeyFlags(
-                    primary_self_certification.key_flags().into(),
-                ),
+                err,
             ));
             return Err(KeySelectionError::NoSigningKey(
                 primary_key.key_id(),
@@ -501,18 +494,12 @@ fn check_signing_key_flags(
     self_certification: &packet::Signature,
     profile: &Profile,
     usage: SignatureUsage,
-) -> bool {
+) -> Result<(), KeyRequirementError> {
     match usage {
         SignatureUsage::Certify => {
-            check_valid_certification_key(public_key, self_certification, profile).is_ok()
+            check_valid_certification_key(public_key, self_certification, profile)
         }
-        SignatureUsage::Sign => {
-            check_valid_signing_key(public_key, self_certification, profile).is_ok()
-        }
-        SignatureUsage::All => {
-            check_valid_certification_key(public_key, self_certification, profile).is_ok()
-                || check_valid_signing_key(public_key, self_certification, profile).is_ok()
-        }
+        SignatureUsage::Sign => check_valid_signing_key(public_key, self_certification, profile),
     }
 }
 

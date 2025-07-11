@@ -159,3 +159,42 @@ pub fn verify_detached_signature_v4_text() {
         }
     }
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_detached_signature_v6() {
+    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v6.asc");
+    const KEY: &str = include_str!("../test-data/keys/private_key_v6.asc");
+
+    let date = UnixTime::new(1_752_237_138);
+
+    let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+
+    let verification_result = Verifier::default()
+        .with_verification_key(verification_key.as_public_key())
+        .at_date(date)
+        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armor);
+
+    assert!(verification_result.is_ok());
+}
+
+// TODO: Update rpgp to accept ml-dsa as a valid signature algorithm.
+/*#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_detached_signature_v6_pqc() {
+    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v6_pqc.asc");
+    const KEY: &str = include_str!("../test-data/keys/private_key_v6_pqc.asc");
+
+    let date = UnixTime::new(1_752_237_138);
+
+    let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+
+    let verification_result = Verifier::default()
+        .with_verification_key(verification_key.as_public_key())
+        .at_date(date)
+        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armor);
+
+    assert!(verification_result.is_ok());
+}*/

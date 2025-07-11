@@ -7,7 +7,7 @@ use pgp::{
     types::{KeyId, PkeskVersion},
 };
 
-use crate::{types::UnixTime, KeyIdList, PrettyKeyFlags};
+use crate::{types::UnixTime, GenericKeyIdentifier, GenricKeyIdentifierList, PrettyKeyFlags};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -128,7 +128,7 @@ pub enum KeySelectionError {
     NoMatch(KeyId, KeyId),
 
     #[error("Key {0} does not match requested key-ids: {1}")]
-    NoMatchList(KeyId, KeyIdList),
+    NoMatchList(GenericKeyIdentifier, GenricKeyIdentifierList),
 
     #[error("No valid encryption key found in key with primary key-id {0}: {1}")]
     NoEncryptionKey(KeyId, ErrorList<KeySelectionError>),

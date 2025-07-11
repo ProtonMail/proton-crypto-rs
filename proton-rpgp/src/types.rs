@@ -4,7 +4,10 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use pgp::{packet::KeyFlags, types::KeyId};
+use pgp::{
+    packet::KeyFlags,
+    types::{Fingerprint, KeyId},
+};
 
 use crate::FingerprintError;
 
@@ -135,28 +138,22 @@ impl Display for FingerprintSha256 {
     }
 }
 
-#[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
-pub struct KeyIdList(pub(crate) Vec<KeyId>);
+#[derive(Default, Debug, PartialEq, Eq, Clone)]
+pub struct GenricKeyIdentifierList(pub(crate) Vec<GenericKeyIdentifier>);
 
-impl From<Vec<KeyId>> for KeyIdList {
-    fn from(value: Vec<KeyId>) -> Self {
+impl From<Vec<GenericKeyIdentifier>> for GenricKeyIdentifierList {
+    fn from(value: Vec<GenericKeyIdentifier>) -> Self {
         Self(value)
     }
 }
 
-impl From<Vec<&KeyId>> for KeyIdList {
-    fn from(value: Vec<&KeyId>) -> Self {
-        Self(value.into_iter().copied().collect())
-    }
-}
-
-impl From<KeyId> for KeyIdList {
-    fn from(value: KeyId) -> Self {
+impl From<GenericKeyIdentifier> for GenricKeyIdentifierList {
+    fn from(value: GenericKeyIdentifier) -> Self {
         Self(vec![value])
     }
 }
 
-impl Display for KeyIdList {
+impl Display for GenricKeyIdentifierList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut key_ids = self.0.iter();
 
@@ -168,6 +165,42 @@ impl Display for KeyIdList {
             }
         }
         write!(f, "]")
+    }
+}
+
+/// A generic key identifier, which can be a key id, a fingerprint, or both.
+#[derive(Debug, Clone)]
+pub enum GenericKeyIdentifier {
+    /// A key id.   
+    KeyId(KeyId),
+    /// A fingerprint.
+    Fingerprint(Fingerprint),
+    /// A key id and a fingerprint.
+    Both(KeyId, Fingerprint),
+}
+
+impl PartialEq for GenericKeyIdentifier {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Fingerprint(l0), Self::Fingerprint(r0) | Self::Both(_, r0))
+            | (Self::Both(_, l0), Self::Fingerprint(r0)) => l0 == r0,
+            (Self::Both(l0, l1), Self::Both(r0, r1)) => l0 == r0 && l1 == r1,
+            (Self::Both(l0, _), Self::KeyId(r0))
+            | (Self::KeyId(l0), Self::KeyId(r0) | Self::Both(r0, _)) => l0 == r0,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for GenericKeyIdentifier {}
+
+impl Display for GenericKeyIdentifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::KeyId(key_id) => write!(f, "{key_id}"),
+            Self::Fingerprint(fingerprint) => write!(f, "{fingerprint}"),
+            Self::Both(key_id, fingerprint) => write!(f, "{key_id} ({fingerprint})"),
+        }
     }
 }
 

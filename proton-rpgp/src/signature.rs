@@ -4,7 +4,7 @@ use pgp::{
     types::PublicKeyTrait,
 };
 
-use crate::{types::UnixTime, Profile, PublicComponentKey, SignatureError};
+use crate::{types::UnixTime, GenericKeyIdentifier, Profile, PublicComponentKey, SignatureError};
 
 mod message;
 pub use message::*;
@@ -15,6 +15,8 @@ pub(crate) trait SignatureExt {
     fn is_revocation(&self) -> bool;
 
     fn is_hard_revocation(&self) -> bool;
+
+    fn issuer_generic_identifier(&self) -> Vec<GenericKeyIdentifier>;
 
     fn unix_created_at(&self) -> Result<UnixTime, SignatureError>;
 
@@ -74,6 +76,20 @@ impl SignatureExt for Signature {
             }
         }
         Ok(())
+    }
+
+    fn issuer_generic_identifier(&self) -> Vec<GenericKeyIdentifier> {
+        let fingerprints = self.issuer_fingerprint();
+        if !fingerprints.is_empty() {
+            return fingerprints
+                .into_iter()
+                .map(|fp| GenericKeyIdentifier::Fingerprint(fp.clone()))
+                .collect();
+        }
+        self.issuer()
+            .into_iter()
+            .map(|id| GenericKeyIdentifier::KeyId(*id))
+            .collect()
     }
 }
 
