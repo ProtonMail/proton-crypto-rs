@@ -4,7 +4,7 @@ use pgp::{
     types::PublicKeyTrait,
 };
 
-use crate::{types::UnixTime, GenericKeyIdentifier, Profile, PublicComponentKey, SignatureError};
+use crate::{types::UnixTime, GenericKeyIdentifier, Profile, SignatureError};
 
 mod message;
 pub use message::*;

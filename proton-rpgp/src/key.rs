@@ -59,10 +59,10 @@ impl PublicKey {
     /// Import an `OpenPGP` public key from a byte slice.
     pub fn import(key_data: &[u8], encoding: DataEncoding) -> Result<Self, KeyOperationError> {
         let signed_public_key = match encoding {
-            DataEncoding::Armor => SignedPublicKey::from_armor_single(key_data)
+            DataEncoding::Armored => SignedPublicKey::from_armor_single(key_data)
                 .map_err(KeyOperationError::Decode)
                 .map(|(signed_public, _)| signed_public)?,
-            DataEncoding::Binary => {
+            DataEncoding::Unarmored => {
                 SignedPublicKey::from_bytes(key_data).map_err(KeyOperationError::Decode)?
             }
         };
@@ -75,14 +75,14 @@ impl PublicKey {
     /// Export the public key.
     pub fn export(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
         match encoding {
-            DataEncoding::Armor => self
+            DataEncoding::Armored => self
                 .inner
                 .to_armored_bytes(ArmorOptions {
                     headers: None,
                     include_checksum: !(self.inner.version() == KeyVersion::V6),
                 })
                 .map_err(KeyOperationError::Encode),
-            DataEncoding::Binary => {
+            DataEncoding::Unarmored => {
                 let mut buf = Vec::new();
                 self.inner
                     .to_writer(&mut buf)
@@ -178,10 +178,10 @@ impl LockedPrivateKey {
     /// Does not check if the key is locked or not.
     pub fn import(key_data: &[u8], encoding: DataEncoding) -> Result<Self, KeyOperationError> {
         let secret = match encoding {
-            DataEncoding::Armor => SignedSecretKey::from_armor_single(key_data)
+            DataEncoding::Armored => SignedSecretKey::from_armor_single(key_data)
                 .map_err(KeyOperationError::Decode)
                 .map(|(secret, _)| secret)?,
-            DataEncoding::Binary => {
+            DataEncoding::Unarmored => {
                 SignedSecretKey::from_bytes(key_data).map_err(KeyOperationError::Decode)?
             }
         };
@@ -271,7 +271,7 @@ impl PrivateKey {
     ) -> Result<Vec<u8>, KeyOperationError> {
         let locked_key = self.lock(profile, password)?;
         match encoding {
-            DataEncoding::Armor => locked_key
+            DataEncoding::Armored => locked_key
                 .0
                 .secret
                 .to_armored_bytes(ArmorOptions {
@@ -279,7 +279,7 @@ impl PrivateKey {
                     include_checksum: !(self.secret.version() == KeyVersion::V6),
                 })
                 .map_err(KeyOperationError::Encode),
-            DataEncoding::Binary => {
+            DataEncoding::Unarmored => {
                 let mut buf = Vec::new();
                 locked_key
                     .0
@@ -298,14 +298,14 @@ impl PrivateKey {
     /// If unsure use [`Self::export`] instead.
     pub fn export_unlocked(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
         match encoding {
-            DataEncoding::Armor => self
+            DataEncoding::Armored => self
                 .secret
                 .to_armored_bytes(ArmorOptions {
                     headers: None,
                     include_checksum: !(self.secret.version() == KeyVersion::V6),
                 })
                 .map_err(KeyOperationError::Encode),
-            DataEncoding::Binary => {
+            DataEncoding::Unarmored => {
                 let mut buf = Vec::new();
                 self.secret
                     .to_writer(&mut buf)
@@ -359,7 +359,7 @@ mod tests {
         let time = UnixTime::new(1_751_881_317);
         let profile = Profile::default();
 
-        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let (primary_user_id, _) = public_key
@@ -380,7 +380,7 @@ mod tests {
         let time = UnixTime::new(1_751_881_317);
         let profile = Profile::default();
 
-        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let (primary_user_id, _) = public_key
@@ -400,7 +400,7 @@ mod tests {
         let date = UnixTime::new(1_751_881_317);
         let profile = Profile::default();
 
-        let private_key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let private_key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let user_id_result = private_key
@@ -420,7 +420,7 @@ mod tests {
         let expired = UnixTime::new(1_751_881_317);
         let profile = Profile::default();
 
-        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let check_result = public_key
@@ -449,7 +449,7 @@ mod tests {
         let date = UnixTime::new(1_751_881_317);
         let profile = Profile::default();
 
-        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let check_result = public_key
@@ -469,7 +469,7 @@ mod tests {
         let expired = UnixTime::new(1_751_881_317);
         let profile = Profile::default();
 
-        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let selection_result = public_key
@@ -496,7 +496,7 @@ mod tests {
         let date = UnixTime::new(1_751_881_317);
         let profile = Profile::default();
 
-        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let selection_result = public_key
@@ -523,7 +523,7 @@ mod tests {
         let date = UnixTime::new(1_751_984_424);
         let profile = Profile::default();
 
-        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let selection_result = public_key
@@ -543,7 +543,7 @@ mod tests {
         let date = UnixTime::new(1_751_984_424);
         let profile = Profile::default();
 
-        let private_key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let private_key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let selection_result = private_key
@@ -562,7 +562,7 @@ mod tests {
         let date = UnixTime::new(1_751_984_424);
         let profile = Profile::default();
 
-        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let selection_result = public_key
@@ -583,7 +583,7 @@ mod tests {
         let date = UnixTime::new(1_751_984_424);
         let profile = Profile::default();
 
-        let private_key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let private_key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let selection_result = private_key

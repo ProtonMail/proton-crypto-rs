@@ -12,13 +12,13 @@ pub fn verify_detached_signature_v4() {
 
     let date = UnixTime::new(1_752_153_651);
 
-    let verification_key =
-        PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor).expect("Failed to import key");
+    let verification_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
 
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(date)
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armor);
+        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
         Ok(verification_information) => {
@@ -41,13 +41,13 @@ pub fn verify_detached_signature_v4_fails() {
 
     let date = UnixTime::new(1_752_153_651);
 
-    let verification_key =
-        PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor).expect("Failed to import key");
+    let verification_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
 
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(date)
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armor);
+        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
         Ok(_) => {
@@ -76,13 +76,17 @@ pub fn verify_detached_signature_v4_fails_rsa_512() {
 
     let date = UnixTime::new(1_752_153_651);
 
-    let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armor)
+    let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
     let verification_result = Verifier::default()
         .with_verification_key(verification_key.as_public_key())
         .at_date(date)
-        .verify_detached(b"Hello World :)", SIGANTURE.as_bytes(), DataEncoding::Armor);
+        .verify_detached(
+            b"Hello World :)",
+            SIGANTURE.as_bytes(),
+            DataEncoding::Armored,
+        );
 
     assert!(matches!(
         verification_result,
@@ -95,7 +99,11 @@ pub fn verify_detached_signature_v4_fails_rsa_512() {
     let verification_result = Verifier::new(&profile)
         .with_verification_key(verification_key.as_public_key())
         .at_date(date)
-        .verify_detached(b"Hello World :)", SIGANTURE.as_bytes(), DataEncoding::Armor);
+        .verify_detached(
+            b"Hello World :)",
+            SIGANTURE.as_bytes(),
+            DataEncoding::Armored,
+        );
 
     assert!(verification_result.is_ok());
 }
@@ -108,13 +116,13 @@ pub fn verify_detached_signature_multiple_signatures() {
 
     let date = UnixTime::new(1_752_153_651);
 
-    let verification_key =
-        PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor).expect("Failed to import key");
+    let verification_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
 
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(date)
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armor);
+        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
         Ok(verification_information) => {
@@ -138,13 +146,13 @@ pub fn verify_detached_signature_v4_text() {
 
     let date = UnixTime::new(1_752_223_468);
 
-    let verification_key =
-        PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armor).expect("Failed to import key");
+    let verification_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
 
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(date)
-        .verify_detached(TEXT, SIGANTURE.as_bytes(), DataEncoding::Armor);
+        .verify_detached(TEXT, SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
         Ok(verification_information) => {
@@ -168,13 +176,13 @@ pub fn verify_detached_signature_v6() {
 
     let date = UnixTime::new(1_752_237_138);
 
-    let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armor)
+    let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
     let verification_result = Verifier::default()
         .with_verification_key(verification_key.as_public_key())
         .at_date(date)
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armor);
+        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
 }
@@ -188,13 +196,13 @@ pub fn verify_detached_signature_v6_pqc() {
 
     let date = UnixTime::new(1_752_237_138);
 
-    let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armor)
+    let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
     let verification_result = Verifier::default()
         .with_verification_key(verification_key.as_public_key())
         .at_date(date)
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armor);
+        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
 }*/

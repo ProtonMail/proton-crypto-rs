@@ -69,12 +69,12 @@ impl<'a> Signer<'a> {
     /// ```
     /// use proton_rpgp::{Signer, DataEncoding, UnixTime, PrivateKey};
     /// let key_data = include_str!("../test-data/keys/private_key_v4.asc");
-    /// let key = PrivateKey::import_unlocked(key_data.as_bytes(), DataEncoding::Armor)
+    /// let key = PrivateKey::import_unlocked(key_data.as_bytes(), DataEncoding::Armored)
     ///     .expect("Failed to import key");
     ///
     /// let signature_bytes = Signer::default()
     ///     .with_signing_key(&key)
-    ///     .sign_detached(b"hello world", DataEncoding::Armor)
+    ///     .sign_detached(b"hello world", DataEncoding::Armored)
     ///     .unwrap();
     /// ```
     pub fn sign_detached(
@@ -141,13 +141,13 @@ fn handle_signature_encoding(
     signature_encoding: DataEncoding,
 ) -> Result<Vec<u8>, SignError> {
     match signature_encoding {
-        DataEncoding::Armor => {
+        DataEncoding::Armored => {
             let armored_data = StandaloneSignatures::from(signatures)
                 .to_armored_bytes()
                 .map_err(SignError::Serialize)?;
             Ok(armored_data)
         }
-        DataEncoding::Binary => {
+        DataEncoding::Unarmored => {
             let mut buffer = Vec::new();
             for signature in signatures {
                 signature
@@ -175,13 +175,13 @@ mod tests {
         let date = UnixTime::new(1_752_476_259);
         let input_data = b"hello world";
 
-        let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let signature_bytes = Signer::default()
             .with_signing_key(&key)
             .at_date(date)
-            .sign_detached(input_data, DataEncoding::Binary)
+            .sign_detached(input_data, DataEncoding::Unarmored)
             .expect("Failed to sign");
 
         let signature = load_signature(&signature_bytes);
@@ -202,14 +202,14 @@ mod tests {
         let date = UnixTime::new(1_752_476_259);
         let input_data = b"hello world\n";
 
-        let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let signature_bytes = Signer::default()
             .with_signing_key(&key)
             .at_date(date)
             .as_utf8()
-            .sign_detached(input_data, DataEncoding::Binary)
+            .sign_detached(input_data, DataEncoding::Unarmored)
             .expect("Failed to sign");
 
         let signature = load_signature(&signature_bytes);
@@ -232,13 +232,13 @@ mod tests {
         let date = UnixTime::new(1_752_476_259);
         let input_data = b"hello world";
 
-        let key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armor)
+        let key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");
 
         let signature_bytes = Signer::default()
             .with_signing_key(&key)
             .at_date(date)
-            .sign_detached(input_data, DataEncoding::Binary)
+            .sign_detached(input_data, DataEncoding::Unarmored)
             .expect("Failed to sign");
 
         let signature = load_signature(&signature_bytes);

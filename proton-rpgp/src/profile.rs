@@ -59,7 +59,7 @@ impl Profile {
         PREFERRED_HASH_ALGORITHMS
     }
 
-    pub fn msg_hash(&self) -> HashAlgorithm {
+    pub fn message_hash_algorithm(&self) -> HashAlgorithm {
         HashAlgorithm::Sha512
     }
 

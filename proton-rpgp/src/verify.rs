@@ -67,12 +67,12 @@ impl<'a> Verifier<'a> {
     /// let data = b"hello world";
     /// let date = UnixTime::now().unwrap();
     ///
-    /// let public_key = PublicKey::import(public_key.as_bytes(), DataEncoding::Armor).unwrap();
+    /// let public_key = PublicKey::import(public_key.as_bytes(), DataEncoding::Armored).unwrap();
     ///
     /// let result = Verifier::default()
     ///     .with_verification_key(&public_key)
     ///     .at_date(date)
-    ///     .verify_detached(data, signature, DataEncoding::Armor);
+    ///     .verify_detached(data, signature, DataEncoding::Armored);
     /// assert!(result.is_ok());
     /// ```
     pub fn verify_detached(
@@ -122,8 +122,8 @@ fn handle_signature_decoding<'a>(
     signature_encoding: DataEncoding,
 ) -> Result<PacketParser<&'a [u8]>, VerificationError> {
     match signature_encoding {
-        DataEncoding::Binary => Ok(PacketParser::new(signature)),
-        DataEncoding::Armor => {
+        DataEncoding::Unarmored => Ok(PacketParser::new(signature)),
+        DataEncoding::Armored => {
             armor::decode_to_buffer(signature, Some(BlockType::Signature), buffer)
                 .map_err(|err| VerificationError::RuntimeError(err.to_string()))?;
             Ok(PacketParser::new(buffer.as_slice()))

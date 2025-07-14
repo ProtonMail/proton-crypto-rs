@@ -24,14 +24,14 @@ use crate::FingerprintError;
 pub enum DataEncoding {
     /// The data is armored.
     #[default]
-    Armor,
+    Armored,
     /// The data is encoded as raw bytes.
-    Binary,
+    Unarmored,
 }
 
 impl DataEncoding {
     pub fn is_armor(&self) -> bool {
-        *self == DataEncoding::Armor
+        *self == DataEncoding::Armored
     }
 }
 
