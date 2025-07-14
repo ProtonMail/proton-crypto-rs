@@ -82,10 +82,12 @@ impl<'a> Signer<'a> {
         data: impl AsRef<[u8]>,
         signature_encoding: DataEncoding,
     ) -> Result<Vec<u8>, SignError> {
+        self.check_input_data(data.as_ref())?;
+
         // Determine which hash algorithm to use for each key.
         let hash_algorithms = preferences::select_hash_algorithm_from_keys(
             self.date,
-            self.profile.msg_hash(),
+            self.profile.message_hash_algorithm(),
             &self.signing_keys,
             self.profile,
         )?;
@@ -116,6 +118,15 @@ impl<'a> Signer<'a> {
             .collect();
 
         handle_signature_encoding(signatures?, signature_encoding)
+    }
+
+    fn check_input_data(&self, data: &[u8]) -> Result<(), SignError> {
+        match self.signature_type {
+            SignatureMode::Text => std::str::from_utf8(data)
+                .map(|_| ())
+                .map_err(SignError::InvalidInputData),
+            SignatureMode::Binary => Ok(()),
+        }
     }
 }
 

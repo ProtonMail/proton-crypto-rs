@@ -1,4 +1,6 @@
-use proton_rpgp::{AsPublicKeyRef, DataEncoding, PrivateKey, Profile, Signer, UnixTime, Verifier};
+use proton_rpgp::{
+    AsPublicKeyRef, DataEncoding, PrivateKey, Profile, SignError, Signer, UnixTime, Verifier,
+};
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
 
@@ -108,6 +110,33 @@ pub fn sign_create_detached_signature_rsa_1023() {
         .verify_detached(input_data, &signature_bytes, DataEncoding::Armor);
 
     assert!(verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn sign_create_text_signature_with_non_utf8_data_should_fail() {
+    let date = UnixTime::new(1_752_476_259);
+    let input_data = b"hello world\x80";
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armor)
+        .expect("Failed to import key");
+
+    // Text mode should fail.
+    let result = Signer::default()
+        .with_signing_key(&key)
+        .as_utf8()
+        .at_date(date)
+        .sign_detached(input_data, DataEncoding::Armor);
+
+    assert!(matches!(result, Err(SignError::InvalidInputData(_))));
+
+    // Binary mode should not fail.
+    let result = Signer::default()
+        .with_signing_key(&key)
+        .at_date(date)
+        .sign_detached(input_data, DataEncoding::Armor);
+
+    assert!(result.is_ok());
 }
 
 // TODO: Update rpgp to accept ml-dsa as a valid signature algorithm.

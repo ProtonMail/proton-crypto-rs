@@ -201,6 +201,9 @@ pub enum SignError {
 
     #[error("{ERROR_PREFIX}: Failed to sign data: {0}")]
     Sign(pgp::errors::Error),
+
+    #[error("{ERROR_PREFIX}: Invalid input encoding for text signature: {0}")]
+    InvalidInputData(#[from] std::str::Utf8Error),
 }
 
 #[derive(Debug, thiserror::Error)]
