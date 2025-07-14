@@ -94,8 +94,8 @@ fn key_export_import_unlocked_key() {
         .export_unlocked(DataEncoding::Armored)
         .expect("Failed to export key");
 
-    let key2 =
-        PrivateKey::import_unlocked(&exported, DataEncoding::Armored).expect("Failed to import key");
+    let key2 = PrivateKey::import_unlocked(&exported, DataEncoding::Armored)
+        .expect("Failed to import key");
 
     assert_eq!(key.fingerprint(), key2.fingerprint());
 

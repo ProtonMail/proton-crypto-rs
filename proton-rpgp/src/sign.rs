@@ -56,7 +56,7 @@ impl<'a> Signer<'a> {
 
     /// Sets the signature type to text.
     ///
-    /// If this is set, `OpenPGP` will canonicalize the signature data before signing.
+    /// If this is set, `OpenPGP` will canonicalize the line endings in the signature data before signing.
     pub fn as_utf8(mut self) -> Self {
         self.signature_type = SignatureMode::Text;
         self
