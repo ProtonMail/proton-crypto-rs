@@ -8,7 +8,7 @@ use crate::{
     signature::{
         VerificationError, VerificationResult, VerificationResultCreator, VerifiedSignature,
     },
-    DataEncoding, Profile, PublicKey, UnixTime, DEFAULT_PROFILE,
+    DataEncoding, Profile, PublicKey, UnixTime, VerificationInput, DEFAULT_PROFILE,
 };
 
 /// Verifier type to verify `OpenPGP` signatures.
@@ -99,7 +99,7 @@ impl<'a> Verifier<'a> {
                     self.date,
                     signature,
                     &self.verification_keys,
-                    data.as_ref(),
+                    VerificationInput::Data(data.as_ref()),
                     self.profile,
                 )
             })
@@ -114,6 +114,12 @@ impl Default for Verifier<'_> {
     fn default() -> Self {
         Self::new(&DEFAULT_PROFILE)
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct VerifiedData {
+    pub data: Vec<u8>,
+    pub verification_result: VerificationResult,
 }
 
 fn handle_signature_decoding<'a>(

@@ -1,7 +1,8 @@
 // Allow dead code for now.
 // TODO: Remove this once we have a proper API.
 #![allow(dead_code)]
-// mod decryption;
+
+mod decrypt;
 // mod encryption;
 mod errors;
 mod key;
@@ -16,7 +17,7 @@ pub mod armor;
 /// Re-export the `pgp` crate.
 pub use pgp;
 
-// pub use decryption::*;
+pub use decrypt::*;
 // pub use encryption::*;
 pub use errors::*;
 pub use key::*;

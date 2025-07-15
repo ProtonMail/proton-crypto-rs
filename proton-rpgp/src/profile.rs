@@ -91,6 +91,10 @@ impl Profile {
         false
     }
 
+    pub fn max_recursion_depth(&self) -> usize {
+        1024
+    }
+
     pub fn ignore_key_flags(&self) -> bool {
         false
     }

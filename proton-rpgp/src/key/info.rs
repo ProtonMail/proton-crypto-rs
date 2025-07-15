@@ -1,6 +1,6 @@
 use pgp::{
     crypto::public_key::PublicKeyAlgorithm,
-    types::{Fingerprint, Imprint, KeyDetails, KeyId, KeyVersion, PublicKeyTrait},
+    types::{Fingerprint, Imprint, KeyDetails, KeyId, KeyVersion},
 };
 use sha2::Sha256;
 
@@ -190,11 +190,11 @@ impl<'a> From<PublicComponentKey<'a>> for KeyInfo {
     }
 }
 
-pub trait PublicKeyExt: PublicKeyTrait {
+pub trait PublicKeyExt: KeyDetails {
     /// Returns the key identifier of the `OpenPGP` key.
     fn generic_identifier(&self) -> GenericKeyIdentifier {
         GenericKeyIdentifier::Both(self.key_id(), self.fingerprint())
     }
 }
 
-impl<T: PublicKeyTrait> PublicKeyExt for T {}
+impl<T: KeyDetails> PublicKeyExt for T {}

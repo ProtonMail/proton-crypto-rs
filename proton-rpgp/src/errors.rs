@@ -7,7 +7,7 @@ use pgp::{
     types::{KeyId, PkeskVersion},
 };
 
-use crate::{types::UnixTime, GenericKeyIdentifier, GenricKeyIdentifierList, PrettyKeyFlags};
+use crate::{types::UnixTime, GenericKeyIdentifier, GenericKeyIdentifierList, PrettyKeyFlags};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -127,8 +127,11 @@ pub enum KeySelectionError {
     #[error("Key {0} does not match requested key-id: {1}")]
     NoMatch(KeyId, KeyId),
 
+    #[error("Key {0} does not match requested key-id: {1}")]
+    NoMatchDecryption(KeyId, GenericKeyIdentifier),
+
     #[error("Key {0} does not match requested key-ids: {1}")]
-    NoMatchList(GenericKeyIdentifier, GenricKeyIdentifierList),
+    NoMatchList(GenericKeyIdentifier, GenericKeyIdentifierList),
 
     #[error("No valid encryption key found in key with primary key-id {0}: {1}")]
     NoEncryptionKey(KeyId, ErrorList<KeySelectionError>),
@@ -148,7 +151,7 @@ pub enum KeyRequirementError {
     #[error("Rejected public key algorithm: {0:?}")]
     WeakAlgorithm(PublicKeyAlgorithm),
 
-    #[error("Rejected rsa public key algorithm: not enough bits got: {0} want {1}")]
+    #[error("Rejected RSA public key algorithm: insufficient bits (got: {0}, required: {1})")]
     WeakRsaAlgorithm(usize, usize),
 
     #[error("Rejected ecc curve: {0:?}")]
@@ -168,7 +171,55 @@ pub enum KeyRequirementError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum EncryptionError {
+    #[error("Failed to select encryption key: {0:?}")]
+    EncryptionKeySelection(ErrorList<KeySelectionError>),
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum DecryptionError {
+    #[error("Unexpected locked key")]
+    LockedKey,
+
+    #[error("No encrypted data found")]
+    UnexpectedPlaintext,
+
+    #[error("Failed to parse message: {0}")]
+    MessageParsing(pgp::errors::Error),
+
+    #[error("Failed to process message: {0}")]
+    MessageProcessing(#[from] MessageProcessingError),
+
+    #[error("PKESK decryption for key {0} failed: {1}")]
+    PkeskDecryption(Box<GenericKeyIdentifier>, ErrorList<DecryptionError>),
+
+    #[error(transparent)]
+    SinglePkeskDecryption(#[from] PkeskDecryptionError),
+
+    #[error("Invalid PKESK packet without a key-id or issuer")]
+    PkeskNoIssuer,
+
+    #[error("No matching key found for PKESK using key identifier {0}")]
+    PkeskNoMatchingKey(Box<GenericKeyIdentifier>),
+
+    #[error("Failed to decrypt any session key: {0}")]
+    SessionKeyDecryption(ErrorList<DecryptionError>),
+
+    #[error("Failed to decrypt with session key: {0}")]
+    InvalidSessionKey(#[from] pgp::errors::Error),
+
+    #[error("Failed to select verified decryption keys for id {0}: {1}")]
+    KeySelection(Box<GenericKeyIdentifier>, KeySelectionError),
+
+    #[error("Multiple compression layers found in message")]
+    Compression,
+
+    #[error("Failed to read data: {0}")]
+    Read(#[from] io::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum PkeskDecryptionError {
     #[error("Unexpected locked key")]
     LockedKey,
 
@@ -177,12 +228,6 @@ pub enum DecryptionError {
 
     #[error("Invalid PKESK version: {0:?}")]
     InvalidPkesk(PkeskVersion),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum EncryptionError {
-    #[error("Failed to select encryption key: {0:?}")]
-    EncryptionKeySelection(ErrorList<KeySelectionError>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -234,6 +279,18 @@ pub enum ArmorError {
 
     #[error("Failed to decode armor due to io: {0}")]
     Decode(io::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MessageProcessingError {
+    #[error("Message is not fully read for verification")]
+    NotFullyRead,
+
+    #[error("Message is not decrypted for verification")]
+    Encrypted,
+
+    #[error("Message is compressed for verification")]
+    Compressed,
 }
 
 #[derive(Debug)]

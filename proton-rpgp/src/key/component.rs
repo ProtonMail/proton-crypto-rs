@@ -1,7 +1,7 @@
 use std::io::Read;
 
 use pgp::{
-    composed::PlainSessionKey,
+    composed::{Message, PlainSessionKey},
     crypto::{hash::HashAlgorithm, public_key::PublicKeyAlgorithm},
     packet::{self, PublicKeyEncryptedSessionKey, Signature},
     types::{
@@ -11,7 +11,7 @@ use pgp::{
 };
 
 use crate::{
-    core, signature::check_message_signature_details, DecryptionError, MessageSignatureError,
+    core, signature::check_message_signature_details, MessageSignatureError, PkeskDecryptionError,
     Profile, SignError, SignatureError, SignatureMode, UnixTime,
 };
 
@@ -49,7 +49,7 @@ impl<'a> PublicComponentKey<'a> {
     }
 
     /// Verify a message signature using the public component key.
-    pub fn verify_message_signature<R: Read>(
+    pub fn verify_message_signature_with_data<R: Read>(
         &self,
         date: UnixTime,
         signature: &Signature,
@@ -58,6 +58,20 @@ impl<'a> PublicComponentKey<'a> {
     ) -> Result<(), MessageSignatureError> {
         signature
             .verify(&self.public_key, data_to_verify)
+            .map_err(|err| MessageSignatureError::Failed(SignatureError::Verification(err)))?;
+        check_message_signature_details(date, signature, self, profile)
+            .map_err(MessageSignatureError::Failed)
+    }
+
+    pub fn verify_message_signature_with_message(
+        &self,
+        date: UnixTime,
+        signature: &Signature,
+        message: &Message<'_>,
+        profile: &Profile,
+    ) -> Result<(), MessageSignatureError> {
+        message
+            .verify(&self.public_key)
             .map_err(|err| MessageSignatureError::Failed(SignatureError::Verification(err)))?;
         check_message_signature_details(date, signature, self, profile)
             .map_err(MessageSignatureError::Failed)
@@ -189,14 +203,14 @@ impl SecretKeyTrait for AnySecretKey<'_> {
 
 #[allow(clippy::match_wildcard_for_single_variants)]
 impl AnySecretKey<'_> {
-    fn decrypt_session_key(
+    pub(crate) fn decrypt_session_key(
         &self,
         pkesk: &PublicKeyEncryptedSessionKey,
-    ) -> Result<PlainSessionKey, DecryptionError> {
+    ) -> Result<PlainSessionKey, PkeskDecryptionError> {
         let esk_type = match pkesk.version() {
             PkeskVersion::V3 => pgp::types::EskType::V3_4,
             PkeskVersion::V6 => pgp::types::EskType::V6,
-            v => return Err(DecryptionError::InvalidPkesk(v)),
+            v => return Err(PkeskDecryptionError::InvalidPkesk(v)),
         };
         match self {
             AnySecretKey::PrimarySecretKey(secret_key) => match secret_key.secret_params() {
@@ -209,9 +223,9 @@ impl AnySecretKey<'_> {
                             esk_type,
                             public_key,
                         )
-                        .map_err(DecryptionError::Pkesk)
+                        .map_err(PkeskDecryptionError::Pkesk)
                 }
-                SecretParams::Encrypted(_) => Err(DecryptionError::LockedKey),
+                SecretParams::Encrypted(_) => Err(PkeskDecryptionError::LockedKey),
             },
             AnySecretKey::SecretSubKey(secret_subkey) => match secret_subkey.secret_params() {
                 SecretParams::Plain(plain_secret_params) => {
@@ -223,9 +237,9 @@ impl AnySecretKey<'_> {
                             esk_type,
                             public_key,
                         )
-                        .map_err(DecryptionError::Pkesk)
+                        .map_err(PkeskDecryptionError::Pkesk)
                 }
-                SecretParams::Encrypted(_) => Err(DecryptionError::LockedKey),
+                SecretParams::Encrypted(_) => Err(PkeskDecryptionError::LockedKey),
             },
         }
     }

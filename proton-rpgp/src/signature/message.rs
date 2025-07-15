@@ -1,9 +1,9 @@
-use pgp::{packet::Signature, types::KeyId};
+use pgp::{composed::Message, packet::Signature, types::KeyId};
 
 use crate::{
-    check_signature_details, types::UnixTime, AsPublicKeyRef, GenricKeyIdentifierList, KeyInfo,
-    MessageSignatureError, Profile, PublicComponentKey, PublicKeySelectionExt, SignatureError,
-    SignatureExt, SignatureUsage, ERROR_PREFIX,
+    check_signature_details, types::UnixTime, AsPublicKeyRef, GenericKeyIdentifierList, KeyInfo,
+    MessageProcessingError, MessageSignatureError, Profile, PublicComponentKey,
+    PublicKeySelectionExt, SignatureError, SignatureExt, SignatureUsage, ERROR_PREFIX,
 };
 
 /// The result of verifying signature in an `OpenPGP` message.
@@ -57,7 +57,7 @@ pub enum VerificationError {
     NotSigned,
 
     #[error("{ERROR_PREFIX}: No valid verification keys found for signature {0}: {1}")]
-    NoVerifier(GenricKeyIdentifierList, String),
+    NoVerifier(GenericKeyIdentifierList, String),
 
     #[error("{ERROR_PREFIX}: Signature verification failed: {1}")]
     Failed(Box<VerificationInformation>, String),
@@ -96,6 +96,12 @@ impl VerificationResultCreator {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum VerificationInput<'a> {
+    Message(&'a Message<'a>),
+    Data(&'a [u8]),
+}
+
 /// Represents an internal verified signature.
 #[derive(Debug)]
 pub(crate) struct VerifiedSignature {
@@ -115,7 +121,7 @@ impl VerifiedSignature {
         date: UnixTime,
         signature: Signature,
         with_public_keys: &[impl AsPublicKeyRef],
-        data_to_verify: &[u8],
+        data_to_verify: VerificationInput<'_>,
         profile: &Profile,
     ) -> Self {
         // Select the verification keys from the list of public keys.
@@ -138,8 +144,12 @@ impl VerifiedSignature {
         let mut verification_result = Ok(());
         let mut verified_by = None;
         for candidate in verification_candidates {
-            verification_result =
-                candidate.verify_message_signature(date, &signature, data_to_verify, profile);
+            verification_result = match data_to_verify {
+                VerificationInput::Message(message) => candidate
+                    .verify_message_signature_with_message(date, &signature, message, profile),
+                VerificationInput::Data(input_data) => candidate
+                    .verify_message_signature_with_data(date, &signature, input_data, profile),
+            };
             if verification_result.is_ok() {
                 verified_by = Some(candidate.into());
                 break;
@@ -241,4 +251,68 @@ pub(crate) fn check_message_signature_details(
     check_signature_details(selected_key.self_certification, check_time, profile)?;
 
     Ok(())
+}
+
+pub(crate) trait MessageVerificationExt {
+    fn verify_nested_to_verified_signature(
+        &self,
+        date: UnixTime,
+        keys: &[impl AsPublicKeyRef],
+        profile: &Profile,
+    ) -> Result<Vec<VerifiedSignature>, MessageProcessingError>;
+}
+
+impl MessageVerificationExt for Message<'_> {
+    fn verify_nested_to_verified_signature(
+        &self,
+        date: UnixTime,
+        keys: &[impl AsPublicKeyRef],
+        profile: &Profile,
+    ) -> Result<Vec<VerifiedSignature>, MessageProcessingError> {
+        let mut verification_results = Vec::new();
+
+        let mut current_message = self;
+
+        for _ in 0..profile.max_recursion_depth() {
+            match current_message {
+                Message::SignedOnePass { reader, .. } => {
+                    let Some(signature) = reader.signature() else {
+                        return Err(MessageProcessingError::NotFullyRead);
+                    };
+                    let result = VerifiedSignature::create_by_verifying(
+                        date,
+                        signature.clone(),
+                        keys,
+                        VerificationInput::Message(current_message),
+                        profile,
+                    );
+                    verification_results.push(result);
+                    current_message = reader.get_ref();
+                }
+                Message::Signed { reader, .. } => {
+                    let signature = reader.signature();
+                    let result = VerifiedSignature::create_by_verifying(
+                        date,
+                        signature.clone(),
+                        keys,
+                        VerificationInput::Message(current_message),
+                        profile,
+                    );
+                    verification_results.push(result);
+                    current_message = reader.get_ref();
+                }
+                Message::Literal { .. } => {
+                    break;
+                }
+                Message::Compressed { .. } => {
+                    return Err(MessageProcessingError::Compressed);
+                }
+                Message::Encrypted { .. } => {
+                    return Err(MessageProcessingError::Encrypted);
+                }
+            }
+        }
+
+        Ok(verification_results)
+    }
 }

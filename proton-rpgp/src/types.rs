@@ -146,21 +146,21 @@ impl Display for FingerprintSha256 {
 }
 
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
-pub struct GenricKeyIdentifierList(pub(crate) Vec<GenericKeyIdentifier>);
+pub struct GenericKeyIdentifierList(pub(crate) Vec<GenericKeyIdentifier>);
 
-impl From<Vec<GenericKeyIdentifier>> for GenricKeyIdentifierList {
+impl From<Vec<GenericKeyIdentifier>> for GenericKeyIdentifierList {
     fn from(value: Vec<GenericKeyIdentifier>) -> Self {
         Self(value)
     }
 }
 
-impl From<GenericKeyIdentifier> for GenricKeyIdentifierList {
+impl From<GenericKeyIdentifier> for GenericKeyIdentifierList {
     fn from(value: GenericKeyIdentifier) -> Self {
         Self(vec![value])
     }
 }
 
-impl Display for GenricKeyIdentifierList {
+impl Display for GenericKeyIdentifierList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut key_ids = self.0.iter();
 

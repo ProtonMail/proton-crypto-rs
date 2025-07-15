@@ -418,7 +418,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
     fn decryption_keys(
         &self,
         date: UnixTime,
-        key_id: Option<KeyId>,
+        key_id: Option<GenericKeyIdentifier>,
         profile: &Profile,
     ) -> Result<Vec<PrivateComponentKey<'_>>, KeySelectionError> {
         let primary_key = self.primary_key();
@@ -429,9 +429,12 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
 
         for sub_key in self.iter_private_subkeys() {
             // Filter by key-id if present.
-            if let Some(key_id) = key_id {
-                if sub_key.key_id() != key_id {
-                    errors.push(KeySelectionError::NoMatch(sub_key.key_id(), key_id));
+            if let Some(key_id) = &key_id {
+                if &sub_key.key.generic_identifier() != key_id {
+                    errors.push(KeySelectionError::NoMatchDecryption(
+                        sub_key.key_id(),
+                        key_id.clone(),
+                    ));
                     continue;
                 }
             }
