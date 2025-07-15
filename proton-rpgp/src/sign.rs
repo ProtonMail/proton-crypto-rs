@@ -1,8 +1,13 @@
-use pgp::packet::{PacketTrait, Signature};
+use pgp::{
+    armor::{self, BlockType},
+    composed::StandaloneSignature,
+    packet::SignatureVersion,
+    ser::Serialize,
+};
 
 use crate::{
     preferences, DataEncoding, PrivateKey, PrivateKeySelectionExt, Profile, SignError,
-    SignatureMode, StandaloneSignatures, UnixTime, DEFAULT_PROFILE,
+    SignatureMode, UnixTime, DEFAULT_PROFILE,
 };
 
 /// A signer that can create `OpenPGP` signatures over data.
@@ -107,17 +112,18 @@ impl<'a> Signer<'a> {
                 )?;
 
                 // Sign the data.
-                signing_key.sign_data(
+                let signature = signing_key.sign_data(
                     data.as_ref(),
                     self.date,
                     self.signature_type,
                     hash_algorithm,
                     self.profile,
-                )
+                )?;
+                Ok(StandaloneSignature::new(signature))
             })
             .collect();
 
-        handle_signature_encoding(signatures?, signature_encoding)
+        handle_signature_encoding(signatures?.as_slice(), signature_encoding)
     }
 
     fn check_input_data(&self, data: &[u8]) -> Result<(), SignError> {
@@ -137,23 +143,30 @@ impl Default for Signer<'_> {
 }
 
 fn handle_signature_encoding(
-    signatures: Vec<Signature>,
+    signatures: &[StandaloneSignature],
     signature_encoding: DataEncoding,
 ) -> Result<Vec<u8>, SignError> {
     match signature_encoding {
         DataEncoding::Armored => {
-            let armored_data = StandaloneSignatures::from(signatures)
-                .to_armored_bytes()
-                .map_err(SignError::Serialize)?;
-            Ok(armored_data)
+            let all_v6 = signatures
+                .iter()
+                .all(|s| s.signature.version() == SignatureVersion::V6);
+            let mut buffer = Vec::with_capacity(signatures.write_len());
+            armor::write(
+                &signatures,
+                BlockType::Signature,
+                &mut buffer,
+                None,
+                !all_v6,
+            )
+            .map_err(SignError::Serialize)?;
+            Ok(buffer)
         }
         DataEncoding::Unarmored => {
             let mut buffer = Vec::new();
-            for signature in signatures {
-                signature
-                    .to_writer_with_header(&mut buffer)
-                    .map_err(SignError::Serialize)?;
-            }
+            signatures
+                .to_writer(&mut buffer)
+                .map_err(SignError::Serialize)?;
             Ok(buffer)
         }
     }

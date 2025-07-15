@@ -1,9 +1,4 @@
-use pgp::{
-    armor,
-    packet::{PacketTrait, Signature, SignatureVersion},
-    ser::Serialize,
-    types::KeyId,
-};
+use pgp::{packet::Signature, types::KeyId};
 
 use crate::{
     check_signature_details, types::UnixTime, AsPublicKeyRef, GenricKeyIdentifierList, KeyInfo,
@@ -213,70 +208,6 @@ impl VerifiedSignature {
                 err.to_string(),
             )),
         }
-    }
-}
-
-/// Helper type for a collection of standalone signatures.
-///
-/// [`pgp::composed::StandaloneSignature`] only supports one signature,
-/// but there might be multiple signatures in a deteched signature message.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StandaloneSignatures {
-    pub signature: Vec<Signature>,
-}
-
-impl StandaloneSignatures {
-    pub fn new(signatures: Vec<Signature>) -> Self {
-        Self {
-            signature: signatures,
-        }
-    }
-
-    pub fn to_armored_writer(&self, writer: &mut impl std::io::Write) -> pgp::errors::Result<()> {
-        let all_v6 = self
-            .signature
-            .iter()
-            .all(|s| s.version() == SignatureVersion::V6);
-
-        armor::write(self, armor::BlockType::Signature, writer, None, !all_v6)
-    }
-
-    pub fn to_armored_bytes(&self) -> pgp::errors::Result<Vec<u8>> {
-        let mut buf = Vec::new();
-
-        self.to_armored_writer(&mut buf)?;
-
-        Ok(buf)
-    }
-}
-
-impl Serialize for StandaloneSignatures {
-    fn to_writer<W: std::io::Write>(&self, writer: &mut W) -> pgp::errors::Result<()> {
-        for signature in &self.signature {
-            signature.to_writer_with_header(writer)?;
-        }
-        Ok(())
-    }
-
-    fn write_len(&self) -> usize {
-        self.signature
-            .iter()
-            .map(PacketTrait::write_len_with_header)
-            .sum()
-    }
-}
-
-impl From<Signature> for StandaloneSignatures {
-    fn from(signature: Signature) -> Self {
-        Self {
-            signature: vec![signature],
-        }
-    }
-}
-
-impl From<Vec<Signature>> for StandaloneSignatures {
-    fn from(signature: Vec<Signature>) -> Self {
-        Self::new(signature)
     }
 }
 

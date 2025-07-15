@@ -88,7 +88,7 @@ pub fn sign_create_detached_signature_multi() {
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn sign_create_detached_signature_rsa_1023() {
-    const TEST_KEY_V4: &str = include_str!("../test-data/keys/locket_private_key_v4_rsa_1023.asc");
+    const TEST_KEY_V4: &str = include_str!("../test-data/keys/locked_private_key_v4_rsa_1023.asc");
     let date = UnixTime::new(1_752_476_259);
     let input_data = b"hello world";
 
