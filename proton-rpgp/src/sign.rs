@@ -163,7 +163,7 @@ fn handle_signature_encoding(
             Ok(buffer)
         }
         DataEncoding::Unarmored => {
-            let mut buffer = Vec::new();
+            let mut buffer = Vec::with_capacity(signatures.write_len());
             signatures
                 .to_writer(&mut buffer)
                 .map_err(SignError::Serialize)?;

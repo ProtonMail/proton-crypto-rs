@@ -17,5 +17,12 @@ rand = "0.8.5"
 sha2 = { version = "0.10.6", features = ["oid"] }
 hex = "0.4"
 
+[features]
+default = []
+# Enables assembly based optimizations
+asm = ["pgp/asm"]
+# Allows building for wasm
+wasm = ["pgp/wasm"]
+
 [lints]
 workspace = true
