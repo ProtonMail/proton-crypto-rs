@@ -116,9 +116,13 @@ impl Default for Verifier<'_> {
     }
 }
 
+/// The result of verifying signed data in an `OpenPGP` message.
 #[derive(Debug, Clone)]
 pub struct VerifiedData {
+    /// The verified data.
     pub data: Vec<u8>,
+
+    /// The verification result of verifying the underlying signature.
     pub verification_result: VerificationResult,
 }
 

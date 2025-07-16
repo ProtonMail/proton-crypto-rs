@@ -14,6 +14,9 @@ pub trait MessageDecryptionExt<'a> {
 }
 
 impl<'a> MessageDecryptionExt<'a> for Message<'a> {
+    /// Decrypts the message using the given decryptor.
+    ///
+    /// This is a helper function for the decryptor.
     fn decrypt_with_decryptor(self, decryptor: &Decryptor) -> Result<Message<'a>, DecryptionError> {
         let Message::Encrypted {
             esk,

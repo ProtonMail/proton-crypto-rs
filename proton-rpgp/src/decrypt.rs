@@ -1,13 +1,8 @@
-use std::io::{self, Read};
-
-use pgp::{
-    composed::Message, line_writer::LineBreak, normalize_lines::NormalizedReader,
-    packet::SignatureType,
-};
+use pgp::{composed::Message, packet::SignatureType};
 
 use crate::{
-    DataEncoding, DecryptionError, MessageVerificationExt, PrivateKey, Profile, PublicKey,
-    UnixTime, VerificationResultCreator, VerifiedData, DEFAULT_PROFILE,
+    sanitize_cleartext, DataEncoding, DecryptionError, MessageVerificationExt, PrivateKey, Profile,
+    PublicKey, UnixTime, VerificationResultCreator, VerifiedData, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -160,10 +155,4 @@ impl Default for Decryptor<'_> {
     fn default() -> Self {
         Self::new(&DEFAULT_PROFILE)
     }
-}
-
-fn sanitize_cleartext(cleartext: &[u8]) -> io::Result<Vec<u8>> {
-    let mut buffer = Vec::with_capacity(cleartext.len());
-    NormalizedReader::new(cleartext, LineBreak::Lf).read_to_end(&mut buffer)?;
-    Ok(buffer)
 }

@@ -9,6 +9,9 @@ use crate::{types::UnixTime, GenericKeyIdentifier, Profile, SignatureError};
 mod message;
 pub use message::*;
 
+mod text;
+pub(crate) use text::*;
+
 pub(crate) mod core;
 
 pub(crate) trait SignatureExt {

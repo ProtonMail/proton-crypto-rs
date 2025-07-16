@@ -221,6 +221,7 @@ impl VerifiedSignature {
     }
 }
 
+/// Additional checks for signatures that are verified in a message.
 pub(crate) fn check_message_signature_details(
     date: UnixTime,
     signature: &Signature,
@@ -253,7 +254,9 @@ pub(crate) fn check_message_signature_details(
     Ok(())
 }
 
+/// Extension trait for [`pgp::composed::Message`] to verify signatures with our logic.
 pub(crate) trait MessageVerificationExt {
+    /// Verifies the nested signatures of the message.
     fn verify_nested_to_verified_signatures(
         &self,
         date: UnixTime,
@@ -263,6 +266,7 @@ pub(crate) trait MessageVerificationExt {
 }
 
 impl MessageVerificationExt for Message<'_> {
+    /// Verifies the nested signatures of the message.
     fn verify_nested_to_verified_signatures(
         &self,
         date: UnixTime,
