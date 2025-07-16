@@ -254,7 +254,7 @@ pub(crate) fn check_message_signature_details(
 }
 
 pub(crate) trait MessageVerificationExt {
-    fn verify_nested_to_verified_signature(
+    fn verify_nested_to_verified_signatures(
         &self,
         date: UnixTime,
         keys: &[impl AsPublicKeyRef],
@@ -263,7 +263,7 @@ pub(crate) trait MessageVerificationExt {
 }
 
 impl MessageVerificationExt for Message<'_> {
-    fn verify_nested_to_verified_signature(
+    fn verify_nested_to_verified_signatures(
         &self,
         date: UnixTime,
         keys: &[impl AsPublicKeyRef],

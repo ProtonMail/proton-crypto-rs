@@ -114,6 +114,9 @@ impl<'a> Decryptor<'a> {
 
         if message.is_compressed() {
             message = message.decompress()?;
+            if message.is_compressed() {
+                return Err(DecryptionError::Compression);
+            }
         }
 
         if message.is_encrypted() {
@@ -130,7 +133,7 @@ impl<'a> Decryptor<'a> {
 
         let mut cleartext = message.as_data_vec()?;
 
-        let verified_signatures = message.verify_nested_to_verified_signature(
+        let verified_signatures = message.verify_nested_to_verified_signatures(
             self.date,
             &self.verification_keys,
             self.profile,
