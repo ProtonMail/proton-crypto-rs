@@ -1,9 +1,10 @@
 use pgp::{
-    crypto::hash::HashAlgorithm,
-    types::{PublicKeyTrait, PublicParams},
+    crypto::{aead::AeadAlgorithm, hash::HashAlgorithm, sym::SymmetricKeyAlgorithm},
+    packet::Features,
+    types::{CompressionAlgorithm, PublicParams},
 };
 
-use crate::{PrivateKey, Profile, PublicKeySelectionExt, SignHashSelectionError, UnixTime};
+use crate::{PrivateComponentKey, Profile, PublicComponentKey};
 
 const HASH_ALGORITHMS_MID: &[HashAlgorithm] = &[
     HashAlgorithm::Sha512,
@@ -13,34 +14,177 @@ const HASH_ALGORITHMS_MID: &[HashAlgorithm] = &[
 
 const HASH_ALGORITHMS_HIGH: &[HashAlgorithm] = &[HashAlgorithm::Sha512, HashAlgorithm::Sha3_512];
 
-pub fn select_hash_algorithm_from_keys<'a>(
-    date: UnixTime,
+/// Algorithm preferences for `OpenPGP` encryption.
+pub struct EncryptionAlgorithmPreference {
+    /// The symmetric key algorithm to use.
+    pub symmetric: SymmetricKeyAlgorithm,
+
+    /// The AEAD algorithm to use if any.
+    pub aead: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
+
+    /// The compression algorithm to use.
+    ///
+    /// Has a none option ([`CompressionAlgorithm::Uncompressed`])
+    pub compression: CompressionAlgorithm,
+}
+
+/// The algorithms determined based on the recipients.
+#[derive(Debug, Clone)]
+pub(crate) struct RecipientsAlgorithms {
+    /// The hash algorithms that could be used to sign the message.
+    pub signing_hash_candidates: Vec<HashAlgorithm>,
+
+    /// The compression algorithm to use.
+    pub compression_algorithm: CompressionAlgorithm,
+
+    /// The symmetric key algorithm to use.
+    pub symmetric_algorithm: SymmetricKeyAlgorithm,
+
+    /// The AEAD algorithm to use if any.
+    pub aead_algorithm: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
+
+    /// Whether the recipients support AEAD (SEIPD v2) encryption.
+    pub aead_support: bool,
+}
+
+/// The encryption mechanism to use by the encryptor.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum EncryptionMechanism {
+    SeipdV1(SymmetricKeyAlgorithm),
+    SeipdV2(SymmetricKeyAlgorithm, AeadAlgorithm),
+}
+
+impl RecipientsAlgorithms {
+    pub fn select(
+        preference: &EncryptionAlgorithmPreference,
+        keys: &[PublicComponentKey<'_>],
+        profile: &Profile,
+    ) -> Self {
+        let mut candidate_hashes_to_sign = profile.hash_algorithms().to_vec();
+        let mut candidate_symmetric_algorithms = profile.symmetric_key_algorithms().to_vec();
+        let mut candidate_compression_algorithms = profile.compression_algorithms().to_vec();
+        let mut candidate_aead_algorithms = profile.aead_algorithms().to_vec();
+        let mut aead_support = true;
+
+        // Intersect the candidate algorithms with the preferences of the recipients.
+        for key in keys {
+            let self_sig = key.primary_self_certification;
+            intersect(
+                &mut candidate_hashes_to_sign,
+                self_sig.preferred_hash_algs(),
+            );
+            intersect(
+                &mut candidate_symmetric_algorithms,
+                self_sig.preferred_symmetric_algs(),
+            );
+            intersect(
+                &mut candidate_compression_algorithms,
+                self_sig.preferred_compression_algs(),
+            );
+            intersect(
+                &mut candidate_aead_algorithms,
+                self_sig.preferred_aead_algs(),
+            );
+
+            if !self_sig.features().is_some_and(Features::seipd_v2) {
+                aead_support = false;
+            }
+        }
+        let symmetric_algorithm = if candidate_symmetric_algorithms.contains(&preference.symmetric)
+        {
+            preference.symmetric
+        } else {
+            candidate_symmetric_algorithms
+                .into_iter()
+                .next()
+                .unwrap_or(SymmetricKeyAlgorithm::AES128)
+        };
+
+        let compression_algorithm =
+            if candidate_compression_algorithms.contains(&preference.compression) {
+                preference.compression
+            } else {
+                candidate_compression_algorithms
+                    .into_iter()
+                    .next()
+                    .unwrap_or(CompressionAlgorithm::Uncompressed)
+            };
+
+        let aead_algorithm = if candidate_aead_algorithms
+            .iter()
+            .any(|alg| Some(alg) == preference.aead.as_ref())
+        {
+            preference.aead
+        } else {
+            // If the profile does not specify an AEAD algorithm,
+            // we do not perform AEAD encryption.
+            preference.aead.map(|_| {
+                candidate_aead_algorithms
+                    .into_iter()
+                    .next()
+                    .unwrap_or((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Ocb))
+            })
+        };
+
+        Self {
+            signing_hash_candidates: candidate_hashes_to_sign,
+            compression_algorithm,
+            symmetric_algorithm,
+            aead_algorithm,
+            aead_support,
+        }
+    }
+
+    pub fn encryption_mechanism(&self) -> EncryptionMechanism {
+        match (self.aead_support, self.aead_algorithm) {
+            (true, Some((symmetric_algorithm, aead_algorithm))) => {
+                EncryptionMechanism::SeipdV2(symmetric_algorithm, aead_algorithm)
+            }
+            _ => EncryptionMechanism::SeipdV1(self.symmetric_algorithm),
+        }
+    }
+
+    pub fn select_hash_algorithm<'a>(
+        &self,
+        preferred_hash: HashAlgorithm,
+        keys: &'a [PrivateComponentKey<'a>],
+        profile: &Profile,
+    ) -> Vec<HashAlgorithm> {
+        select_hash_algorithm_from_keys(preferred_hash, keys, Some(self), profile)
+    }
+}
+
+pub(crate) fn select_hash_algorithm_from_keys<'a>(
     preferred_hash: HashAlgorithm,
-    keys: &'a [&'a PrivateKey],
+    keys: &'a [PrivateComponentKey<'a>],
+    preference: Option<&RecipientsAlgorithms>,
     profile: &'a Profile,
-) -> Result<Vec<HashAlgorithm>, SignHashSelectionError> {
+) -> Vec<HashAlgorithm> {
     let mut selected_hashes = Vec::with_capacity(keys.len());
     for key in keys {
-        let mut candidates = profile.hash_algorithms().to_vec();
-        let primary_self_certification = key
-            .as_signed_public_key()
-            .primary_self_signature(date, profile)?;
-        let preferences = primary_self_certification.preferred_hash_algs();
-        if !preferences.is_empty() {
-            intersect(&mut candidates, preferences);
-        }
+        let mut candidates = if let Some(selection) = preference {
+            selection.signing_hash_candidates.clone()
+        } else {
+            profile.hash_algorithms().to_vec()
+        };
+
+        intersect(
+            &mut candidates,
+            key.primary_self_certification.preferred_hash_algs(),
+        );
+
         let selected_hash = select_hash_to_sign(
             candidates,
             preferred_hash,
-            key.as_signed_public_key().public_params(),
+            key.private_key.public_params(),
             profile,
         );
         selected_hashes.push(selected_hash);
     }
-    Ok(selected_hashes)
+    selected_hashes
 }
 
-pub fn select_hash_to_sign(
+fn select_hash_to_sign(
     mut candidates: Vec<HashAlgorithm>,
     preferred_hash: HashAlgorithm,
     public_params: &PublicParams,

@@ -4,23 +4,21 @@ use pgp::{
     packet::{Notation, SignatureConfig, Subpacket, SubpacketData},
     types::{KeyDetails, KeyVersion},
 };
-use rand::RngCore;
+use rand::{CryptoRng, Rng};
 
-use crate::{
-    types::UnixTime, AnySecretKey, Profile, SignError, SignHashSelectionError, SignatureMode,
-};
+use crate::{types::UnixTime, AnySecretKey, SignError, SignHashSelectionError, SignatureMode};
 
 const SALT_NOTATION_NAME: &[u8] = b"salt@notations.openpgpjs.org";
 
 /// Configures a Proton-specific signature config for a given private key.
 ///
 /// The config is then used to create an `OpenPGP` signature over the input data.
-pub fn configure_signature(
+pub fn configure_signature<R: Rng + CryptoRng>(
     private_key: &AnySecretKey<'_>,
     at_date: UnixTime,
     signature_mode: SignatureMode,
     hash_algorithm: HashAlgorithm,
-    profile: &Profile,
+    mut rng: R,
 ) -> Result<SignatureConfig, SignError> {
     // Create a signature config based on the key version and hash algorithm.
     let mut config = match private_key.version() {
@@ -31,7 +29,7 @@ pub fn configure_signature(
         ),
 
         KeyVersion::V6 => SignatureConfig::v6(
-            profile.rng(),
+            &mut rng,
             signature_mode.into(),
             private_key.algorithm(),
             hash_algorithm,
@@ -56,7 +54,7 @@ pub fn configure_signature(
         // Add a salt notation subpacket.
         config
             .hashed_subpackets
-            .push(salt_notation(hash_algorithm, profile)?);
+            .push(salt_notation(hash_algorithm, &mut rng)?);
         // Add an Issuer Fingerprint subpacket.
         config.hashed_subpackets.push(
             Subpacket::regular(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
@@ -81,14 +79,17 @@ pub fn configure_signature(
 ///     00000000  33 fd e5 72 fa b0 1c 75  fa 59 a7 19 ab 09 f5 35
 ///     00000010  9a e8 81 b3 af f6 49 98  ec 1e c0 11 c1 10 1b 5b
 /// ```
-fn salt_notation(hash_algorithm: HashAlgorithm, profile: &Profile) -> Result<Subpacket, SignError> {
+fn salt_notation<R: Rng + CryptoRng>(
+    hash_algorithm: HashAlgorithm,
+    rng: &mut R,
+) -> Result<Subpacket, SignError> {
     let Some(digest_size) = hash_algorithm.digest_size() else {
         return Err(SignError::HashAlgorithm(
             SignHashSelectionError::HashAlgorithm,
         ));
     };
     let mut salt = vec![0; digest_size];
-    profile.rng().fill_bytes(&mut salt);
+    rng.fill_bytes(&mut salt);
 
     Subpacket::regular(SubpacketData::Notation(Notation {
         name: Bytes::from(SALT_NOTATION_NAME.to_vec()),

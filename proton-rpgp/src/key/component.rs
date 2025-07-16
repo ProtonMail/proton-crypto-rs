@@ -6,7 +6,7 @@ use pgp::{
     packet::{self, PublicKeyEncryptedSessionKey, Signature},
     types::{
         Fingerprint, KeyDetails, KeyId, KeyVersion, Password, PkeskVersion, PublicKeyTrait,
-        SecretKeyTrait, SecretParams,
+        PublicParams, SecretKeyTrait, SecretParams,
     },
 };
 
@@ -129,7 +129,7 @@ impl<'a> PrivateComponentKey<'a> {
             at_date,
             signature_mode,
             hash_algorithm,
-            profile,
+            profile.rng(),
         )?;
 
         config
@@ -148,6 +148,15 @@ pub enum AnySecretKey<'a> {
 
     /// A secret subkey.
     SecretSubKey(&'a packet::SecretSubkey),
+}
+
+impl AnySecretKey<'_> {
+    pub(crate) fn public_params(&self) -> &PublicParams {
+        match self {
+            AnySecretKey::PrimarySecretKey(key) => key.public_key().public_params(),
+            AnySecretKey::SecretSubKey(key) => key.public_key().public_params(),
+        }
+    }
 }
 
 impl KeyDetails for AnySecretKey<'_> {
@@ -315,7 +324,7 @@ impl PublicKeyTrait for AnyPublicKey<'_> {
         }
     }
 
-    fn public_params(&self) -> &pgp::types::PublicParams {
+    fn public_params(&self) -> &PublicParams {
         match self {
             AnyPublicKey::PrimaryPublicKey(key) => key.public_params(),
             AnyPublicKey::PublicSubKey(key) => key.public_params(),

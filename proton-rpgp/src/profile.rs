@@ -1,7 +1,10 @@
 use pgp::{
     crypto::{
-        aead::AeadAlgorithm, ecc_curve::ECCCurve, hash::HashAlgorithm,
-        public_key::PublicKeyAlgorithm, sym::SymmetricKeyAlgorithm,
+        aead::{AeadAlgorithm, ChunkSize},
+        ecc_curve::ECCCurve,
+        hash::HashAlgorithm,
+        public_key::PublicKeyAlgorithm,
+        sym::SymmetricKeyAlgorithm,
     },
     packet::Notation,
     types::{CompressionAlgorithm, KeyVersion, S2kParams},
@@ -39,6 +42,8 @@ pub const PREFERRED_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
 
 use std::sync::LazyLock;
 
+use crate::preferences::EncryptionAlgorithmPreference;
+
 pub static DEFAULT_PROFILE: LazyLock<Profile> = LazyLock::new(Profile::new);
 
 #[derive(Debug, Clone)]
@@ -61,6 +66,18 @@ impl Profile {
 
     pub fn message_hash_algorithm(&self) -> HashAlgorithm {
         HashAlgorithm::Sha512
+    }
+
+    pub fn message_aead_chunk_size(&self) -> ChunkSize {
+        ChunkSize::default()
+    }
+
+    pub fn message_encryption_preferences(&self) -> EncryptionAlgorithmPreference {
+        EncryptionAlgorithmPreference {
+            symmetric: SymmetricKeyAlgorithm::AES256,
+            aead: None,
+            compression: CompressionAlgorithm::Uncompressed,
+        }
     }
 
     pub fn symmetric_key_algorithms(&self) -> &[SymmetricKeyAlgorithm] {

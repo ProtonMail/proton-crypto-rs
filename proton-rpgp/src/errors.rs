@@ -172,8 +172,17 @@ pub enum KeyRequirementError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum EncryptionError {
-    #[error("Failed to select encryption key: {0:?}")]
-    EncryptionKeySelection(ErrorList<KeySelectionError>),
+    #[error("Failed to select encryption key: {0}")]
+    EncryptionKeySelection(#[from] KeySelectionError),
+
+    #[error("Failed to select signing key in encryption: {0}")]
+    SigningKeySelection(KeySelectionError),
+
+    #[error("Failed to encrypt session key with a public key: {0}")]
+    PkeskEncryption(pgp::errors::Error),
+
+    #[error("Failed to encrypt or sign data: {0}")]
+    DataEncryption(pgp::errors::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -282,6 +291,9 @@ pub enum ArmorError {
 
     #[error("Failed to decode armor due to io: {0}")]
     Decode(io::Error),
+
+    #[error("Failed to armor: {0}")]
+    Encode(pgp::errors::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -301,7 +313,7 @@ pub enum TextSanitizationError {
     #[error("Failed to normalize line endings: {0}")]
     Normalization(#[from] io::Error),
 
-    #[error("Failed decode data as utf-8: {0}")]
+    #[error("Failed to decode data as utf-8: {0}")]
     NotText(#[from] std::str::Utf8Error),
 }
 

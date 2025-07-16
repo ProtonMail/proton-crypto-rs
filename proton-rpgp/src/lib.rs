@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 mod decrypt;
-// mod encryption;
+mod encrypt;
 mod errors;
 mod key;
 mod profile;
@@ -18,7 +18,7 @@ pub mod armor;
 pub use pgp;
 
 pub use decrypt::*;
-// pub use encryption::*;
+pub use encrypt::*;
 pub use errors::*;
 pub use key::*;
 pub use profile::*;

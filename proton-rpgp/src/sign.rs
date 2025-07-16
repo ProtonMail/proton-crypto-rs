@@ -1,31 +1,35 @@
+use std::io::Read;
+
 use pgp::{
     armor::{self, BlockType},
-    composed::StandaloneSignature,
+    composed::{Encryption, MessageBuilder, StandaloneSignature},
     packet::SignatureVersion,
     ser::Serialize,
+    types::Password,
 };
 
 use crate::{
-    preferences, DataEncoding, PrivateKey, PrivateKeySelectionExt, Profile, SignError,
-    SignatureMode, UnixTime, DEFAULT_PROFILE,
+    preferences::{self, RecipientsAlgorithms},
+    DataEncoding, KeySelectionError, PrivateComponentKey, PrivateKey, PrivateKeySelectionExt,
+    Profile, SignError, SignatureMode, SignatureUsage, UnixTime, DEFAULT_PROFILE,
 };
 
 /// A signer that can create `OpenPGP` signatures over data.
 #[derive(Debug, Clone)]
 pub struct Signer<'a> {
     /// The profile to use for the signer.
-    profile: &'a Profile,
+    pub(crate) profile: &'a Profile,
 
     /// The signing keys to create signatures with.
-    signing_keys: Vec<&'a PrivateKey>,
+    pub(crate) signing_keys: Vec<&'a PrivateKey>,
 
     /// The date to use for the signatures.
-    date: UnixTime,
+    pub(crate) date: UnixTime,
 
     /// The signature type to use for the signatures.
     ///
     /// Either binary or text.
-    signature_type: SignatureMode,
+    pub(crate) signature_type: SignatureMode,
 }
 
 impl<'a> Signer<'a> {
@@ -89,37 +93,30 @@ impl<'a> Signer<'a> {
     ) -> Result<Vec<u8>, SignError> {
         self.check_input_data(data.as_ref())?;
 
+        let signing_keys = self.select_signing_keys()?;
+
         // Determine which hash algorithm to use for each key.
         let hash_algorithms = preferences::select_hash_algorithm_from_keys(
-            self.date,
             self.profile.message_hash_algorithm(),
-            &self.signing_keys,
+            &signing_keys,
+            None,
             self.profile,
-        )?;
+        );
 
         // Create a signature for each key.
-        let signatures: Result<Vec<_>, SignError> = self
-            .signing_keys
+        let signatures: Result<Vec<_>, SignError> = signing_keys
             .iter()
             .zip(hash_algorithms)
-            .map(|(key, hash_algorithm)| {
-                // Select the signing key.
-                let signing_key = key.secret.signing_key(
-                    self.date,
-                    None,
-                    crate::SignatureUsage::Sign,
-                    self.profile,
-                )?;
-
-                // Sign the data.
-                let signature = signing_key.sign_data(
-                    data.as_ref(),
-                    self.date,
-                    self.signature_type,
-                    hash_algorithm,
-                    self.profile,
-                )?;
-                Ok(StandaloneSignature::new(signature))
+            .map(|(signing_key, hash_algorithm)| {
+                signing_key
+                    .sign_data(
+                        data.as_ref(),
+                        self.date,
+                        self.signature_type,
+                        hash_algorithm,
+                        self.profile,
+                    )
+                    .map(StandaloneSignature::new)
             })
             .collect();
 
@@ -133,6 +130,62 @@ impl<'a> Signer<'a> {
                 .map_err(SignError::InvalidInputData),
             SignatureMode::Binary => Ok(()),
         }
+    }
+
+    pub(crate) fn select_signing_keys(
+        &self,
+    ) -> Result<Vec<PrivateComponentKey<'_>>, KeySelectionError> {
+        self.signing_keys
+            .iter()
+            .map(|key| {
+                key.secret
+                    .signing_key(self.date, None, SignatureUsage::Sign, self.profile)
+            })
+            .collect()
+    }
+
+    /// Prepares the message builder to sign the message with the given signing keys.
+    pub(crate) fn sign_message<R: Read, E: Encryption>(
+        &self,
+        mut message_builder: MessageBuilder<'a, R, E>,
+        signing_keys: &'a [PrivateComponentKey<'a>],
+        recipient_preferences_opt: Option<&RecipientsAlgorithms>,
+    ) -> MessageBuilder<'a, R, E> {
+        let hash_algorithms = if let Some(recipient_preferences) = recipient_preferences_opt {
+            recipient_preferences.select_hash_algorithm(
+                self.profile.message_hash_algorithm(),
+                signing_keys,
+                self.profile,
+            )
+        } else {
+            preferences::select_hash_algorithm_from_keys(
+                self.profile.message_hash_algorithm(),
+                signing_keys,
+                None,
+                self.profile,
+            )
+        };
+
+        match self.signature_type {
+            SignatureMode::Binary => message_builder.sign_binary(),
+            SignatureMode::Text => message_builder.sign_text(),
+        };
+
+        for (signing_key, hash_algorithm) in signing_keys.iter().zip(hash_algorithms) {
+            // TODO: We need to be able to customize the signature config similar to detached signatures.
+            // CRYPTO-295 will deal with it once it is available.
+            message_builder.sign(
+                &signing_key.private_key,
+                Password::default(),
+                hash_algorithm,
+            );
+        }
+
+        message_builder
+    }
+
+    pub(crate) fn profile(&self) -> &Profile {
+        self.profile
     }
 }
 
