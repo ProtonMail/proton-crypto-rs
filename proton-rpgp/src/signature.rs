@@ -67,13 +67,17 @@ impl SignatureExt for Signature {
             return Ok(());
         }
         let creation_time = self.created().ok_or(SignatureError::NoCreationTime)?;
+        let unix_creation_time = UnixTime::from(creation_time);
+        if date < unix_creation_time {
+            return Err(SignatureError::FutureSignature(unix_creation_time));
+        }
         if let Some(expire_delta) = self.signature_expiration_time() {
-            let expiration_date = *creation_time + *expire_delta;
-            if date < UnixTime::from(creation_time) || date > UnixTime::from(&expiration_date) {
+            let expiration_date = UnixTime::from(*creation_time + *expire_delta);
+            if expiration_date < date {
                 return Err(SignatureError::Expired {
                     date,
-                    creation: UnixTime::from(creation_time),
-                    expiration: UnixTime::from(&expiration_date),
+                    creation: unix_creation_time,
+                    expiration: expiration_date,
                 });
             }
         }

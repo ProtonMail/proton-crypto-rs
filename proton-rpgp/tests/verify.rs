@@ -114,7 +114,7 @@ pub fn verify_detached_signature_multiple_signatures() {
     // Contains 3 signatures: random v6 key, random v4 key, and the test key.
     const SIGANTURE: &str = include_str!("../test-data/signatures/signature_multiple.asc");
 
-    let date = UnixTime::new(1_752_153_651);
+    let date = UnixTime::new(1_752_648_785);
 
     let verification_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
@@ -174,7 +174,7 @@ pub fn verify_detached_signature_v6() {
     const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v6.asc");
     const KEY: &str = include_str!("../test-data/keys/private_key_v6.asc");
 
-    let date = UnixTime::new(1_752_237_138);
+    let date = UnixTime::new(1_752_648_785);
 
     let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
