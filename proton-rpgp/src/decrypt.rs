@@ -22,6 +22,9 @@ pub struct Decryptor<'a> {
 
     /// The date to use for verfying the signatures.
     date: UnixTime,
+
+    /// Whether to sanitize the output plaintext from canonicalised line endings.
+    normalized_utf8: bool,
 }
 
 impl<'a> Decryptor<'a> {
@@ -32,6 +35,7 @@ impl<'a> Decryptor<'a> {
             decryption_keys: Vec::new(),
             verification_keys: Vec::new(),
             date: UnixTime::default(),
+            normalized_utf8: false,
         }
     }
 
@@ -64,6 +68,13 @@ impl<'a> Decryptor<'a> {
     /// In default mode, the system clock is used.
     pub fn at_date(mut self, date: UnixTime) -> Self {
         self.date = date;
+        self
+    }
+
+    /// Setting normalized Utf8 indicates if the output plaintext is Utf8 encoded and
+    /// should be sanitized from canonicalised line endings.
+    pub fn normalized_text(mut self) -> Self {
+        self.normalized_utf8 = true;
         self
     }
 
@@ -138,7 +149,7 @@ impl<'a> Decryptor<'a> {
             .iter()
             .any(|sig| matches!(sig.signature.typ(), Some(SignatureType::Text)));
 
-        if automatic_sanitization {
+        if self.normalized_utf8 || automatic_sanitization {
             cleartext = sanitize_cleartext(cleartext.as_slice())?;
         }
 
