@@ -20,7 +20,7 @@ pub struct Decryptor<'a> {
     /// The signing keys to create signatures with.
     verification_keys: Vec<&'a PublicKey>,
 
-    /// The date to use for verfying the signatures.
+    /// The date to use for verifying the signatures.
     date: UnixTime,
 
     /// Whether to sanitize the output plaintext from canonicalised line endings
