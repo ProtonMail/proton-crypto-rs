@@ -216,6 +216,9 @@ pub enum DecryptionError {
 
     #[error("Failed to read data: {0}")]
     Read(#[from] io::Error),
+
+    #[error(transparent)]
+    TextSanitization(#[from] TextSanitizationError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -291,6 +294,15 @@ pub enum MessageProcessingError {
 
     #[error("Message is compressed for verification")]
     Compressed,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TextSanitizationError {
+    #[error("Failed to normalize line endings: {0}")]
+    Normalization(#[from] io::Error),
+
+    #[error("Failed decode data as utf-8: {0}")]
+    NotText(#[from] std::str::Utf8Error),
 }
 
 #[derive(Debug)]

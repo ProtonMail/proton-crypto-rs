@@ -1,8 +1,8 @@
-use pgp::{composed::Message, packet::SignatureType};
+use pgp::composed::Message;
 
 use crate::{
-    sanitize_cleartext, DataEncoding, DecryptionError, MessageVerificationExt, PrivateKey, Profile,
-    PublicKey, UnixTime, VerificationResultCreator, VerifiedData, DEFAULT_PROFILE,
+    check_and_sanitize_text, DataEncoding, DecryptionError, MessageVerificationExt, PrivateKey,
+    Profile, PublicKey, UnixTime, VerificationResultCreator, VerifiedData, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -23,8 +23,9 @@ pub struct Decryptor<'a> {
     /// The date to use for verfying the signatures.
     date: UnixTime,
 
-    /// Whether to sanitize the output plaintext from canonicalised line endings.
-    normalized_utf8: bool,
+    /// Whether to sanitize the output plaintext from canonicalised line endings
+    /// and check that the output is utf-8 encoded.
+    native_new_lines_utf8: bool,
 }
 
 impl<'a> Decryptor<'a> {
@@ -35,7 +36,7 @@ impl<'a> Decryptor<'a> {
             decryption_keys: Vec::new(),
             verification_keys: Vec::new(),
             date: UnixTime::default(),
-            normalized_utf8: false,
+            native_new_lines_utf8: false,
         }
     }
 
@@ -71,10 +72,14 @@ impl<'a> Decryptor<'a> {
         self
     }
 
-    /// Setting normalized Utf8 indicates if the output plaintext is Utf8 encoded and
+    /// Setting output Utf8 indicates if the output plaintext is Utf8 encoded and
     /// should be sanitized from canonicalised line endings.
-    pub fn normalized_text(mut self) -> Self {
-        self.normalized_utf8 = true;
+    ///
+    /// If this setting is enabled, the decryptor throws an error if the output is
+    /// not Utf-8 encoded.
+    /// Further, the decryptor replaces canonical newlines (`\r\n`) with native newlines (`\n`).
+    pub fn output_utf8(mut self) -> Self {
+        self.native_new_lines_utf8 = true;
         self
     }
 
@@ -145,12 +150,8 @@ impl<'a> Decryptor<'a> {
             self.profile,
         )?;
 
-        let automatic_sanitization = verified_signatures
-            .iter()
-            .any(|sig| matches!(sig.signature.typ(), Some(SignatureType::Text)));
-
-        if self.normalized_utf8 || automatic_sanitization {
-            cleartext = sanitize_cleartext(cleartext.as_slice())?;
+        if self.native_new_lines_utf8 {
+            cleartext = check_and_sanitize_text(cleartext.as_slice())?;
         }
 
         let verification_result = VerificationResultCreator::with_signatures(verified_signatures);

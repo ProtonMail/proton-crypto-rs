@@ -1,7 +1,4 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::PathBuf};
 
 use proton_rpgp::{
     AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, PrivateKey, UnixTime,
@@ -90,6 +87,7 @@ pub fn decrypt_encrypted_message_v4_text() {
         .with_decryption_key(&key)
         .with_verification_key(key.as_public_key())
         .at_date(date)
+        .output_utf8()
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -223,7 +221,7 @@ pub fn decrypt_encrypted_message_v4_text_mail() {
     let verified_data = Decryptor::default()
         .with_decryption_key(&key)
         .at_date(date)
-        .normalized_text()
+        .output_utf8()
         .decrypt(input_data, DataEncoding::Unarmored)
         .expect("Failed to decrypt");
 
