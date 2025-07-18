@@ -117,6 +117,14 @@ impl<'a> Encryptor<'a> {
         self
     }
 
+    /// Sets the signature type to text.
+    ///
+    /// TODO(CRYPTO-296): This option should also trigger the utf-8 literal data packet type.
+    pub fn as_utf8(mut self) -> Self {
+        self.signer = self.signer.as_utf8();
+        self
+    }
+
     /// Sets the date to use for the signatures and keys selection.
     pub fn at_date(mut self, date: UnixTime) -> Self {
         self.signer = self.signer.at_date(date);
@@ -204,6 +212,9 @@ impl<'a> Encryptor<'a> {
 
         // Set the compression algorithm if any.
         message_builder.compression(recipients_algorithm_selection.compression_algorithm);
+
+        // Check that the input data is valid for signature type text if enabled.
+        self.signer.check_input_data(data)?;
 
         let mut rng = self.profile().rng();
         let mut output = Vec::new();

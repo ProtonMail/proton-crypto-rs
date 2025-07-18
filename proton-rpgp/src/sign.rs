@@ -123,7 +123,7 @@ impl<'a> Signer<'a> {
         handle_signature_encoding(signatures?.as_slice(), signature_encoding)
     }
 
-    fn check_input_data(&self, data: &[u8]) -> Result<(), SignError> {
+    pub(crate) fn check_input_data(&self, data: &[u8]) -> Result<(), SignError> {
         match self.signature_type {
             SignatureMode::Text => std::str::from_utf8(data)
                 .map(|_| ())

@@ -183,6 +183,9 @@ pub enum EncryptionError {
 
     #[error("Failed to encrypt or sign data: {0}")]
     DataEncryption(pgp::errors::Error),
+
+    #[error("Failed to sign data before encryption: {0}")]
+    Signing(#[from] SignError),
 }
 
 #[derive(Debug, thiserror::Error)]
