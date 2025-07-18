@@ -23,9 +23,9 @@ pub struct Decryptor<'a> {
     /// The date to use for verifying the signatures.
     date: UnixTime,
 
-    /// Whether to sanitize the output plaintext from canonicalised line endings
+    /// Whether to sanitize the output plaintext from canonicalized line endings
     /// and check that the output is utf-8 encoded.
-    native_new_lines_utf8: bool,
+    native_newlines_utf8: bool,
 }
 
 impl<'a> Decryptor<'a> {
@@ -36,7 +36,7 @@ impl<'a> Decryptor<'a> {
             decryption_keys: Vec::new(),
             verification_keys: Vec::new(),
             date: UnixTime::default(),
-            native_new_lines_utf8: false,
+            native_newlines_utf8: false,
         }
     }
 
@@ -79,7 +79,7 @@ impl<'a> Decryptor<'a> {
     /// not Utf-8 encoded.
     /// Further, the decryptor replaces canonical newlines (`\r\n`) with native newlines (`\n`).
     pub fn output_utf8(mut self) -> Self {
-        self.native_new_lines_utf8 = true;
+        self.native_newlines_utf8 = true;
         self
     }
 
@@ -150,7 +150,7 @@ impl<'a> Decryptor<'a> {
             self.profile,
         )?;
 
-        if self.native_new_lines_utf8 {
+        if self.native_newlines_utf8 {
             cleartext = check_and_sanitize_text(cleartext.as_slice())?;
         }
 
