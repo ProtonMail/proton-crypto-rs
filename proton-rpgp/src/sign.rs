@@ -1,12 +1,13 @@
-use std::io::Read;
+use std::io::{self, Read};
 
 use pgp::{
     armor::{self, BlockType},
-    composed::{Encryption, MessageBuilder, StandaloneSignature},
+    composed::{ArmorOptions, Encryption, MessageBuilder, StandaloneSignature},
     packet::SignatureVersion,
     ser::Serialize,
-    types::Password,
+    types::{KeyDetails, KeyVersion, Password},
 };
+use rand::{CryptoRng, Rng};
 
 use crate::{
     preferences::{self, RecipientsAlgorithms},
@@ -69,6 +70,48 @@ impl<'a> Signer<'a> {
     pub fn as_utf8(mut self) -> Self {
         self.signature_type = SignatureMode::Text;
         self
+    }
+
+    /// Creates an inline-signed `OpenPGP` message.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use proton_rpgp::{Signer, DataEncoding, UnixTime, PrivateKey};
+    ///
+    /// let key = PrivateKey::import_unlocked(include_bytes!("../test-data/keys/private_key_v4.asc"), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    ///
+    /// let message = Signer::default()
+    ///     .with_signing_key(&key)
+    ///     .sign("hello world", DataEncoding::Armored)
+    ///     .expect("Failed to sign");
+    /// ```
+    pub fn sign(
+        self,
+        data: impl AsRef<[u8]>,
+        message_encoding: DataEncoding,
+    ) -> Result<Vec<u8>, SignError> {
+        let mut message_builder = MessageBuilder::from_reader("", data.as_ref());
+
+        let signing_keys = self.select_signing_keys()?;
+
+        // Compression is determined by the profile.
+        message_builder.compression(self.profile.message_sign_only_compression());
+
+        let signed_builder = self.sign_message(message_builder, &signing_keys, None);
+
+        let mut buffer = Vec::new();
+        let rng = self.profile.rng();
+        to_writer(
+            &signing_keys,
+            signed_builder,
+            message_encoding,
+            rng,
+            &mut buffer,
+        )?;
+
+        Ok(buffer)
     }
 
     /// Signs the given data and returns the signature.
@@ -223,6 +266,42 @@ fn handle_signature_encoding(
             Ok(buffer)
         }
     }
+}
+
+fn to_writer<'a, RAND, W, R, E>(
+    signing_keys: &'a [PrivateComponentKey<'a>],
+    message_builder: MessageBuilder<R, E>,
+    data_encoding: DataEncoding,
+    rng: RAND,
+    output: W,
+) -> Result<(), SignError>
+where
+    RAND: Rng + CryptoRng,
+    W: io::Write,
+    R: Read,
+    E: Encryption,
+{
+    match data_encoding {
+        DataEncoding::Armored => {
+            let all_v6 = signing_keys
+                .iter()
+                .all(|key| key.private_key.version() == KeyVersion::V6);
+            message_builder
+                .to_armored_writer(
+                    rng,
+                    ArmorOptions {
+                        headers: None,
+                        include_checksum: !all_v6,
+                    },
+                    output,
+                )
+                .map_err(SignError::Serialize)?;
+        }
+        DataEncoding::Unarmored => message_builder
+            .to_writer(rng, output)
+            .map_err(SignError::Serialize)?,
+    }
+    Ok(())
 }
 
 #[cfg(test)]
