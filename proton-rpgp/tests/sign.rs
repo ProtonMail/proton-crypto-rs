@@ -282,3 +282,39 @@ pub fn sign_verify_inline_message_multiple_keys() {
     assert_eq!(verified_data.data, input_data);
     assert!(verified_data.verification_result.is_ok());
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn sign_verify_inline_cleartext_message_v4() {
+    let input_data = "hello world\n hello\n";
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let message = Signer::default()
+        .with_signing_key(&key)
+        .sign_cleartext(input_data.as_bytes())
+        .expect("Failed to sign");
+
+    let verified_data = Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .verify_cleartext(&message)
+        .expect("Failed to verify");
+
+    assert_eq!(verified_data.data, input_data.as_bytes());
+    assert!(verified_data.verification_result.is_ok());
+
+    // Fail to verify with wrong key.
+    let wrong_key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let result = Verifier::default()
+        .with_verification_key(wrong_key.as_public_key())
+        .verify_cleartext(&message)
+        .expect("Verify failed");
+
+    assert!(matches!(
+        result.verification_result,
+        Err(VerificationError::NoVerifier(_, _))
+    ));
+}

@@ -2,7 +2,9 @@ use std::io::{self, Read};
 
 use pgp::{
     armor::{self, BlockType},
-    composed::{ArmorOptions, Encryption, MessageBuilder, StandaloneSignature},
+    composed::{
+        ArmorOptions, CleartextSignedMessage, Encryption, MessageBuilder, StandaloneSignature,
+    },
     packet::SignatureVersion,
     ser::Serialize,
     types::{KeyDetails, KeyVersion, Password},
@@ -164,6 +166,82 @@ impl<'a> Signer<'a> {
             .collect();
 
         handle_signature_encoding(signatures?.as_slice(), signature_encoding)
+    }
+
+    /// Creates a cleartext signed message.
+    ///
+    /// A cleartext message has the following format:
+    /// ```skip
+    /// -----BEGIN PGP SIGNED MESSAGE-----
+    ///
+    /// Cleatext text comes here.
+    ///
+    /// -----BEGIN PGP SIGNATURE-----
+    /// ...
+    /// -----END PGP SIGNATURE-----
+    /// ```
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use proton_rpgp::{Signer, DataEncoding, PrivateKey};
+    /// let input_data = "hello world\n hello\n";
+    ///
+    /// let key = PrivateKey::import_unlocked(include_bytes!("../test-data/keys/private_key_v4.asc"), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    ///
+    /// let message = Signer::default()
+    ///     .with_signing_key(&key)
+    ///     .sign_cleartext(input_data.as_bytes())
+    ///     .expect("Failed to sign");
+    /// ```
+    pub fn sign_cleartext(self, data: impl AsRef<[u8]>) -> Result<Vec<u8>, SignError> {
+        let str_data = std::str::from_utf8(data.as_ref()).map_err(SignError::InvalidInputData)?;
+
+        let signing_keys = self.select_signing_keys()?;
+        // Determine which hash algorithm to use for each key.
+        let hash_algorithms = preferences::select_hash_algorithm_from_keys(
+            self.profile.message_hash_algorithm(),
+            &signing_keys,
+            None,
+            self.profile,
+        );
+
+        // Closure to create the signatures in rPGP.
+        let create_signatures = |text: &str| {
+            signing_keys
+                .iter()
+                .zip(hash_algorithms.iter())
+                .map(|(signing_key, hash_algorithm)| {
+                    signing_key
+                        .sign_data(
+                            text.as_bytes(),
+                            self.date,
+                            SignatureMode::Text,
+                            *hash_algorithm,
+                            self.profile,
+                        )
+                        .map_err(|err| pgp::errors::Error::Message {
+                            message: err.to_string(),
+                            backtrace: None,
+                        })
+                })
+                .collect()
+        };
+
+        let cleartext_message = CleartextSignedMessage::new_many(str_data, create_signatures)
+            .map_err(SignError::Sign)?;
+
+        let all_v6 = signing_keys
+            .iter()
+            .all(|key| key.private_key.version() == KeyVersion::V6);
+
+        cleartext_message
+            .to_armored_bytes(ArmorOptions {
+                headers: None,
+                include_checksum: !all_v6,
+            })
+            .map_err(SignError::Serialize)
     }
 
     pub(crate) fn check_input_data(&self, data: &[u8]) -> Result<(), SignError> {
