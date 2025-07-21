@@ -1,6 +1,6 @@
 use pgp::{
     armor::BlockType,
-    composed::Message,
+    composed::{CleartextSignedMessage, Message},
     packet::{Packet, PacketParser},
 };
 
@@ -161,6 +161,68 @@ impl<'a> Verifier<'a> {
 
         // Select the result.
         VerificationResultCreator::with_signatures(verified_signatures)
+    }
+
+    /// Verifies a cleartext signed message with the verifier.
+    ///
+    /// A cleartext message has the following format:
+    /// ```skip
+    /// -----BEGIN PGP SIGNED MESSAGE-----
+    ///
+    /// Cleatext text comes here.
+    ///
+    /// -----BEGIN PGP SIGNATURE-----
+    /// ...
+    /// -----END PGP SIGNATURE-----
+    /// ```
+    /// # Example
+    ///
+    /// ```
+    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, UnixTime};
+    ///
+    /// const INPUT_DATA: &str = include_str!("../test-data/messages/signed_cleartext_message_v4.asc");
+    ///
+    /// let key = PublicKey::import(include_bytes!("../test-data/keys/public_key_v4.asc"), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    ///
+    /// let verified_data = Verifier::default()
+    ///     .with_verification_key(&key)
+    ///     .verify_cleartext(INPUT_DATA)
+    ///     .expect("Failed to verify");
+    ///
+    /// assert_eq!(verified_data.data, b"hello world\n    with multiple lines\n");
+    /// assert!(verified_data.verification_result.is_ok());
+    /// ```
+    pub fn verify_cleartext(
+        self,
+        cleartext_message: impl AsRef<[u8]>,
+    ) -> Result<VerifiedData, VerifyMessageError> {
+        let (parsed_message, _) = CleartextSignedMessage::from_armor(cleartext_message.as_ref())
+            .map_err(|err| {
+                VerifyMessageError::MessageProcessing(MessageProcessingError::MessageParsing(err))
+            })?;
+
+        let signed_data = parsed_message.signed_text();
+
+        let verified_signatures: Vec<_> = parsed_message
+            .signatures()
+            .iter()
+            .map(|signature| {
+                VerifiedSignature::create_by_verifying(
+                    self.date,
+                    signature.signature.clone(),
+                    &self.verification_keys,
+                    VerificationInput::Data(signed_data.as_ref()),
+                    self.profile,
+                )
+            })
+            .collect();
+
+        let verification_result = VerificationResultCreator::with_signatures(verified_signatures);
+        Ok(VerifiedData {
+            data: parsed_message.text().as_bytes().to_vec(),
+            verification_result,
+        })
     }
 
     /// Helper function to verify and process a decrypted `OpenPGP` message.

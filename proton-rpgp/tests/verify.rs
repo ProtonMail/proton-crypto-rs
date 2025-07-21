@@ -267,3 +267,25 @@ pub fn verify_inline_signed_message_v4_text() {
     assert_eq!(verified_data.data, b"hello world \n    \n ");
     assert!(verified_data.verification_result.is_ok());
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_inline_signed_cleartext_message_v4() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/signed_cleartext_message_v4.asc");
+    let date = UnixTime::new(1_753_099_790);
+
+    let key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let verified_data = Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .at_date(date)
+        .verify_cleartext(INPUT_DATA)
+        .expect("Failed to verifiy");
+
+    assert_eq!(
+        verified_data.data,
+        b"hello world\n    with multiple lines\n"
+    );
+    assert!(verified_data.verification_result.is_ok());
+}
