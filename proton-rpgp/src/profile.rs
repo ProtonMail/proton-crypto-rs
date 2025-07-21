@@ -42,8 +42,6 @@ pub const PREFERRED_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
 
 use std::sync::LazyLock;
 
-use crate::preferences::EncryptionAlgorithmPreference;
-
 pub static DEFAULT_PROFILE: LazyLock<Profile> = LazyLock::new(Profile::new);
 
 #[derive(Debug, Clone)]
@@ -75,7 +73,7 @@ impl Profile {
     pub fn message_encryption_preferences(&self) -> EncryptionAlgorithmPreference {
         EncryptionAlgorithmPreference {
             symmetric: SymmetricKeyAlgorithm::AES256,
-            aead: None,
+            aead_ciphersuite: None,
             compression: CompressionAlgorithm::Uncompressed,
         }
     }
@@ -88,7 +86,7 @@ impl Profile {
         PREFERRED_COMPRESSION_ALGORITHMS
     }
 
-    pub fn aead_algorithms(&self) -> &[(SymmetricKeyAlgorithm, AeadAlgorithm)] {
+    pub fn aead_ciphersuites(&self) -> &[(SymmetricKeyAlgorithm, AeadAlgorithm)] {
         PREFERRED_AEAD_ALGORITHMS
     }
 
@@ -129,4 +127,18 @@ impl Default for Profile {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Algorithm preferences for `OpenPGP` encryption.
+pub struct EncryptionAlgorithmPreference {
+    /// The symmetric key algorithm to use.
+    pub symmetric: SymmetricKeyAlgorithm,
+
+    /// The AEAD ciphersuite to use if any.
+    pub aead_ciphersuite: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
+
+    /// The compression algorithm to use.
+    ///
+    /// Has a none option ([`CompressionAlgorithm::Uncompressed`])
+    pub compression: CompressionAlgorithm,
 }

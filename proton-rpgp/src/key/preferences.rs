@@ -4,7 +4,7 @@ use pgp::{
     types::{CompressionAlgorithm, PublicParams},
 };
 
-use crate::{PrivateComponentKey, Profile, PublicComponentKey};
+use crate::{EncryptionAlgorithmPreference, PrivateComponentKey, Profile, PublicComponentKey};
 
 const HASH_ALGORITHMS_MID: &[HashAlgorithm] = &[
     HashAlgorithm::Sha512,
@@ -13,20 +13,6 @@ const HASH_ALGORITHMS_MID: &[HashAlgorithm] = &[
 ];
 
 const HASH_ALGORITHMS_HIGH: &[HashAlgorithm] = &[HashAlgorithm::Sha512, HashAlgorithm::Sha3_512];
-
-/// Algorithm preferences for `OpenPGP` encryption.
-pub struct EncryptionAlgorithmPreference {
-    /// The symmetric key algorithm to use.
-    pub symmetric: SymmetricKeyAlgorithm,
-
-    /// The AEAD algorithm to use if any.
-    pub aead: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
-
-    /// The compression algorithm to use.
-    ///
-    /// Has a none option ([`CompressionAlgorithm::Uncompressed`])
-    pub compression: CompressionAlgorithm,
-}
 
 /// The algorithms determined based on the recipients.
 #[derive(Debug, Clone)]
@@ -40,8 +26,8 @@ pub(crate) struct RecipientsAlgorithms {
     /// The symmetric key algorithm to use.
     pub symmetric_algorithm: SymmetricKeyAlgorithm,
 
-    /// The AEAD algorithm to use if any.
-    pub aead_algorithm: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
+    /// The AEAD ciphersuite to use if any.
+    pub aead_ciphersuite: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
 
     /// Whether the recipients support AEAD (SEIPD v2) encryption.
     pub aead_support: bool,
@@ -63,7 +49,7 @@ impl RecipientsAlgorithms {
         let mut candidate_hashes_to_sign = profile.hash_algorithms().to_vec();
         let mut candidate_symmetric_algorithms = profile.symmetric_key_algorithms().to_vec();
         let mut candidate_compression_algorithms = profile.compression_algorithms().to_vec();
-        let mut candidate_aead_algorithms = profile.aead_algorithms().to_vec();
+        let mut candidate_aead_algorithms = profile.aead_ciphersuites().to_vec();
         let mut aead_support = true;
 
         // Intersect the candidate algorithms with the preferences of the recipients.
@@ -112,13 +98,13 @@ impl RecipientsAlgorithms {
 
         let aead_algorithm = if candidate_aead_algorithms
             .iter()
-            .any(|alg| Some(alg) == preference.aead.as_ref())
+            .any(|alg| Some(alg) == preference.aead_ciphersuite.as_ref())
         {
-            preference.aead
+            preference.aead_ciphersuite
         } else {
             // If the profile does not specify an AEAD algorithm,
             // we do not perform AEAD encryption.
-            preference.aead.map(|_| {
+            preference.aead_ciphersuite.map(|_| {
                 candidate_aead_algorithms
                     .into_iter()
                     .next()
@@ -130,13 +116,13 @@ impl RecipientsAlgorithms {
             signing_hash_candidates: candidate_hashes_to_sign,
             compression_algorithm,
             symmetric_algorithm,
-            aead_algorithm,
+            aead_ciphersuite: aead_algorithm,
             aead_support,
         }
     }
 
     pub fn encryption_mechanism(&self) -> EncryptionMechanism {
-        match (self.aead_support, self.aead_algorithm) {
+        match (self.aead_support, self.aead_ciphersuite) {
             (true, Some((symmetric_algorithm, aead_algorithm))) => {
                 EncryptionMechanism::SeipdV2(symmetric_algorithm, aead_algorithm)
             }

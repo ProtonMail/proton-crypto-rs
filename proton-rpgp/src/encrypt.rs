@@ -10,9 +10,10 @@ use rand::{CryptoRng, Rng};
 use zeroize::Zeroizing;
 
 use crate::{
-    preferences::{EncryptionAlgorithmPreference, EncryptionMechanism, RecipientsAlgorithms},
-    ArmorError, DataEncoding, EncryptionError, KeySelectionError, PrivateKey, Profile,
-    PublicComponentKey, PublicKey, PublicKeySelectionExt, Signer, UnixTime, DEFAULT_PROFILE,
+    preferences::{EncryptionMechanism, RecipientsAlgorithms},
+    ArmorError, DataEncoding, EncryptionAlgorithmPreference, EncryptionError, KeySelectionError,
+    PrivateKey, Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, Signer, UnixTime,
+    DEFAULT_PROFILE,
 };
 
 pub type SessionKeyBytes = Zeroizing<Vec<u8>>;
