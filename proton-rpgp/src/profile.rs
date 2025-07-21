@@ -1,4 +1,5 @@
 use pgp::{
+    bytes::Bytes,
     crypto::{
         aead::{AeadAlgorithm, ChunkSize},
         ecc_curve::ECCCurve,
@@ -7,9 +8,9 @@ use pgp::{
         sym::SymmetricKeyAlgorithm,
     },
     packet::Notation,
-    types::{CompressionAlgorithm, KeyVersion, S2kParams},
+    types::{CompressionAlgorithm, S2kParams, StringToKey},
 };
-use rand::{CryptoRng, Rng};
+use rand::{CryptoRng, Rng, RngCore};
 
 /// AEAD ciphersuite.
 pub type CipherSuite = (SymmetricKeyAlgorithm, AeadAlgorithm);
@@ -126,7 +127,32 @@ impl Profile {
     }
 
     pub fn key_s2k_params(&self) -> S2kParams {
-        S2kParams::new_default(self.rng(), KeyVersion::V4)
+        // TODO(CRYPTO-292): Rand generation logic should not be handled here.
+        let mut salt = [0; 8];
+        let mut iv = [0; 16];
+        self.rng().fill_bytes(&mut salt);
+        self.rng().fill_bytes(&mut iv);
+        let s2k = StringToKey::IteratedAndSalted {
+            hash_alg: HashAlgorithm::Sha256,
+            salt,
+            count: 96,
+        };
+        S2kParams::Cfb {
+            sym_alg: SymmetricKeyAlgorithm::AES256,
+            s2k,
+            iv: Bytes::from(iv.to_vec()),
+        }
+    }
+
+    pub fn message_s2k_params(&self) -> StringToKey {
+        // TODO(CRYPTO-292): Rand generation logic should not be handled here.
+        let mut salt = [0; 8];
+        self.rng().fill_bytes(&mut salt);
+        StringToKey::IteratedAndSalted {
+            hash_alg: HashAlgorithm::Sha256,
+            salt,
+            count: 96,
+        }
     }
 }
 

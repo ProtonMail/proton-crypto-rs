@@ -46,7 +46,7 @@ impl<'a> MessageDecryptionExt<'a> for Message<'a> {
             }
         }
 
-        if session_keys.is_empty() {
+        if decryptor.passphrases.is_empty() && session_keys.is_empty() {
             return Err(DecryptionError::SessionKeyDecryption(errors.into()));
         }
 
@@ -55,7 +55,7 @@ impl<'a> MessageDecryptionExt<'a> for Message<'a> {
         let the_ring = TheRing {
             secret_keys: Vec::new(),
             key_passwords: Vec::new(),
-            message_password: Vec::new(),
+            message_password: decryptor.passphrases.iter().collect(),
             session_keys,
             allow_legacy: false,
         };

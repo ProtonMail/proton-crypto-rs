@@ -32,6 +32,51 @@ pub fn encrypt_message_v4() {
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
+pub fn encrypt_message_v4_passphrase() {
+    let input_data = b"hello world";
+    let passphrase: &'static str = "password";
+
+    let encrypted_data = Encryptor::default()
+        .with_passphrase(passphrase)
+        .encrypt_raw(input_data, DataEncoding::Armored)
+        .expect("Failed to encrypt");
+
+    let decrypted_data = Decryptor::default()
+        .with_passphrase(passphrase)
+        .decrypt(encrypted_data, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(decrypted_data.data, input_data);
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_message_v4_multi_passphrase() {
+    let input_data = b"hello world";
+    let passphrase1: &str = "password1";
+    let passphrase2: &str = "password2";
+
+    let encrypted_data = Encryptor::default()
+        .with_passphrase(passphrase1)
+        .with_passphrase(passphrase2)
+        .encrypt_raw(input_data, DataEncoding::Armored)
+        .expect("Failed to encrypt");
+
+    let decrypted_data = Decryptor::default()
+        .with_passphrase(passphrase1)
+        .decrypt(&encrypted_data, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+    assert_eq!(decrypted_data.data, input_data);
+
+    let decrypted_data = Decryptor::default()
+        .with_passphrase(passphrase2)
+        .decrypt(&encrypted_data, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+    assert_eq!(decrypted_data.data, input_data);
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
 pub fn encrypt_and_sign_message_v4() {
     let input_data = b"hello world";
     let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)

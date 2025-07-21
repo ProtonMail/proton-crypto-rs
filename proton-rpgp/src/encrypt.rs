@@ -5,7 +5,7 @@ use pgp::{
     composed::{ArmorOptions, Encryption, MessageBuilder},
     crypto::sym::SymmetricKeyAlgorithm,
     ser::Serialize,
-    types::{CompressionAlgorithm, KeyDetails, KeyVersion},
+    types::{CompressionAlgorithm, KeyDetails, KeyVersion, Password},
 };
 use rand::{CryptoRng, Rng};
 use zeroize::Zeroizing;
@@ -74,6 +74,9 @@ pub struct Encryptor<'a> {
     /// The encryption keys to use.
     encryption_keys: Vec<&'a PublicKey>,
 
+    /// The passphrases to encrypt the message with.
+    passphrases: Vec<Password>,
+
     /// Message compression preference.
     message_compression: CompressionAlgorithm,
 
@@ -92,6 +95,7 @@ impl<'a> Encryptor<'a> {
     pub fn new(profile: &'a Profile) -> Self {
         Self {
             encryption_keys: Vec::new(),
+            passphrases: Vec::new(),
             message_compression: profile.message_compression(),
             message_symmetric_algorithm: profile.message_symmetric_algorithm(),
             message_cipher_suite: profile.message_aead_cipher_suite(),
@@ -122,6 +126,25 @@ impl<'a> Encryptor<'a> {
     /// For each key, a signature will be created.
     pub fn with_signing_keys(mut self, keys: impl IntoIterator<Item = &'a PrivateKey>) -> Self {
         self.signer = self.signer.with_signing_keys(keys);
+        self
+    }
+
+    /// Adds a passphrase to the encryptor.
+    ///
+    /// If a password is set, the output message will contain a key packet encrypted
+    /// with the password.
+    pub fn with_passphrase(mut self, passphrase: impl AsRef<[u8]>) -> Self {
+        self.passphrases.push(Password::from(passphrase.as_ref()));
+        self
+    }
+
+    /// Adds multiple passphrases to the encryptor.
+    pub fn with_passphrases(
+        mut self,
+        passphrases: impl IntoIterator<Item = impl AsRef<[u8]>>,
+    ) -> Self {
+        self.passphrases
+            .extend(passphrases.into_iter().map(|p| Password::from(p.as_ref())));
         self
     }
 
@@ -240,6 +263,13 @@ impl<'a> Encryptor<'a> {
                         .map_err(EncryptionError::PkeskEncryption)?;
                 }
 
+                for passphrase in &self.passphrases {
+                    let s2k = self.profile().message_s2k_params();
+                    seipd_v1_builder
+                        .encrypt_with_password(s2k, passphrase)
+                        .map_err(EncryptionError::PassphraseEncryption)?;
+                }
+
                 if extract_session_key {
                     revealed_session_key = Some(seipd_v1_builder.session_key().to_owned());
                 }
@@ -265,6 +295,13 @@ impl<'a> Encryptor<'a> {
                     seipd_v2_builder
                         .encrypt_to_key(&mut rng, &encryption_key.public_key)
                         .map_err(EncryptionError::PkeskEncryption)?;
+                }
+
+                for passphrase in &self.passphrases {
+                    let s2k = self.profile().message_s2k_params();
+                    seipd_v2_builder
+                        .encrypt_with_password(&mut rng, s2k, passphrase)
+                        .map_err(EncryptionError::PassphraseEncryption)?;
                 }
 
                 if extract_session_key {

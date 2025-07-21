@@ -181,6 +181,9 @@ pub enum EncryptionError {
     #[error("Failed to encrypt session key with a public key: {0}")]
     PkeskEncryption(pgp::errors::Error),
 
+    #[error("Failed to encrypt session key with a passphrase: {0}")]
+    PassphraseEncryption(pgp::errors::Error),
+
     #[error("Failed to encrypt or sign data: {0}")]
     DataEncryption(pgp::errors::Error),
 

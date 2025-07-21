@@ -1,4 +1,4 @@
-use pgp::composed::Message;
+use pgp::{composed::Message, types::Password};
 
 use crate::{
     check_and_sanitize_text, DataEncoding, DecryptionError, MessageVerificationExt, PrivateKey,
@@ -9,7 +9,7 @@ mod message;
 pub use message::*;
 
 /// A decryptor for decrypting messages.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Decryptor<'a> {
     /// The profile to use for the signer.
     profile: &'a Profile,
@@ -19,6 +19,9 @@ pub struct Decryptor<'a> {
 
     /// The signing keys to create signatures with.
     verification_keys: Vec<&'a PublicKey>,
+
+    /// The passphrases to decrypt the message with.
+    passphrases: Vec<Password>,
 
     /// The date to use for verifying the signatures.
     date: UnixTime,
@@ -35,6 +38,7 @@ impl<'a> Decryptor<'a> {
             profile,
             decryption_keys: Vec::new(),
             verification_keys: Vec::new(),
+            passphrases: Vec::new(),
             date: UnixTime::default(),
             native_newlines_utf8: false,
         }
@@ -61,6 +65,22 @@ impl<'a> Decryptor<'a> {
     /// Set the verification keys to use.
     pub fn with_verification_keys(mut self, keys: impl IntoIterator<Item = &'a PublicKey>) -> Self {
         self.verification_keys.extend(keys);
+        self
+    }
+
+    /// Adds a passphrase to the decryptor to decrypt the message with.
+    pub fn with_passphrase(mut self, passphrase: impl AsRef<[u8]>) -> Self {
+        self.passphrases.push(Password::from(passphrase.as_ref()));
+        self
+    }
+
+    /// Adds multiple passphrases to the decryptor to decrypt the message with.
+    pub fn with_passphrases(
+        mut self,
+        passphrases: impl IntoIterator<Item = impl AsRef<[u8]>>,
+    ) -> Self {
+        self.passphrases
+            .extend(passphrases.into_iter().map(|p| Password::from(p.as_ref())));
         self
     }
 

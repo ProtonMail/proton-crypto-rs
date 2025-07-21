@@ -227,3 +227,33 @@ pub fn decrypt_encrypted_message_v4_text_mail() {
 
     assert_eq!(verified_data.data, expected_output);
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_message_v4_with_password() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v4_password.asc");
+    let password = "password";
+
+    let verified_data = Decryptor::default()
+        .with_passphrase(password)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"hello world");
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_message_v6_with_password() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v6_password.asc");
+    let password = "password";
+
+    let verified_data = Decryptor::default()
+        .with_passphrase(password)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"Hello, world!");
+}
