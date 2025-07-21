@@ -36,7 +36,7 @@ impl<'a> MessageDecryptionExt<'a> for Message<'a> {
                     match handle_pkesk_decryption(
                         pkesk,
                         decryptor.decryption_keys.iter().copied(),
-                        decryptor.profile,
+                        decryptor.profile(),
                     ) {
                         Ok(session_key) => session_keys.push(session_key),
                         Err(e) => errors.push(e),

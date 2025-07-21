@@ -309,7 +309,7 @@ impl MessageVerificationExt for Message<'_> {
                     break;
                 }
                 Message::Compressed { .. } => {
-                    return Err(MessageProcessingError::Compressed);
+                    return Err(MessageProcessingError::Compression);
                 }
                 Message::Encrypted { .. } => {
                     return Err(MessageProcessingError::Encrypted);

@@ -13,6 +13,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) const ERROR_PREFIX: &str = "proton-rpgp";
 
+/// TODO(CRYPTO-293): Unify error handling with a single error for the library
+/// and unify error messages.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Failed to use a key: {0}")]
@@ -199,10 +201,7 @@ pub enum DecryptionError {
     #[error("No encrypted data found")]
     UnexpectedPlaintext,
 
-    #[error("Failed to parse message: {0}")]
-    MessageParsing(pgp::errors::Error),
-
-    #[error("Failed to process message: {0}")]
+    #[error("Failed to process message before or after decryption: {0}")]
     MessageProcessing(#[from] MessageProcessingError),
 
     #[error("PKESK decryption for key {0} failed: {1}")]
@@ -225,15 +224,36 @@ pub enum DecryptionError {
 
     #[error("Failed to select verified decryption keys for id {0}: {1}")]
     KeySelection(Box<GenericKeyIdentifier>, KeySelectionError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum VerifyMessageError {
+    #[error("Failed to verify message: {0}")]
+    MessageProcessing(#[from] MessageProcessingError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MessageProcessingError {
+    #[error("Failed to parse message: {0}")]
+    MessageParsing(pgp::errors::Error),
+
+    #[error("Cannot process message: the message is encrypted")]
+    Encrypted,
+
+    #[error("Failed to decompress message: {0}")]
+    Decompression(pgp::errors::Error),
 
     #[error("Multiple compression layers found in message")]
     Compression,
 
+    #[error(transparent)]
+    TextSanitization(#[from] TextSanitizationError),
+
     #[error("Failed to read data: {0}")]
     Read(#[from] io::Error),
 
-    #[error(transparent)]
-    TextSanitization(#[from] TextSanitizationError),
+    #[error("Message is not fully read for verification")]
+    NotFullyRead,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -300,18 +320,6 @@ pub enum ArmorError {
 
     #[error("Failed to armor: {0}")]
     Encode(pgp::errors::Error),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum MessageProcessingError {
-    #[error("Message is not fully read for verification")]
-    NotFullyRead,
-
-    #[error("Message is not decrypted for verification")]
-    Encrypted,
-
-    #[error("Message is compressed for verification")]
-    Compressed,
 }
 
 #[derive(Debug, thiserror::Error)]

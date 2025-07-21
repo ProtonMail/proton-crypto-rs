@@ -4,6 +4,7 @@ use proton_rpgp::{
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
+pub const TEST_KEY_V6: &str = include_str!("../test-data/keys/public_key_v6.asc");
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
@@ -172,15 +173,14 @@ pub fn verify_detached_signature_v4_text() {
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v6() {
     const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v6.asc");
-    const KEY: &str = include_str!("../test-data/keys/private_key_v6.asc");
 
     let date = UnixTime::new(1_752_648_785);
 
-    let verification_key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armored)
+    let verification_key = PublicKey::import(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
     let verification_result = Verifier::default()
-        .with_verification_key(verification_key.as_public_key())
+        .with_verification_key(&verification_key)
         .at_date(date)
         .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
@@ -206,3 +206,64 @@ pub fn verify_detached_signature_v6_pqc() {
 
     assert!(verification_result.is_ok());
 }*/
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_inline_signed_message_v4() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4.asc");
+    let date = UnixTime::new(1_753_088_183);
+
+    let key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let verified_data = Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .at_date(date)
+        .verify(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"hello world");
+    assert!(verified_data.verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_inline_signed_message_v4_fail_no_matching_key() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4.asc");
+    let date = UnixTime::new(1_753_088_183);
+
+    let key = PublicKey::import(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let verified_data = Verifier::default()
+        .with_verification_key(&key)
+        .at_date(date)
+        .verify(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to verify");
+
+    assert_eq!(verified_data.data, b"hello world");
+    assert!(matches!(
+        verified_data.verification_result,
+        Err(VerificationError::NoVerifier(_, _))
+    ));
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_inline_signed_message_v4_text() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4_text.asc");
+    let date = UnixTime::new(1_753_088_470);
+
+    let key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let verified_data = Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .at_date(date)
+        .output_utf8()
+        .verify(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"hello world \n    \n ");
+    assert!(verified_data.verification_result.is_ok());
+}

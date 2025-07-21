@@ -1,27 +1,33 @@
 use pgp::{
     armor::BlockType,
+    composed::Message,
     packet::{Packet, PacketParser},
 };
 
 use crate::{
-    armor,
+    armor, check_and_sanitize_text,
     signature::{
         VerificationError, VerificationResult, VerificationResultCreator, VerifiedSignature,
     },
-    DataEncoding, Profile, PublicKey, UnixTime, VerificationInput, DEFAULT_PROFILE,
+    DataEncoding, MessageProcessingError, MessageVerificationExt, Profile, PublicKey, UnixTime,
+    VerificationInput, VerifyMessageError, DEFAULT_PROFILE,
 };
 
 /// Verifier type to verify `OpenPGP` signatures.
 #[derive(Debug, Clone)]
 pub struct Verifier<'a> {
     /// The profile to use for verification.
-    profile: &'a Profile,
+    pub(crate) profile: &'a Profile,
 
     /// The verification keys that are used to verify the signatures.
-    verification_keys: Vec<&'a PublicKey>,
+    pub(crate) verification_keys: Vec<&'a PublicKey>,
 
     /// The date to verify the signature against.
-    date: UnixTime,
+    pub(crate) date: UnixTime,
+
+    /// Whether to sanitize the output plaintext from canonicalized line endings
+    /// and check that the output is utf-8 encoded.
+    pub(crate) native_newlines_utf8: bool,
 }
 
 impl<'a> Verifier<'a> {
@@ -31,6 +37,7 @@ impl<'a> Verifier<'a> {
             profile,
             verification_keys: Vec::new(),
             date: UnixTime::now().unwrap_or_default(),
+            native_newlines_utf8: false,
         }
     }
 
@@ -52,6 +59,53 @@ impl<'a> Verifier<'a> {
     pub fn at_date(mut self, date: UnixTime) -> Self {
         self.date = date;
         self
+    }
+
+    /// Setting output Utf8 indicates if the output plaintext is Utf8 encoded and
+    /// should be sanitized from canonicalised line endings.
+    ///
+    /// If this setting is enabled, the decryptor throws an error if the output is
+    /// not Utf-8 encoded.
+    /// Further, the decryptor replaces canonical newlines (`\r\n`) with native newlines (`\n`).
+    pub fn output_utf8(mut self) -> Self {
+        self.native_newlines_utf8 = true;
+        self
+    }
+
+    /// Verifies an inline-signed message with the verifier.
+    ///
+    /// Returns the verified data and result of its verification.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, UnixTime};
+    ///
+    /// const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4.asc");
+    /// const KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
+    /// let date = UnixTime::new(1_753_088_183);
+    ///
+    /// let key = PublicKey::import(KEY.as_bytes(), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    ///
+    /// let verified_data = Verifier::default()
+    ///     .with_verification_key(&key)
+    ///     .at_date(date)
+    ///     .verify(INPUT_DATA, DataEncoding::Armored)
+    ///     .expect("Failed to verify");
+    ///
+    /// assert_eq!(verified_data.data, b"hello world");
+    /// assert!(verified_data.verification_result.is_ok());
+    /// ```
+    pub fn verify(
+        self,
+        data: impl AsRef<[u8]>,
+        data_encoding: DataEncoding,
+    ) -> Result<VerifiedData, VerifyMessageError> {
+        let message = armor::decode_to_message(data.as_ref(), data_encoding)?;
+
+        self.verify_message(message)
+            .map_err(VerifyMessageError::MessageProcessing)
     }
 
     /// Verifies a detached signature against the data.
@@ -107,6 +161,44 @@ impl<'a> Verifier<'a> {
 
         // Select the result.
         VerificationResultCreator::with_signatures(verified_signatures)
+    }
+
+    /// Helper function to verify and process a decrypted `OpenPGP` message.
+    pub(crate) fn verify_message(
+        self,
+        mut message: Message<'_>,
+    ) -> Result<VerifiedData, MessageProcessingError> {
+        if message.is_encrypted() {
+            return Err(MessageProcessingError::Encrypted);
+        }
+
+        if message.is_compressed() {
+            message = message
+                .decompress()
+                .map_err(MessageProcessingError::Decompression)?;
+            if message.is_compressed() {
+                return Err(MessageProcessingError::Compression);
+            }
+        }
+
+        let mut cleartext = message.as_data_vec()?;
+
+        let verified_signatures = message.verify_nested_to_verified_signatures(
+            self.date,
+            &self.verification_keys,
+            self.profile,
+        )?;
+
+        if self.native_newlines_utf8 {
+            cleartext = check_and_sanitize_text(cleartext.as_slice())?;
+        }
+
+        let verification_result = VerificationResultCreator::with_signatures(verified_signatures);
+
+        Ok(VerifiedData {
+            data: cleartext,
+            verification_result,
+        })
     }
 }
 
