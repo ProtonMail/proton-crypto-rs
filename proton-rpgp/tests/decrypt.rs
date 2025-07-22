@@ -1,5 +1,6 @@
 use std::{fs, path::PathBuf};
 
+use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use proton_rpgp::{
     AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, PrivateKey, UnixTime,
     VerificationError,
@@ -256,4 +257,75 @@ pub fn decrypt_message_v6_with_password() {
         .expect("Failed to decrypt");
 
     assert_eq!(verified_data.data, b"Hello, world!");
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_and_verify_encrypted_message_v4_with_session_key() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/encrypted_message_v4.asc");
+    const KEY_PACKETS: &str = "c15e0327b3a9160a712c9612010740c514efd8a8e313979cb9533800343f79e895b754606bc3d7963ca8b9e6bb4c4130c61dd36450613b81c42ad53719c94906139e00d5a297ab44f76d8874afeb63a612310935a3e773884e972aec0aa3085c";
+    const EXPECTED_SESSION_KEY: &str =
+        "53eec178ce77003c4ede036f3c042f4d6719c6214457bdc6dbe276e3e4e21c1c";
+    let date = UnixTime::new(1_752_572_300);
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let session_key = Decryptor::default()
+        .with_decryption_key(&key)
+        .decrypt_session_key(hex::decode(KEY_PACKETS).unwrap())
+        .expect("Failed to decrypt session key");
+
+    assert_eq!(
+        session_key.export_bytes().as_slice(),
+        hex::decode(EXPECTED_SESSION_KEY).unwrap()
+    );
+
+    assert!(matches!(
+        session_key.algorithm(),
+        Some(SymmetricKeyAlgorithm::AES256)
+    ));
+
+    let verified_data = Decryptor::default()
+        .with_session_key(&session_key)
+        .with_verification_key(key.as_public_key())
+        .at_date(date)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"hello world");
+    assert!(verified_data.verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_message_v4_with_password_and_session_key() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v4_password.asc");
+    const KEY_PACKETS: &str = "c32e04090308a33cce68dccd58056095bf69bfbd763de38d5db8a1e0f174c18d162bcd0a0bd730b7398995e5c4896613";
+    const EXPECTED_SESSION_KEY: &str =
+        "a4f328a8f283b1b7cdac4053e111654728d5cf7067037ebaebaa270843a7b86c";
+    let password = "password";
+
+    let session_key = Decryptor::default()
+        .with_passphrase(password)
+        .decrypt_session_key(hex::decode(KEY_PACKETS).unwrap())
+        .expect("Failed to decrypt session key");
+
+    assert_eq!(
+        session_key.export_bytes().as_slice(),
+        hex::decode(EXPECTED_SESSION_KEY).unwrap()
+    );
+
+    assert!(matches!(
+        session_key.algorithm(),
+        Some(SymmetricKeyAlgorithm::AES256)
+    ));
+
+    let verified_data = Decryptor::default()
+        .with_session_key(&session_key)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"hello world");
 }
