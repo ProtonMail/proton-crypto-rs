@@ -4,7 +4,7 @@ use pgp::{
     types::{CompressionAlgorithm, PublicParams},
 };
 
-use crate::{EncryptionAlgorithmPreference, PrivateComponentKey, Profile, PublicComponentKey};
+use crate::{CipherSuite, PrivateComponentKey, Profile, PublicComponentKey};
 
 const HASH_ALGORITHMS_MID: &[HashAlgorithm] = &[
     HashAlgorithm::Sha512,
@@ -42,7 +42,9 @@ pub enum EncryptionMechanism {
 
 impl RecipientsAlgorithms {
     pub fn select(
-        preference: &EncryptionAlgorithmPreference,
+        message_symmetric_algorithm: SymmetricKeyAlgorithm,
+        message_cipher_suite: Option<CipherSuite>,
+        message_compression: CompressionAlgorithm,
         keys: &[PublicComponentKey<'_>],
         profile: &Profile,
     ) -> Self {
@@ -76,19 +78,19 @@ impl RecipientsAlgorithms {
                 aead_support = false;
             }
         }
-        let symmetric_algorithm = if candidate_symmetric_algorithms.contains(&preference.symmetric)
-        {
-            preference.symmetric
-        } else {
-            candidate_symmetric_algorithms
-                .into_iter()
-                .next()
-                .unwrap_or(SymmetricKeyAlgorithm::AES128)
-        };
+        let symmetric_algorithm =
+            if candidate_symmetric_algorithms.contains(&message_symmetric_algorithm) {
+                message_symmetric_algorithm
+            } else {
+                candidate_symmetric_algorithms
+                    .into_iter()
+                    .next()
+                    .unwrap_or(SymmetricKeyAlgorithm::AES128)
+            };
 
         let compression_algorithm =
-            if candidate_compression_algorithms.contains(&preference.compression) {
-                preference.compression
+            if candidate_compression_algorithms.contains(&message_compression) {
+                message_compression
             } else {
                 candidate_compression_algorithms
                     .into_iter()
@@ -98,13 +100,13 @@ impl RecipientsAlgorithms {
 
         let aead_algorithm = if candidate_aead_algorithms
             .iter()
-            .any(|alg| Some(alg) == preference.aead_ciphersuite.as_ref())
+            .any(|alg| Some(alg) == message_cipher_suite.as_ref())
         {
-            preference.aead_ciphersuite
+            message_cipher_suite
         } else {
             // If the profile does not specify an AEAD algorithm,
             // we do not perform AEAD encryption.
-            preference.aead_ciphersuite.map(|_| {
+            message_cipher_suite.map(|_| {
                 candidate_aead_algorithms
                     .into_iter()
                     .next()

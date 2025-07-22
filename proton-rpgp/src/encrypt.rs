@@ -3,6 +3,7 @@ use std::io::{self, Read};
 use pgp::{
     armor::{self, BlockType},
     composed::{ArmorOptions, Encryption, MessageBuilder},
+    crypto::sym::SymmetricKeyAlgorithm,
     ser::Serialize,
     types::{CompressionAlgorithm, KeyDetails, KeyVersion},
 };
@@ -11,9 +12,8 @@ use zeroize::Zeroizing;
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    ArmorError, DataEncoding, EncryptionAlgorithmPreference, EncryptionError, KeySelectionError,
-    PrivateKey, Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, Signer, UnixTime,
-    DEFAULT_PROFILE,
+    ArmorError, CipherSuite, DataEncoding, EncryptionError, KeySelectionError, PrivateKey, Profile,
+    PublicComponentKey, PublicKey, PublicKeySelectionExt, Signer, UnixTime, DEFAULT_PROFILE,
 };
 
 pub type SessionKeyBytes = Zeroizing<Vec<u8>>;
@@ -74,8 +74,14 @@ pub struct Encryptor<'a> {
     /// The encryption keys to use.
     encryption_keys: Vec<&'a PublicKey>,
 
-    /// The encryption preference to use for the encryption part.
-    encryption_preference: EncryptionAlgorithmPreference,
+    /// Message compression preference.
+    message_compression: CompressionAlgorithm,
+
+    /// Message symmetric algorithm preference.
+    message_symmetric_algorithm: SymmetricKeyAlgorithm,
+
+    /// Message AEAD cipher suite preference.
+    message_cipher_suite: Option<CipherSuite>,
 
     /// The internal signer to use for the signing part.
     signer: Signer<'a>,
@@ -84,10 +90,11 @@ pub struct Encryptor<'a> {
 impl<'a> Encryptor<'a> {
     /// Creates a new encryptor with the given profile.
     pub fn new(profile: &'a Profile) -> Self {
-        let encryption_preference = profile.message_encryption_preferences();
         Self {
             encryption_keys: Vec::new(),
-            encryption_preference,
+            message_compression: profile.message_compression(),
+            message_symmetric_algorithm: profile.message_symmetric_algorithm(),
+            message_cipher_suite: profile.message_aead_cipher_suite(),
             signer: Signer::new(profile),
         }
     }
@@ -137,7 +144,7 @@ impl<'a> Encryptor<'a> {
     /// The default is determined by the profile (most likely uncompressed).
     /// Compression affects security and should be used with care.
     pub fn compress(mut self) -> Self {
-        self.encryption_preference.compression = CompressionAlgorithm::ZLIB;
+        self.message_compression = CompressionAlgorithm::ZLIB;
         self
     }
 
@@ -204,7 +211,9 @@ impl<'a> Encryptor<'a> {
         let encryption_keys = self.select_encryption_keys()?;
 
         let recipients_algorithm_selection = RecipientsAlgorithms::select(
-            &self.encryption_preference,
+            self.message_symmetric_algorithm,
+            self.message_cipher_suite,
+            self.message_compression,
             &encryption_keys,
             self.profile(),
         );

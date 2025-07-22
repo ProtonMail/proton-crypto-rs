@@ -11,6 +11,9 @@ use pgp::{
 };
 use rand::{CryptoRng, Rng};
 
+/// AEAD ciphersuite.
+pub type CipherSuite = (SymmetricKeyAlgorithm, AeadAlgorithm);
+
 /// Preferred symmetric-key algorithms (in descending order of preference)
 pub const PREFERRED_SYMMETRIC_KEY_ALGORITHMS: &[SymmetricKeyAlgorithm] =
     &[SymmetricKeyAlgorithm::AES256, SymmetricKeyAlgorithm::AES128];
@@ -66,16 +69,20 @@ impl Profile {
         HashAlgorithm::Sha512
     }
 
-    pub fn message_aead_chunk_size(&self) -> ChunkSize {
-        ChunkSize::default()
+    pub fn message_aead_cipher_suite(&self) -> Option<CipherSuite> {
+        None
     }
 
-    pub fn message_encryption_preferences(&self) -> EncryptionAlgorithmPreference {
-        EncryptionAlgorithmPreference {
-            symmetric: SymmetricKeyAlgorithm::AES256,
-            aead_ciphersuite: None,
-            compression: CompressionAlgorithm::Uncompressed,
-        }
+    pub fn message_symmetric_algorithm(&self) -> SymmetricKeyAlgorithm {
+        SymmetricKeyAlgorithm::AES256
+    }
+
+    pub fn message_compression(&self) -> CompressionAlgorithm {
+        CompressionAlgorithm::Uncompressed
+    }
+
+    pub fn message_aead_chunk_size(&self) -> ChunkSize {
+        ChunkSize::default()
     }
 
     pub fn symmetric_key_algorithms(&self) -> &[SymmetricKeyAlgorithm] {
@@ -127,18 +134,4 @@ impl Default for Profile {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Algorithm preferences for `OpenPGP` encryption.
-pub struct EncryptionAlgorithmPreference {
-    /// The symmetric key algorithm to use.
-    pub symmetric: SymmetricKeyAlgorithm,
-
-    /// The AEAD ciphersuite to use if any.
-    pub aead_ciphersuite: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
-
-    /// The compression algorithm to use.
-    ///
-    /// Has a none option ([`CompressionAlgorithm::Uncompressed`])
-    pub compression: CompressionAlgorithm,
 }
