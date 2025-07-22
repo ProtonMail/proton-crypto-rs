@@ -29,6 +29,9 @@ impl<'a> MessageDecryptionExt<'a> for Message<'a> {
 
         // Try to extract session keys to decrypt the message;
         let mut session_keys = Vec::new();
+        // Add the session keys from the decryptor.
+        session_keys.extend(decryptor.session_keys.iter().map(|&sk| sk.clone().into()));
+
         let mut errors = Vec::new();
         for esk_packet in esk {
             match esk_packet {

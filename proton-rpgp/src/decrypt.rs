@@ -21,6 +21,9 @@ pub struct Decryptor<'a> {
     /// The passphrases to decrypt the message with.
     passphrases: Vec<Password>,
 
+    /// The session keys to decrypt the message with.
+    session_keys: Vec<&'a SessionKey>,
+
     /// The verifier to use for verifying the message.
     verifier: Verifier<'a>,
 }
@@ -31,6 +34,7 @@ impl<'a> Decryptor<'a> {
         Self {
             decryption_keys: Vec::new(),
             passphrases: Vec::new(),
+            session_keys: Vec::new(),
             verifier: Verifier::new(profile),
         }
     }
@@ -72,6 +76,18 @@ impl<'a> Decryptor<'a> {
     ) -> Self {
         self.passphrases
             .extend(passphrases.into_iter().map(|p| Password::from(p.as_ref())));
+        self
+    }
+
+    /// Adds a session key to the decryptor to decrypt the message with.
+    pub fn with_session_key(mut self, key: &'a SessionKey) -> Self {
+        self.session_keys.push(key);
+        self
+    }
+
+    /// Adds multiple session keys to the decryptor to decrypt the message with.
+    pub fn with_session_keys(mut self, keys: impl IntoIterator<Item = &'a SessionKey>) -> Self {
+        self.session_keys.extend(keys);
         self
     }
 
