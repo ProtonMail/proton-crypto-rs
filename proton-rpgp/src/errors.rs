@@ -183,14 +183,20 @@ pub enum EncryptionError {
     #[error("Failed to encrypt session key with a public key: {0}")]
     PkeskEncryption(pgp::errors::Error),
 
+    #[error("Missing algorithm in session key to encrypt key packet")]
+    KeyPacketEncryptionNoAlgorithm,
+
     #[error("Failed to encrypt session key with a passphrase: {0}")]
-    PassphraseEncryption(pgp::errors::Error),
+    SkeskEncryption(pgp::errors::Error),
 
     #[error("Failed to encrypt or sign data: {0}")]
     DataEncryption(pgp::errors::Error),
 
     #[error("Failed to sign data before encryption: {0}")]
     Signing(#[from] SignError),
+
+    #[error("Not supported: {0}")]
+    NotSupported(String),
 }
 
 #[derive(Debug, thiserror::Error)]

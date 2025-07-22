@@ -145,7 +145,7 @@ pub fn encrypt_and_sign_message_v4_message_api() {
         .decrypt(armored_message.as_slice(), DataEncoding::Armored)
         .expect("Failed to decrypt");
 
-    assert!(revealed_session_key.len() > 16);
+    assert!(revealed_session_key.export_bytes().len() > 16);
     assert_eq!(verified_data.data, input_data);
     assert!(verified_data.verification_result.is_ok());
 }

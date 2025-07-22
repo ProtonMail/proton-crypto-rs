@@ -2,21 +2,20 @@ use std::io::{self, Read};
 
 use pgp::{
     armor::{self, BlockType},
-    composed::{ArmorOptions, Encryption, MessageBuilder},
-    crypto::sym::SymmetricKeyAlgorithm,
+    composed::{ArmorOptions, Encryption, MessageBuilder, PlainSessionKey},
+    crypto::{aead::AeadAlgorithm, sym::SymmetricKeyAlgorithm},
+    packet::{PacketTrait, PublicKeyEncryptedSessionKey, SymKeyEncryptedSessionKey},
     ser::Serialize,
     types::{CompressionAlgorithm, KeyDetails, KeyVersion, Password},
 };
 use rand::{CryptoRng, Rng};
-use zeroize::Zeroizing;
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
     ArmorError, CipherSuite, DataEncoding, EncryptionError, KeySelectionError, PrivateKey, Profile,
-    PublicComponentKey, PublicKey, PublicKeySelectionExt, Signer, UnixTime, DEFAULT_PROFILE,
+    PublicComponentKey, PublicKey, PublicKeySelectionExt, SessionKey, Signer, UnixTime,
+    DEFAULT_PROFILE,
 };
-
-pub type SessionKeyBytes = Zeroizing<Vec<u8>>;
 
 /// Encrypted message type which allows to query information about the encrypted message.
 /// TODO: To fulfill the higher level API contract we are going to need
@@ -27,11 +26,11 @@ pub struct EncryptedMessage {
     pub encrypted_data: Vec<u8>,
 
     /// The revealed session key if any.
-    revealed_session_key: Option<SessionKeyBytes>,
+    revealed_session_key: Option<SessionKey>,
 }
 
 impl EncryptedMessage {
-    fn new(encrypted_data: Vec<u8>, revealed_session_key: Option<SessionKeyBytes>) -> Self {
+    fn new(encrypted_data: Vec<u8>, revealed_session_key: Option<SessionKey>) -> Self {
         Self {
             encrypted_data,
             revealed_session_key,
@@ -39,8 +38,8 @@ impl EncryptedMessage {
     }
 
     /// Returns the revealed session key if enabled
-    pub fn revealed_session_key(&self) -> Option<&[u8]> {
-        self.revealed_session_key.as_ref().map(|key| key.as_slice())
+    pub fn revealed_session_key(&self) -> Option<&SessionKey> {
+        self.revealed_session_key.as_ref()
     }
 
     /// Returns the armored message.
@@ -77,6 +76,9 @@ pub struct Encryptor<'a> {
     /// The passphrases to encrypt the message with.
     passphrases: Vec<Password>,
 
+    /// The session keys to use.
+    session_key: Option<PlainSessionKey>,
+
     /// Message compression preference.
     message_compression: CompressionAlgorithm,
 
@@ -96,6 +98,7 @@ impl<'a> Encryptor<'a> {
         Self {
             encryption_keys: Vec::new(),
             passphrases: Vec::new(),
+            session_key: None,
             message_compression: profile.message_compression(),
             message_symmetric_algorithm: profile.message_symmetric_algorithm(),
             message_cipher_suite: profile.message_aead_cipher_suite(),
@@ -148,6 +151,12 @@ impl<'a> Encryptor<'a> {
         self
     }
 
+    /// TODO: Add datapacket session key encryption.
+    pub fn with_session_key(mut self, key: &SessionKey) -> Self {
+        self.session_key = Some(key.clone().into());
+        self
+    }
+
     /// Sets the signature type to text.
     ///
     /// TODO(CRYPTO-296): This option should also trigger the utf-8 literal data packet type.
@@ -197,6 +206,109 @@ impl<'a> Encryptor<'a> {
             })
     }
 
+    /// Encrypts the session key and returns the encrypted session key packets (Key packets).
+    pub fn encrypt_session_key(self, session_key: &SessionKey) -> Result<Vec<u8>, EncryptionError> {
+        let encryption_keys = self.select_encryption_keys()?;
+
+        let recipients_algo = RecipientsAlgorithms::select(
+            self.message_symmetric_algorithm,
+            self.message_cipher_suite,
+            self.message_compression,
+            &encryption_keys,
+            self.profile(),
+        );
+
+        let mut rng = self.profile().rng();
+        let mut pkesks = Vec::with_capacity(encryption_keys.len());
+        let mut skesks = Vec::with_capacity(self.passphrases.len());
+
+        let encryption_mechanism = match &session_key.inner {
+            PlainSessionKey::V3_4 { sym_alg, .. } => EncryptionMechanism::SeipdV1(*sym_alg),
+            PlainSessionKey::V6 { .. } => {
+                // The algorithms are only used for v6 password based encryption.
+                // Thus, it would not matter if the session does not match the symmetric algorithm.
+                let (symmetric_algorithm, aead_algorithm) = recipients_algo
+                    .aead_ciphersuite
+                    .unwrap_or((SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Gcm));
+                EncryptionMechanism::SeipdV2(symmetric_algorithm, aead_algorithm)
+            }
+            PlainSessionKey::Unknown { sym_alg, .. } => {
+                let mechanism = recipients_algo.encryption_mechanism();
+                match mechanism {
+                    EncryptionMechanism::SeipdV1(_) => EncryptionMechanism::SeipdV1(*sym_alg),
+                    EncryptionMechanism::SeipdV2(_, aead_algorithm) => {
+                        EncryptionMechanism::SeipdV2(*sym_alg, aead_algorithm)
+                    }
+                }
+            }
+            PlainSessionKey::V5 { .. } => {
+                return Err(EncryptionError::NotSupported(
+                    "V5 session key is not supported for encryption".to_string(),
+                ));
+            }
+        };
+
+        let session_key_bytes = session_key.as_bytes();
+        for encryption_key in &encryption_keys {
+            let pkesk = match encryption_mechanism {
+                EncryptionMechanism::SeipdV1(symmetric_key_algorithm) => {
+                    PublicKeyEncryptedSessionKey::from_session_key_v3(
+                        &mut rng,
+                        session_key_bytes,
+                        symmetric_key_algorithm,
+                        &encryption_key.public_key,
+                    )
+                    .map_err(EncryptionError::PkeskEncryption)?
+                }
+                EncryptionMechanism::SeipdV2(_, _) => {
+                    PublicKeyEncryptedSessionKey::from_session_key_v6(
+                        &mut rng,
+                        session_key_bytes,
+                        &encryption_key.public_key,
+                    )
+                    .map_err(EncryptionError::PkeskEncryption)?
+                }
+            };
+            pkesks.push(pkesk);
+        }
+
+        for password in &self.passphrases {
+            let skesk = match encryption_mechanism {
+                EncryptionMechanism::SeipdV1(sym_alg) => {
+                    let s2k = self.profile().message_s2k_params();
+                    SymKeyEncryptedSessionKey::encrypt_v4(password, session_key_bytes, s2k, sym_alg)
+                        .map_err(EncryptionError::SkeskEncryption)?
+                }
+                EncryptionMechanism::SeipdV2(sym_alg, aead_alg) => {
+                    let s2k = self.profile().message_s2k_params();
+                    SymKeyEncryptedSessionKey::encrypt_v6(
+                        &mut rng,
+                        password,
+                        session_key_bytes,
+                        s2k,
+                        sym_alg,
+                        aead_alg,
+                    )
+                    .map_err(EncryptionError::SkeskEncryption)?
+                }
+            };
+            skesks.push(skesk);
+        }
+
+        let mut output = Vec::new();
+        for pkesk in pkesks {
+            pkesk
+                .to_writer_with_header(&mut output)
+                .map_err(EncryptionError::DataEncryption)?;
+        }
+        for skesk in skesks {
+            skesk
+                .to_writer_with_header(&mut output)
+                .map_err(EncryptionError::DataEncryption)?;
+        }
+        Ok(output)
+    }
+
     /// Encrypts and optionally signs the given data and returns a serialized `OpenPGP` message.
     ///
     /// If no signing key is provided, the data will be encrypted without a signature.
@@ -230,7 +342,7 @@ impl<'a> Encryptor<'a> {
         data: &'a [u8],
         data_encoding: DataEncoding,
         extract_session_key: bool,
-    ) -> Result<(Vec<u8>, Option<SessionKeyBytes>), EncryptionError> {
+    ) -> Result<(Vec<u8>, Option<SessionKey>), EncryptionError> {
         let encryption_keys = self.select_encryption_keys()?;
 
         let recipients_algorithm_selection = RecipientsAlgorithms::select(
@@ -267,11 +379,15 @@ impl<'a> Encryptor<'a> {
                     let s2k = self.profile().message_s2k_params();
                     seipd_v1_builder
                         .encrypt_with_password(s2k, passphrase)
-                        .map_err(EncryptionError::PassphraseEncryption)?;
+                        .map_err(EncryptionError::SkeskEncryption)?;
                 }
 
                 if extract_session_key {
-                    revealed_session_key = Some(seipd_v1_builder.session_key().to_owned());
+                    let session_key = SessionKey::new_v4(
+                        seipd_v1_builder.session_key().as_slice(),
+                        symmetric_key_algorithm,
+                    );
+                    revealed_session_key = Some(session_key);
                 }
 
                 self.write_and_sign(
@@ -301,11 +417,13 @@ impl<'a> Encryptor<'a> {
                     let s2k = self.profile().message_s2k_params();
                     seipd_v2_builder
                         .encrypt_with_password(&mut rng, s2k, passphrase)
-                        .map_err(EncryptionError::PassphraseEncryption)?;
+                        .map_err(EncryptionError::SkeskEncryption)?;
                 }
 
                 if extract_session_key {
-                    revealed_session_key = Some(seipd_v2_builder.session_key().to_owned());
+                    revealed_session_key = Some(SessionKey::new_v6(
+                        seipd_v2_builder.session_key().as_slice(),
+                    ));
                 }
 
                 self.write_and_sign(
