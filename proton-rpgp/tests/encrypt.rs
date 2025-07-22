@@ -1,6 +1,7 @@
+use pgp::crypto::{aead::AeadAlgorithm, sym::SymmetricKeyAlgorithm};
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, Encryptor, PrivateKey,
-    VerificationError,
+    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, Encryptor, PrivateKey, Profile,
+    SessionKey, VerificationError,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -243,4 +244,109 @@ pub fn encrypt_message_v4_decrypt_wrong_key() {
         failed_decryption,
         Err(DecryptionError::SessionKeyDecryption(_))
     ));
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_session_key_v4() {
+    let session_key = SessionKey::new(b"0000000000000000", SymmetricKeyAlgorithm::AES128);
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let key_packets = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .encrypt_session_key(&session_key)
+        .expect("Failed to encrypt");
+
+    let output_session_key = Decryptor::default()
+        .with_decryption_key(&key)
+        .decrypt_session_key(&key_packets)
+        .expect("Failed to decrypt session key");
+
+    assert_eq!(
+        session_key.export_bytes(),
+        output_session_key.export_bytes()
+    );
+
+    assert_eq!(session_key.algorithm(), output_session_key.algorithm());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_session_key_v6_seipdv2() {
+    let session_key = SessionKey::new(b"0000000000000000", SymmetricKeyAlgorithm::AES128);
+
+    let key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut profile = Profile::new();
+    profile.cipher_suite = Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm));
+
+    let key_packets = Encryptor::new(&profile)
+        .with_encryption_key(key.as_public_key())
+        .encrypt_session_key(&session_key)
+        .expect("Failed to encrypt");
+
+    let output_session_key = Decryptor::default()
+        .with_decryption_key(&key)
+        .decrypt_session_key(&key_packets)
+        .expect("Failed to decrypt session key");
+
+    assert_eq!(
+        session_key.export_bytes(),
+        output_session_key.export_bytes()
+    );
+    assert!(output_session_key.algorithm().is_none());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_session_key_passphrase() {
+    let session_key = SessionKey::new(b"0000000000000000", SymmetricKeyAlgorithm::AES128);
+
+    let passphrase: &'static str = "password";
+
+    let key_packets = Encryptor::default()
+        .with_passphrase(passphrase)
+        .encrypt_session_key(&session_key)
+        .expect("Failed to encrypt");
+
+    let output_session_key = Decryptor::default()
+        .with_passphrase(passphrase)
+        .decrypt_session_key(&key_packets)
+        .expect("Failed to decrypt");
+
+    assert_eq!(
+        session_key.export_bytes(),
+        output_session_key.export_bytes()
+    );
+
+    assert_eq!(session_key.algorithm(), output_session_key.algorithm());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_session_key_passphrase_seipdv2() {
+    let session_key = SessionKey::new(b"0000000000000000", SymmetricKeyAlgorithm::AES128);
+    let passphrase: &'static str = "password";
+
+    let mut profile = Profile::new();
+    profile.cipher_suite = Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm));
+
+    let key_packets = Encryptor::new(&profile)
+        .with_passphrase(passphrase)
+        .encrypt_session_key(&session_key)
+        .expect("Failed to encrypt");
+
+    let output_session_key = Decryptor::default()
+        .with_passphrase(passphrase)
+        .decrypt_session_key(&key_packets)
+        .expect("Failed to decrypt session key");
+
+    assert_eq!(
+        session_key.export_bytes(),
+        output_session_key.export_bytes()
+    );
+    assert!(output_session_key.algorithm().is_none());
 }
