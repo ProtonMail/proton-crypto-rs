@@ -216,6 +216,9 @@ pub enum DecryptionError {
     #[error("PKESK decryption for key {0} failed: {1}")]
     PkeskDecryption(Box<GenericKeyIdentifier>, ErrorList<DecryptionError>),
 
+    #[error("SKESK decryption with a password failed: {0}")]
+    SkeskDecryption(pgp::errors::Error),
+
     #[error(transparent)]
     SinglePkeskDecryption(#[from] PkeskDecryptionError),
 
@@ -233,6 +236,9 @@ pub enum DecryptionError {
 
     #[error("Failed to select verified decryption keys for id {0}: {1}")]
     KeySelection(Box<GenericKeyIdentifier>, KeySelectionError),
+
+    #[error("No valid key packets found")]
+    NoKeyPackets,
 }
 
 #[derive(Debug, thiserror::Error)]

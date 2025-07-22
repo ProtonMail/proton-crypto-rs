@@ -1,8 +1,12 @@
-use pgp::types::Password;
+use pgp::{
+    composed::decrypt_session_key_with_password,
+    packet::{Packet, PacketParser},
+    types::Password,
+};
 
 use crate::{
-    armor, DataEncoding, DecryptionError, PrivateKey, Profile, PublicKey, UnixTime, VerifiedData,
-    Verifier, DEFAULT_PROFILE,
+    armor, DataEncoding, DecryptionError, PrivateKey, Profile, PublicKey, SessionKey, UnixTime,
+    VerifiedData, Verifier, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -130,6 +134,47 @@ impl<'a> Decryptor<'a> {
         self.verifier
             .verify_message(message)
             .map_err(DecryptionError::MessageProcessing)
+    }
+
+    /// Decrypts the session key from the given key packets.
+    ///
+    /// The key packets are encoded as raw bytes.
+    pub fn decrypt_session_key(
+        self,
+        key_packets: impl AsRef<[u8]>,
+    ) -> Result<SessionKey, DecryptionError> {
+        let packet_parser = PacketParser::new(key_packets.as_ref());
+
+        let mut errors = Vec::new();
+        for packet in packet_parser.flatten() {
+            match packet {
+                Packet::PublicKeyEncryptedSessionKey(pkesk) => {
+                    match handle_pkesk_decryption(
+                        &pkesk,
+                        self.decryption_keys.iter().copied(),
+                        self.profile(),
+                    ) {
+                        Ok(session_key) => return Ok(session_key.into()),
+                        Err(err) => errors.push(err),
+                    }
+                }
+                Packet::SymKeyEncryptedSessionKey(skesk) => {
+                    for passphrase in &self.passphrases {
+                        match decrypt_session_key_with_password(&skesk, passphrase) {
+                            Ok(session_key) => return Ok(session_key.into()),
+                            Err(err) => errors.push(DecryptionError::SkeskDecryption(err)),
+                        }
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        if errors.is_empty() {
+            errors.push(DecryptionError::NoKeyPackets);
+        }
+
+        Err(DecryptionError::SessionKeyDecryption(errors.into()))
     }
 
     pub(crate) fn profile(&self) -> &Profile {

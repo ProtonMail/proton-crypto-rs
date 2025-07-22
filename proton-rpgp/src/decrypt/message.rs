@@ -83,7 +83,7 @@ impl PkeskExt for PublicKeyEncryptedSessionKey {
 }
 
 // Helper function to handle PKESK session key decryption.
-fn handle_pkesk_decryption<'a>(
+pub(crate) fn handle_pkesk_decryption<'a>(
     pkesk: &PublicKeyEncryptedSessionKey,
     decryption_keys: impl Iterator<Item = &'a PrivateKey>,
     profile: &Profile,
