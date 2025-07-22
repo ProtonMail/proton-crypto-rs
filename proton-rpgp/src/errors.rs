@@ -201,6 +201,9 @@ pub enum DecryptionError {
     #[error("No encrypted data found")]
     UnexpectedPlaintext,
 
+    #[error("Message is not encrypted")]
+    NoEncryption,
+
     #[error("Failed to process message before or after decryption: {0}")]
     MessageProcessing(#[from] MessageProcessingError),
 
