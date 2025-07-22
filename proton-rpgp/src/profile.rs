@@ -51,11 +51,15 @@ pub static DEFAULT_PROFILE: LazyLock<Profile> = LazyLock::new(Profile::new);
 #[derive(Debug, Clone)]
 pub struct Profile {
     pub min_rsa_bits: usize,
+    pub cipher_suite: Option<CipherSuite>,
 }
 
 impl Profile {
     pub fn new() -> Self {
-        Self { min_rsa_bits: 1024 }
+        Self {
+            min_rsa_bits: 1024,
+            cipher_suite: None,
+        }
     }
 
     pub fn rng(&self) -> impl Rng + CryptoRng {
@@ -71,7 +75,7 @@ impl Profile {
     }
 
     pub fn message_aead_cipher_suite(&self) -> Option<CipherSuite> {
-        None
+        self.cipher_suite
     }
 
     pub fn message_symmetric_algorithm(&self) -> SymmetricKeyAlgorithm {
