@@ -1,8 +1,10 @@
 use pgp::{
     composed::{ArmorOptions, Deserializable, PlainSessionKey, SignedPublicKey, SignedSecretKey},
+    crypto::sym::SymmetricKeyAlgorithm,
     ser::Serialize,
     types::{KeyDetails, KeyVersion, Password},
 };
+use zeroize::Zeroizing;
 
 use crate::{DataEncoding, KeyOperationError, Profile};
 
@@ -337,9 +339,77 @@ impl PrivateKey {
     }
 }
 
+pub type SessionKeyBytes = Zeroizing<Vec<u8>>;
+
 /// TODO.
+#[derive(Debug, Clone)]
 pub struct SessionKey {
-    pub(crate) _inner: PlainSessionKey,
+    pub(crate) inner: PlainSessionKey,
+}
+
+impl SessionKey {
+    pub fn new(key: &[u8], algorithm: SymmetricKeyAlgorithm) -> Self {
+        Self {
+            inner: PlainSessionKey::Unknown {
+                sym_alg: algorithm,
+                key: key.to_vec(),
+            },
+        }
+    }
+
+    pub fn new_v4(key: &[u8], algorithm: SymmetricKeyAlgorithm) -> Self {
+        Self {
+            inner: PlainSessionKey::V3_4 {
+                sym_alg: algorithm,
+                key: key.to_vec(),
+            },
+        }
+    }
+
+    pub fn new_v6(key: &[u8]) -> Self {
+        Self {
+            inner: PlainSessionKey::V6 { key: key.to_vec() },
+        }
+    }
+
+    /// Export the raw session key bytes.
+    pub fn export_bytes(&self) -> Zeroizing<Vec<u8>> {
+        match &self.inner {
+            PlainSessionKey::V3_4 { key, sym_alg: _ }
+            | PlainSessionKey::V5 { key }
+            | PlainSessionKey::V6 { key }
+            | PlainSessionKey::Unknown { key, sym_alg: _ } => Zeroizing::new(key.clone()),
+        }
+    }
+
+    /// Get the algorithm of the session key.
+    ///
+    /// A session key extracted from a V5/V6 PKESK packet will not contain
+    /// an algorithm.
+    pub fn algorithm(&self) -> Option<SymmetricKeyAlgorithm> {
+        self.inner.sym_algorithm()
+    }
+
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        match &self.inner {
+            PlainSessionKey::V3_4 { key, .. }
+            | PlainSessionKey::V5 { key }
+            | PlainSessionKey::V6 { key }
+            | PlainSessionKey::Unknown { key, .. } => key,
+        }
+    }
+}
+
+impl From<PlainSessionKey> for SessionKey {
+    fn from(key: PlainSessionKey) -> Self {
+        Self { inner: key }
+    }
+}
+
+impl From<SessionKey> for PlainSessionKey {
+    fn from(value: SessionKey) -> Self {
+        value.inner
+    }
 }
 
 #[cfg(test)]
