@@ -86,10 +86,6 @@ impl Profile {
         ChunkSize::default()
     }
 
-    pub fn message_sign_only_compression(&self) -> CompressionAlgorithm {
-        CompressionAlgorithm::ZLIB
-    }
-
     pub fn symmetric_key_algorithms(&self) -> &[SymmetricKeyAlgorithm] {
         PREFERRED_SYMMETRIC_KEY_ALGORITHMS
     }
