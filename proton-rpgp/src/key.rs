@@ -6,7 +6,10 @@ use pgp::{
 };
 use zeroize::Zeroizing;
 
-use crate::{DataEncoding, KeyOperationError, Profile};
+use crate::{
+    preferences::{EncryptionMechanism, RecipientsAlgorithms},
+    DataEncoding, EncryptionError, KeyOperationError, Profile,
+};
 
 mod certifications;
 pub(crate) use certifications::*;
@@ -396,6 +399,46 @@ impl SessionKey {
             | PlainSessionKey::V5 { key }
             | PlainSessionKey::V6 { key }
             | PlainSessionKey::Unknown { key, .. } => key,
+        }
+    }
+
+    /// Helper function to determine the encryption mechanism of the session key.
+    ///
+    /// This is useful in pure session-key encryption.
+    pub(crate) fn encryption_mechanism(
+        &self,
+        recipients_algo: &RecipientsAlgorithms,
+        profile: &Profile,
+    ) -> Result<EncryptionMechanism, EncryptionError> {
+        match &self.inner {
+            PlainSessionKey::V3_4 { sym_alg, .. } => Ok(EncryptionMechanism::SeipdV1(*sym_alg)),
+            PlainSessionKey::V6 { key } => {
+                let (symmetric_algorithm, aead_algorithm) = match recipients_algo.aead_ciphersuite {
+                    Some(ciphersuite) => ciphersuite,
+                    None => profile
+                        .default_ciphersuite_for_key_length(key.len())
+                        .ok_or(EncryptionError::NotSupported(
+                            "missing aead algorithm for v6 session key".to_owned(),
+                        ))?,
+                };
+
+                Ok(EncryptionMechanism::SeipdV2(
+                    symmetric_algorithm,
+                    aead_algorithm,
+                ))
+            }
+            PlainSessionKey::Unknown { sym_alg, .. } => {
+                let mechanism = recipients_algo.encryption_mechanism();
+                match mechanism {
+                    EncryptionMechanism::SeipdV1(_) => Ok(EncryptionMechanism::SeipdV1(*sym_alg)),
+                    EncryptionMechanism::SeipdV2(_, aead_algorithm) => {
+                        Ok(EncryptionMechanism::SeipdV2(*sym_alg, aead_algorithm))
+                    }
+                }
+            }
+            PlainSessionKey::V5 { .. } => Err(EncryptionError::NotSupported(
+                "V5 session key is not supported for encryption".to_string(),
+            )),
         }
     }
 }

@@ -197,6 +197,9 @@ pub enum EncryptionError {
 
     #[error("Not supported: {0}")]
     NotSupported(String),
+
+    #[error("Missing encryption tools: no encryption keys or passphrases provided")]
+    MissingEncryptionTools,
 }
 
 #[derive(Debug, thiserror::Error)]

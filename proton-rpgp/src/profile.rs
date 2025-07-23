@@ -130,6 +130,14 @@ impl Profile {
         self.min_rsa_bits
     }
 
+    pub fn default_ciphersuite_for_key_length(&self, length: usize) -> Option<CipherSuite> {
+        match length {
+            16 => Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)),
+            32 => Some((SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Gcm)),
+            _ => None,
+        }
+    }
+
     pub fn key_s2k_params(&self) -> S2kParams {
         // TODO(CRYPTO-292): Rand generation logic should not be handled here.
         let mut salt = [0; 8];
