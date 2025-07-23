@@ -133,6 +133,7 @@ impl Profile {
     pub fn default_ciphersuite_for_key_length(&self, length: usize) -> Option<CipherSuite> {
         match length {
             16 => Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)),
+            24 => Some((SymmetricKeyAlgorithm::AES192, AeadAlgorithm::Gcm)),
             32 => Some((SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Gcm)),
             _ => None,
         }

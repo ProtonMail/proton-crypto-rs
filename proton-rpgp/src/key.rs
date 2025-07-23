@@ -413,14 +413,13 @@ impl SessionKey {
         match &self.inner {
             PlainSessionKey::V3_4 { sym_alg, .. } => Ok(EncryptionMechanism::SeipdV1(*sym_alg)),
             PlainSessionKey::V6 { key } => {
-                let (symmetric_algorithm, aead_algorithm) = match recipients_algo.aead_ciphersuite {
-                    Some(ciphersuite) => ciphersuite,
-                    None => profile
-                        .default_ciphersuite_for_key_length(key.len())
-                        .ok_or(EncryptionError::NotSupported(
-                            "missing aead algorithm for v6 session key".to_owned(),
-                        ))?,
-                };
+                let (symmetric_algorithm, aead_algorithm) = recipients_algo
+                    .aead_ciphersuite
+                    .filter(|c| c.0.key_size() == key.len())
+                    .or_else(|| profile.default_ciphersuite_for_key_length(key.len()))
+                    .ok_or(EncryptionError::NotSupported(
+                        "missing aead algorithm for v6 session key".to_owned(),
+                    ))?;
 
                 Ok(EncryptionMechanism::SeipdV2(
                     symmetric_algorithm,
