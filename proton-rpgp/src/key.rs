@@ -22,6 +22,9 @@ pub(crate) use selection::*;
 
 pub(crate) mod preferences;
 
+mod generation;
+pub use generation::*;
+
 mod info;
 pub use info::*;
 

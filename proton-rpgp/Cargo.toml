@@ -17,6 +17,7 @@ rand = "0.8.5"
 sha2 = { version = "0.10.6", features = ["oid"] }
 hex = "0.4"
 zeroize = { version="1.8", features = ["zeroize_derive"]}
+smallvec = "1.10.0"
 
 [features]
 default = []

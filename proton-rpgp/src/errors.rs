@@ -173,6 +173,24 @@ pub enum KeyRequirementError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum KeyGenerationError {
+    #[error("No user id provided")]
+    NoUserId,
+
+    #[error("Failed to generate subkey: {0}")]
+    SubkeyGeneration(#[from] pgp::composed::SubkeyParamsBuilderError),
+
+    #[error("Failed to perpare primary key: {0}")]
+    PrimaryKeyPreparation(#[from] pgp::composed::SecretKeyParamsBuilderError),
+
+    #[error("Failed to generate key: {0}")]
+    Generation(#[from] pgp::errors::Error),
+
+    #[error("Failed to self-sign key: {0}")]
+    Signing(pgp::errors::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum EncryptionError {
     #[error("Failed to select encryption key: {0}")]
     EncryptionKeySelection(#[from] KeySelectionError),

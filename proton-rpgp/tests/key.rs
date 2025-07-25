@@ -1,6 +1,6 @@
 use proton_rpgp::{
-    AccessKeyInfo, DataEncoding, KeyOperationError, LockedPrivateKey, PrivateKey, Profile,
-    PublicKey, UnixTime,
+    AccessKeyInfo, DataEncoding, KeyGenerationType, KeyGenerator, KeyOperationError,
+    LockedPrivateKey, PrivateKey, Profile, PublicKey, UnixTime,
 };
 
 pub const TEST_PRIVATE_KEY: &str = include_str!("../test-data/keys/locked_private_key_v6.asc");
@@ -187,4 +187,25 @@ fn key_sha256_fingerprints() {
     for (i, fingerprint) in fingerprints.iter().enumerate() {
         assert_eq!(fingerprint.to_string(), EXPECTED_FINGERPRINTS[i]);
     }
+}
+
+#[test]
+fn key_generation_default() {
+    let key = KeyGenerator::default()
+        .with_user_id("test", "test@test.com")
+        .with_key_type(KeyGenerationType::RSA)
+        .generate()
+        .expect("Failed to generate key");
+
+    let _exported = key
+        .export_unlocked(DataEncoding::Armored)
+        .expect("Failed to export key");
+
+    key.check_can_encrypt(&Profile::default(), UnixTime::now().unwrap())
+        .expect("Cannot encrypt");
+
+    key.check_can_verify(&Profile::default(), UnixTime::now().unwrap())
+        .expect("Cannot verify");
+
+    assert_eq!(key.version(), 4);
 }

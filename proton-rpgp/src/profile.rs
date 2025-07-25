@@ -8,7 +8,7 @@ use pgp::{
         sym::SymmetricKeyAlgorithm,
     },
     packet::Notation,
-    types::{CompressionAlgorithm, S2kParams, StringToKey},
+    types::{CompressionAlgorithm, KeyVersion, S2kParams, StringToKey},
 };
 use rand::{CryptoRng, Rng, RngCore};
 
@@ -45,6 +45,8 @@ pub const PREFERRED_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
 ];
 
 use std::sync::LazyLock;
+
+use crate::{KeyGenerationProfile, KeyGenerationType};
 
 pub static DEFAULT_PROFILE: LazyLock<Profile> = LazyLock::new(Profile::new);
 
@@ -165,6 +167,17 @@ impl Profile {
             hash_alg: HashAlgorithm::Sha256,
             salt,
             count: 96,
+        }
+    }
+
+    pub fn key_generation_options(&self, algorithm: KeyGenerationType) -> KeyGenerationProfile {
+        let mut options = KeyGenerationProfile::default();
+        match algorithm {
+            KeyGenerationType::RSA | KeyGenerationType::ECC => options,
+            KeyGenerationType::PQC => {
+                options.key_version = KeyVersion::V6;
+                options
+            }
         }
     }
 }
