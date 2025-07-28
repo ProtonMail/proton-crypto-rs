@@ -1,7 +1,6 @@
 use std::io::{self, Read};
 
 use pgp::{
-    armor::{self, BlockType},
     composed::{
         ArmorOptions, Encryption, EncryptionSeipdV1, EncryptionSeipdV2, MessageBuilder,
         NoEncryption, PlainSessionKey,
@@ -15,61 +14,13 @@ use rand::{CryptoRng, Rng};
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    ArmorError, CipherSuite, DataEncoding, EncryptionError, KeySelectionError, PrivateKey, Profile,
+    CipherSuite, DataEncoding, EncryptionError, KeySelectionError, PrivateKey, Profile,
     PublicComponentKey, PublicKey, PublicKeySelectionExt, SessionKey, Signer, UnixTime,
     DEFAULT_PROFILE,
 };
 
-/// Encrypted message type which allows to query information about the encrypted message.
-/// TODO: To fulfill the higher level API contract we are going to need
-/// `fn as_key_packets(&self) -> &[u8];`
-/// `fn as_data_packet(&self) -> &[u8];`
-pub struct EncryptedMessage {
-    /// The encrypted data.
-    pub encrypted_data: Vec<u8>,
-
-    /// The revealed session key if any.
-    revealed_session_key: Option<SessionKey>,
-}
-
-impl EncryptedMessage {
-    fn new(encrypted_data: Vec<u8>, revealed_session_key: Option<SessionKey>) -> Self {
-        Self {
-            encrypted_data,
-            revealed_session_key,
-        }
-    }
-
-    /// Returns the revealed session key if enabled
-    pub fn revealed_session_key(&self) -> Option<&SessionKey> {
-        self.revealed_session_key.as_ref()
-    }
-
-    /// Returns the armored message.
-    pub fn armor(&self) -> Result<Vec<u8>, ArmorError> {
-        let mut output = Vec::with_capacity(self.encrypted_data.len());
-        armor::write(self, BlockType::Message, &mut output, None, true)
-            .map_err(ArmorError::Encode)?;
-        Ok(output)
-    }
-}
-
-impl Serialize for EncryptedMessage {
-    fn to_writer<W: io::Write>(&self, w: &mut W) -> pgp::errors::Result<()> {
-        w.write_all(&self.encrypted_data)?;
-        Ok(())
-    }
-
-    fn write_len(&self) -> usize {
-        self.encrypted_data.len()
-    }
-}
-
-impl AsRef<[u8]> for EncryptedMessage {
-    fn as_ref(&self) -> &[u8] {
-        &self.encrypted_data
-    }
-}
+mod message;
+pub use message::*;
 
 /// The encryptor to use to perform `OpenPGP` encryption/signcryption operations.
 pub struct Encryptor<'a> {

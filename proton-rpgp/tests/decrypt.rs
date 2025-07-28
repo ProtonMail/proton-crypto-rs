@@ -33,7 +33,7 @@ pub fn decrypt_and_verify_encrypted_message_v4() {
 #[allow(clippy::missing_panics_doc)]
 pub fn decrypt_and_verify_encrypted_message_v6() {
     const INPUT_DATA: &str = include_str!("../test-data/messages/encrypted_message_v6.asc");
-    let date = UnixTime::new(1_752_589_888);
+    let date = UnixTime::new(1_753_705_263);
 
     let key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");

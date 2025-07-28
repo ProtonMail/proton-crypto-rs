@@ -359,6 +359,18 @@ pub enum ArmorError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum PgpMessageError {
+    #[error("Failed to split encrypted message in to key and data packets: {0}")]
+    ParseSplit(pgp::errors::Error),
+
+    #[error("Non expected packet type found while splitting pgp message")]
+    NonExpectedPacketSplit,
+
+    #[error("Failed to pgp message: {0}")]
+    Armor(#[from] ArmorError),
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum TextSanitizationError {
     #[error("Failed to normalize line endings: {0}")]
     Normalization(#[from] io::Error),
