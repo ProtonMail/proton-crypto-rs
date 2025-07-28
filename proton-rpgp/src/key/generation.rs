@@ -181,7 +181,7 @@ impl<'a> KeyGenerator<'a> {
     ///
     /// let key = KeyGenerator::default()
     ///     .with_user_id("test", "test@test.test")
-    ///     .with_algorithm(KeyGenerationType::ECC)
+    ///     .with_key_type(KeyGenerationType::ECC)
     ///     .generate()
     ///     .unwrap();
     /// ```
