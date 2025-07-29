@@ -8,6 +8,7 @@ authors.workspace = true
 
 [dependencies]
 gopenpgp-sys = { workspace = true, optional = true }
+proton-rpgp = { workspace = true, optional = true }
 proton-srp = { workspace = true, default-features = false, registry = "proton" }
 thiserror = { workspace = true }
 serde = { version="1", features = ["derive"]}
@@ -20,8 +21,11 @@ rand = { workspace = true }
 smol = "2.0.0"
 
 [features]
-default = ["gopgp"]
+default = ["rustpgp"]
+rustpgp = ["dep:proton-rpgp"]
 gopgp = ["dep:gopenpgp-sys"]
+rustpgp_wasm = ["rustpgp", "proton-rpgp/wasm"]
+rustpgp_asm = ["rustpgp", "proton-rpgp/asm"]
 
 [lints]
 workspace = true

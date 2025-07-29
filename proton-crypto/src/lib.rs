@@ -6,6 +6,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[cfg(feature = "gopgp")]
 mod go;
 
+#[cfg(feature = "rustpgp")]
 mod rust;
 
 pub mod crypto;
@@ -13,7 +14,7 @@ pub mod keytransparency;
 pub mod utils;
 use parking_lot::RwLock;
 use rand::RngCore as _;
-use rust::RustSRP;
+use rust::srp::RustSRP;
 use std::sync::Arc;
 use std::{
     fmt::{Display, Formatter},
@@ -129,18 +130,25 @@ impl CryptoClockProvider for LocalTimeProvider {
 
 /// Factory function to create a synchronous `PGPProvider`.
 pub fn new_pgp_provider() -> impl PGPProviderSync {
-    #[cfg(feature = "gopgp")]
+    #[cfg(feature = "rustpgp")]
+    return new_rust_pgp_provider();
+
+    #[cfg(all(not(feature = "rustpgp"), feature = "gopgp"))]
     return new_go_pgp_provider();
-    #[cfg(not(any(feature = "gopgp")))]
+
+    #[cfg(not(any(feature = "rustpgp", feature = "gopgp")))]
     compile_error!("At least one of 'rustpgp' or 'gopgp' features must be enabled.");
 }
 
 /// Factory function to create a asynchronous `PGPProvider`.
 pub fn new_pgp_provider_async() -> impl PGPProviderAsync {
-    #[cfg(feature = "gopgp")]
+    #[cfg(feature = "rustpgp")]
+    return new_rust_pgp_provider_async();
+
+    #[cfg(all(not(feature = "rustpgp"), feature = "gopgp"))]
     return new_go_pgp_provider_async();
 
-    #[cfg(not(any(feature = "gopgp")))]
+    #[cfg(not(any(feature = "rustpgp", feature = "gopgp")))]
     compile_error!("At least one of 'rustpgp' or 'gopgp' features must be enabled.");
 }
 
@@ -153,6 +161,17 @@ pub fn new_go_pgp_provider() -> impl PGPProviderSync {
 pub fn new_go_pgp_provider_async() -> impl PGPProviderAsync {
     go::pgp::GoPGPProvider(crypto_clock())
 }
+
+#[cfg(feature = "rustpgp")]
+pub fn new_rust_pgp_provider() -> impl PGPProviderSync {
+    rust::pgp::RustPGPProvider::new(crypto_clock())
+}
+
+#[cfg(feature = "rustpgp")]
+pub fn new_rust_pgp_provider_async() -> impl PGPProviderAsync {
+    rust::pgp::RustPGPProvider::new(crypto_clock())
+}
+
 /// Factory function to create an `SRPProvider`.
 pub fn new_srp_provider() -> impl SRPProvider {
     RustSRP::new(new_pgp_provider())

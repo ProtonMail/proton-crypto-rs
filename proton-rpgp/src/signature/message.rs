@@ -1,6 +1,6 @@
 use pgp::{
     composed::Message,
-    packet::{Signature, Subpacket, SubpacketData},
+    packet::{PacketTrait, Signature, Subpacket, SubpacketData},
     types::KeyId,
 };
 
@@ -52,6 +52,14 @@ impl VerificationInformation {
             signature_creation_time: signature.unix_created_at().unwrap_or_default(),
             signature,
         }
+    }
+
+    pub fn signature_bytes(&self) -> Option<Vec<u8>> {
+        let mut bytes = Vec::with_capacity(self.signature.write_len_with_header());
+        if self.signature.to_writer_with_header(&mut bytes).is_err() {
+            return None;
+        }
+        Some(bytes)
     }
 }
 

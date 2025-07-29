@@ -16,6 +16,7 @@ use pgp::{
 use crate::{ArmorError, EncryptedMessageError, SessionKey};
 
 /// Encrypted message type which allows to query information about the encrypted message.
+#[derive(Debug, Clone)]
 pub struct EncryptedMessage {
     /// The encrypted data.
     pub encrypted_data: Vec<u8>,
