@@ -15,7 +15,6 @@ pub fn message_v4_check() {
 
     let message_fail = EncryptedMessage::from_armor(SIGNATURE_ARMORED.as_bytes());
     assert!(message_fail.is_err());
-
     assert_eq!(
         message.as_key_packets_unchecked(),
         hex::decode(KEY_PACKET).unwrap()

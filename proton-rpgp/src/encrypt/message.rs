@@ -1,10 +1,14 @@
-use std::io::{self};
+use std::{
+    cell::RefCell,
+    io::{self, BufRead, Read},
+    rc::Rc,
+};
 
 use crate::armor;
 
 use pgp::{
     armor::{self as pgp_armor, BlockType},
-    packet::{Packet, PacketParser, PacketTrait},
+    packet::{Packet, PacketParser},
     ser::Serialize,
     types::{Fingerprint, KeyId},
 };
@@ -125,27 +129,23 @@ impl From<Vec<u8>> for EncryptedMessage {
 /// `| key packets | data packet |`
 /// All packets after data packet are ignored.
 fn split_pgp_message(encrypted_message: &[u8]) -> Result<(&[u8], &[u8]), PgpMessageError> {
-    let packet_parser = PacketParser::new(encrypted_message);
-    let mut split_point: usize = 0;
-    for packet in packet_parser {
+    let bytes_read = Rc::new(RefCell::new(0));
+    let reader = ExternalCountingReader::new(encrypted_message, bytes_read.clone());
+    let mut split_point = 0;
+    for packet in PacketParser::new(reader) {
         match packet {
-            Ok(Packet::PublicKeyEncryptedSessionKey(pkesk)) => {
-                split_point += pkesk.write_len_with_header();
-            }
-            Ok(Packet::SymKeyEncryptedSessionKey(skesk)) => {
-                split_point += skesk.write_len_with_header();
+            Ok(Packet::PublicKeyEncryptedSessionKey(_) | Packet::SymKeyEncryptedSessionKey(_)) => {
+                // Safe to read the counter as the reader is not used concurrently.
+                split_point = *bytes_read.borrow();
             }
             Ok(Packet::SymEncryptedProtectedData(_)) => {
                 break;
             }
-            Err(e) => {
-                return Err(PgpMessageError::ParseSplit(e));
-            }
-            _ => {
-                return Err(PgpMessageError::NonExpectedPacketSplit);
-            }
+            Err(e) => return Err(PgpMessageError::ParseSplit(e)),
+            _ => return Err(PgpMessageError::NonExpectedPacketSplit),
         }
     }
+
     Ok((
         &encrypted_message[..split_point],
         &encrypted_message[split_point..],
@@ -170,4 +170,50 @@ fn encyption_fingerprints(encrypted_message: &[u8]) -> Vec<Fingerprint> {
             _ => None,
         })
         .collect()
+}
+
+type ExternalCounter = Rc<RefCell<usize>>;
+
+/// Internal reader that counts the number of bytes read in an external counter.
+///
+/// `ExternalCountingReader` is !Send and !Sync, i.e., do not used it in concurrent environments.
+/// It mutates the external counter when reading from the inner reader.
+struct ExternalCountingReader<R> {
+    /// The inner reader.
+    inner: R,
+
+    /// The external counter.
+    bytes_read: ExternalCounter,
+}
+
+impl<R: BufRead> ExternalCountingReader<R> {
+    fn new(inner: R, size: ExternalCounter) -> Self {
+        Self {
+            inner,
+            bytes_read: size,
+        }
+    }
+
+    fn bytes_read(&self) -> usize {
+        *self.bytes_read.borrow()
+    }
+}
+
+impl<R: BufRead> Read for ExternalCountingReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        *self.bytes_read.borrow_mut() += n;
+        Ok(n)
+    }
+}
+
+impl<R: BufRead> BufRead for ExternalCountingReader<R> {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        self.inner.fill_buf()
+    }
+
+    fn consume(&mut self, amt: usize) {
+        *self.bytes_read.borrow_mut() += amt;
+        self.inner.consume(amt);
+    }
 }
