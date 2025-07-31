@@ -4,6 +4,7 @@ use pgp::{
     armor::{self, BlockType},
     composed::{
         ArmorOptions, CleartextSignedMessage, Encryption, MessageBuilder, StandaloneSignature,
+        SubpacketConfig,
     },
     packet::SignatureVersion,
     ser::Serialize,
@@ -12,6 +13,7 @@ use pgp::{
 use rand::{CryptoRng, Rng};
 
 use crate::{
+    core::hashed_subpackets,
     preferences::{self, RecipientsAlgorithms},
     DataEncoding, KeySelectionError, PrivateComponentKey, PrivateKey, PrivateKeySelectionExt,
     Profile, SignError, SignatureMode, SignatureUsage, UnixTime, DEFAULT_PROFILE,
@@ -101,7 +103,7 @@ impl<'a> Signer<'a> {
         // Compression is determined by the profile.
         message_builder.compression(self.profile.message_compression());
 
-        let signed_builder = self.sign_message(message_builder, &signing_keys, None);
+        let signed_builder = self.sign_message(message_builder, &signing_keys, None)?;
 
         let mut buffer = Vec::new();
         let rng = self.profile.rng();
@@ -271,7 +273,7 @@ impl<'a> Signer<'a> {
         mut message_builder: MessageBuilder<'a, R, E>,
         signing_keys: &'a [PrivateComponentKey<'a>],
         recipient_preferences_opt: Option<&RecipientsAlgorithms>,
-    ) -> MessageBuilder<'a, R, E> {
+    ) -> Result<MessageBuilder<'a, R, E>, SignError> {
         let hash_algorithms = if let Some(recipient_preferences) = recipient_preferences_opt {
             recipient_preferences.select_hash_algorithm(
                 self.profile.message_hash_algorithm(),
@@ -292,17 +294,23 @@ impl<'a> Signer<'a> {
             SignatureMode::Text => message_builder.sign_text(),
         };
 
+        let mut rng = self.profile.rng();
         for (signing_key, hash_algorithm) in signing_keys.iter().zip(hash_algorithms) {
-            // TODO: We need to be able to customize the signature config similar to detached signatures.
-            // CRYPTO-295 will deal with it once it is available.
-            message_builder.sign(
+            let (hashed, unhashed) = hashed_subpackets(
+                &signing_key.private_key,
+                self.date,
+                hash_algorithm,
+                &mut rng,
+            )?;
+            message_builder.sign_with_subpackets(
                 &signing_key.private_key,
                 Password::default(),
                 hash_algorithm,
+                SubpacketConfig::UserDefined { hashed, unhashed },
             );
         }
 
-        message_builder
+        Ok(message_builder)
     }
 
     pub(crate) fn profile(&self) -> &Profile {

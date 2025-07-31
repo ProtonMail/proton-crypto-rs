@@ -1,5 +1,5 @@
 use pgp::{
-    composed::{Esk, Message, PlainSessionKey, TheRing},
+    composed::{DecryptionOptions, Esk, Message, PlainSessionKey, TheRing},
     packet::PublicKeyEncryptedSessionKey,
 };
 
@@ -60,7 +60,7 @@ impl<'a> MessageDecryptionExt<'a> for Message<'a> {
             key_passwords: Vec::new(),
             message_password: decryptor.passphrases.iter().collect(),
             session_keys,
-            allow_legacy: false,
+            decrypt_options: DecryptionOptions::default().enable_gnupg_aead(),
         };
 
         let (message, _) = self.decrypt_the_ring(the_ring, false)?;

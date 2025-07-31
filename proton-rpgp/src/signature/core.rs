@@ -6,7 +6,7 @@ use pgp::{
 };
 use rand::{CryptoRng, Rng};
 
-use crate::{types::UnixTime, AnySecretKey, SignError, SignHashSelectionError, SignatureMode};
+use crate::{types::UnixTime, AnySecretKey, SignError, SignatureMode};
 
 const SALT_NOTATION_NAME: &[u8] = b"salt@notations.openpgpjs.org";
 
@@ -37,38 +37,48 @@ pub fn configure_signature<R: Rng + CryptoRng>(
         .map_err(SignError::Sign)?,
         _ => return Err(SignError::InvalidKeyVersion),
     };
-    config.hashed_subpackets = Vec::with_capacity(4);
+    let (hashed_subpackets, unhashed_subpackets) =
+        hashed_subpackets(private_key, at_date, hash_algorithm, &mut rng)?;
+    config.hashed_subpackets = hashed_subpackets;
+    config.unhashed_subpackets = unhashed_subpackets;
+    Ok(config)
+}
+
+pub fn hashed_subpackets<R: Rng + CryptoRng>(
+    private_key: &AnySecretKey<'_>,
+    at_date: UnixTime,
+    hash_algorithm: HashAlgorithm,
+    mut rng: R,
+) -> Result<(Vec<Subpacket>, Vec<Subpacket>), SignError> {
+    let mut hashed_subpackets = Vec::with_capacity(4);
 
     // Add the signature creation time subpacket.
-    config.hashed_subpackets.push(
+    hashed_subpackets.push(
         Subpacket::critical(SubpacketData::SignatureCreationTime(at_date.into()))
             .map_err(SignError::Sign)?,
     );
 
     if private_key.version() < KeyVersion::V6 {
-        // Add a critical Issuer (Key-Id) subpacket.
-        config.hashed_subpackets.push(
+        // Add a regular Issuer (Key-Id) subpacket.
+        hashed_subpackets.push(
             Subpacket::regular(SubpacketData::Issuer(private_key.key_id()))
                 .map_err(SignError::Sign)?,
         );
         // Add a salt notation subpacket.
-        config
-            .hashed_subpackets
-            .push(salt_notation(hash_algorithm, &mut rng)?);
+        hashed_subpackets.push(salt_notation(hash_algorithm, &mut rng)?);
         // Add an Issuer Fingerprint subpacket.
-        config.hashed_subpackets.push(
+        hashed_subpackets.push(
             Subpacket::regular(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
                 .map_err(SignError::Sign)?,
         );
     } else {
         // Add a critical Issuer Fingerprint subpacket.
-        config.hashed_subpackets.push(
+        hashed_subpackets.push(
             Subpacket::critical(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
                 .map_err(SignError::Sign)?,
         );
     }
-
-    Ok(config)
+    Ok((hashed_subpackets, Vec::new()))
 }
 
 /// Creates a salt notation for a v4 signature.

@@ -347,7 +347,7 @@ impl<'a> Encryptor<'a> {
             message_builder,
             &signing_keys,
             Some(recipients_algorithm_selection),
-        );
+        )?;
 
         message_to_writer(encryption_keys, signed_builder, data_encoding, rng, output)?;
 
