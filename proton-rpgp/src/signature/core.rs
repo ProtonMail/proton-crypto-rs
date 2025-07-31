@@ -83,12 +83,8 @@ fn salt_notation<R: Rng + CryptoRng>(
     hash_algorithm: HashAlgorithm,
     rng: &mut R,
 ) -> Result<Subpacket, SignError> {
-    let Some(digest_size) = hash_algorithm.digest_size() else {
-        return Err(SignError::HashAlgorithm(
-            SignHashSelectionError::HashAlgorithm,
-        ));
-    };
-    let mut salt = vec![0; digest_size];
+    let salt_size = hash_algorithm.salt_len().unwrap_or(16);
+    let mut salt = vec![0; salt_size];
     rng.fill_bytes(&mut salt);
 
     Subpacket::regular(SubpacketData::Notation(Notation {
