@@ -3,7 +3,7 @@ use std::io::{self, Read};
 use pgp::{
     composed::{
         ArmorOptions, Encryption, EncryptionSeipdV1, EncryptionSeipdV2, MessageBuilder,
-        NoEncryption, PlainSessionKey, RawSessionKey,
+        NoEncryption, RawSessionKey,
     },
     crypto::{aead::AeadAlgorithm, sym::SymmetricKeyAlgorithm},
     packet::{PacketTrait, PublicKeyEncryptedSessionKey, SymKeyEncryptedSessionKey},
@@ -31,7 +31,7 @@ pub struct Encryptor<'a> {
     passphrases: Vec<Password>,
 
     /// The session keys to use.
-    session_key: Option<PlainSessionKey>,
+    session_key: Option<SessionKey>,
 
     /// Message compression preference.
     message_compression: CompressionAlgorithm,
@@ -107,7 +107,7 @@ impl<'a> Encryptor<'a> {
 
     /// TODO: Add datapacket session key encryption.
     pub fn with_session_key(mut self, key: &SessionKey) -> Self {
-        self.session_key = Some(key.clone().into());
+        self.session_key = Some(key.clone());
         self
     }
 
@@ -316,9 +316,16 @@ impl<'a> Encryptor<'a> {
 
         let mut rng = self.profile().rng();
         let mut output = Vec::new();
-        let revealed_session_key = match recipients_algorithm_selection.encryption_mechanism() {
+
+        let encryption_mechanism = if let Some(session_key) = &self.session_key {
+            session_key.encryption_mechanism(&recipients_algorithm_selection, self.profile())?
+        } else {
+            recipients_algorithm_selection.encryption_mechanism()
+        };
+
+        let revealed_session_key = match encryption_mechanism {
             EncryptionMechanism::SeipdV1(symmetric_key_algorithm) => {
-                let (seipd_v1_builder, session_key) = create_seipd_v1_message_builder(
+                let (mut seipd_v1_builder, session_key) = create_seipd_v1_message_builder(
                     message_builder,
                     &encryption_keys,
                     &self.passphrases,
@@ -327,6 +334,12 @@ impl<'a> Encryptor<'a> {
                     &mut rng,
                     self.profile(),
                 )?;
+
+                if let Some(session_key) = &self.session_key {
+                    seipd_v1_builder
+                        .set_session_key(session_key.export_bytes())
+                        .map_err(EncryptionError::DataEncryption)?;
+                }
 
                 self.write_and_sign(
                     seipd_v1_builder,
@@ -340,7 +353,7 @@ impl<'a> Encryptor<'a> {
                 session_key
             }
             EncryptionMechanism::SeipdV2(symmetric_key_algorithm, aead_algorithm) => {
-                let (seipd_v2_builder, session_key) = create_seipd_v2_message_builder(
+                let (mut seipd_v2_builder, session_key) = create_seipd_v2_message_builder(
                     message_builder,
                     &encryption_keys,
                     &self.passphrases,
@@ -350,6 +363,12 @@ impl<'a> Encryptor<'a> {
                     &mut rng,
                     self.profile(),
                 )?;
+
+                if let Some(session_key) = &self.session_key {
+                    seipd_v2_builder
+                        .set_session_key(session_key.export_bytes())
+                        .map_err(EncryptionError::DataEncryption)?;
+                }
 
                 self.write_and_sign(
                     seipd_v2_builder,

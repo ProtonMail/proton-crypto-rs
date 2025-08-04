@@ -365,3 +365,61 @@ pub fn generate_session_key_for_encryption() {
     assert_eq!(session_key.algorithm(), Some(SymmetricKeyAlgorithm::AES256));
     assert_eq!(session_key.export_bytes().len(), 32);
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_data_with_session_key_seipdv1() {
+    let session_key = SessionKey::new(b"0000000000000000", SymmetricKeyAlgorithm::AES128);
+    let plain_data = b"hello world";
+
+    let key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut message = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .encrypt_session_key(&session_key)
+        .expect("Failed to encrypt");
+
+    let data_packet = Encryptor::default()
+        .with_session_key(&session_key)
+        .encrypt_raw(plain_data, DataEncoding::Unarmored)
+        .expect("Failed to encrypt");
+
+    message.extend(data_packet.iter());
+
+    let output_data = Decryptor::default()
+        .with_decryption_key(&key)
+        .decrypt(message, DataEncoding::Unarmored)
+        .expect("Failed to decrypt session key");
+
+    assert_eq!(output_data.data, plain_data);
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_data_with_session_key_seipdv2() {
+    let session_key = SessionKey::new_for_seipdv2(b"0000000000000000");
+    let plain_data = b"hello world";
+
+    let key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut message = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .encrypt_session_key(&session_key)
+        .expect("Failed to encrypt");
+
+    let data_packet = Encryptor::default()
+        .with_session_key(&session_key)
+        .encrypt_raw(plain_data, DataEncoding::Unarmored)
+        .expect("Failed to encrypt");
+
+    message.extend(data_packet.iter());
+
+    let output_data = Decryptor::default()
+        .with_decryption_key(&key)
+        .decrypt(message, DataEncoding::Unarmored)
+        .expect("Failed to decrypt session key");
+
+    assert_eq!(output_data.data, plain_data);
+}
