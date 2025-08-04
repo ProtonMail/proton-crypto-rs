@@ -12,7 +12,7 @@ const INCLUDE_CHECKSUM: bool = true;
 
 /// Armors a public key.
 ///
-/// Prodcues a message of the form:
+/// Produces data of the form:
 /// ```skip
 /// -----BEGIN PGP PUBLIC KEY BLOCK-----
 ///
@@ -34,7 +34,7 @@ pub fn armor_public_key(public_key: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorEr
 
 /// Armors a private key.
 ///
-/// Prodcues a message of the form:
+/// Produces a message of the form:
 /// ```skip
 /// -----BEGIN PGP PRIVATE KEY BLOCK-----
 ///
@@ -56,7 +56,7 @@ pub fn armor_private_key(private_key: impl AsRef<[u8]>) -> Result<Vec<u8>, Armor
 
 /// Armors a signature.
 ///
-/// Prodcues a message of the form:
+/// Produces a message of the form:
 /// ```skip
 /// -----BEGIN PGP SIGNATURE-----
 ///
@@ -78,7 +78,7 @@ pub fn armor_signature(signature: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorErro
 
 /// Armors a message.
 ///
-/// Prodcues a message of the form:
+/// Produces a message of the form:
 /// ```skip
 /// -----BEGIN PGP MESSAGE-----
 ///
