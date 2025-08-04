@@ -264,7 +264,11 @@ impl<'a> Encryptor<'a> {
         let mut message_builder = MessageBuilder::from_reader("", data);
 
         // Set the compression algorithm if any.
-        message_builder.compression(recipients_algorithm_selection.compression_algorithm);
+        if recipients_algorithm_selection.compression_algorithm
+            != CompressionAlgorithm::Uncompressed
+        {
+            message_builder.compression(recipients_algorithm_selection.compression_algorithm);
+        }
 
         // Check that the input data is valid for signature type text if enabled.
         self.signer.check_input_data(data)?;

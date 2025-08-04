@@ -8,7 +8,7 @@ use pgp::{
     },
     packet::SignatureVersion,
     ser::Serialize,
-    types::{KeyDetails, KeyVersion, Password},
+    types::{CompressionAlgorithm, KeyDetails, KeyVersion, Password},
 };
 use rand::{CryptoRng, Rng};
 
@@ -101,7 +101,9 @@ impl<'a> Signer<'a> {
         let signing_keys = self.select_signing_keys()?;
 
         // Compression is determined by the profile.
-        message_builder.compression(self.profile.message_compression());
+        if self.profile.message_compression() != CompressionAlgorithm::Uncompressed {
+            message_builder.compression(self.profile.message_compression());
+        }
 
         let signed_builder = self.sign_message(message_builder, &signing_keys, None)?;
 
