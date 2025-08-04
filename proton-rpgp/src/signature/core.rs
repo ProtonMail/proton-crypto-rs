@@ -38,13 +38,13 @@ pub fn configure_signature<R: Rng + CryptoRng>(
         _ => return Err(SignError::InvalidKeyVersion),
     };
     let (hashed_subpackets, unhashed_subpackets) =
-        hashed_subpackets(private_key, at_date, hash_algorithm, &mut rng)?;
+        signature_subpackets(private_key, at_date, hash_algorithm, &mut rng)?;
     config.hashed_subpackets = hashed_subpackets;
     config.unhashed_subpackets = unhashed_subpackets;
     Ok(config)
 }
 
-pub fn hashed_subpackets<R: Rng + CryptoRng>(
+pub fn signature_subpackets<R: Rng + CryptoRng>(
     private_key: &AnySecretKey<'_>,
     at_date: UnixTime,
     hash_algorithm: HashAlgorithm,
