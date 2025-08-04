@@ -486,6 +486,77 @@ mod tests {
         assert!(signature.notations().is_empty());
     }
 
+    #[test]
+    pub fn create_inline_signature_v4_binary() {
+        let date = UnixTime::new(1_752_476_259);
+        let input_data = b"hello world";
+
+        let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+            .expect("Failed to import key");
+
+        let data_bytes = Signer::default()
+            .with_signing_key(&key)
+            .at_date(date)
+            .sign(input_data, DataEncoding::Unarmored)
+            .expect("Failed to sign");
+
+        let signature = load_signatures_inline(&data_bytes)
+            .into_iter()
+            .next()
+            .unwrap();
+
+        assert_eq!(signature.version(), SignatureVersion::V4);
+        assert_eq!(signature.typ(), Some(SignatureType::Binary));
+        assert_eq!(signature.hash_alg(), Some(HashAlgorithm::Sha512));
+        assert_eq!(
+            signature.issuer_fingerprint().first().copied(),
+            Some(&key.fingerprint())
+        );
+        assert_eq!(signature.issuer().first().copied(), Some(&key.key_id()));
+        assert_eq!(signature.unix_created_at().unwrap(), date);
+        assert_eq!(signature.notations().len(), 1);
+    }
+
+    #[test]
+    pub fn create_inline_signature_v6() {
+        const TEST_KEY_V6: &str = include_str!("../test-data/keys/private_key_v6.asc");
+
+        let date = UnixTime::new(1_752_476_259);
+        let input_data = b"hello world";
+
+        let key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
+            .expect("Failed to import key");
+
+        let data_bytes = Signer::default()
+            .with_signing_key(&key)
+            .at_date(date)
+            .sign_detached(input_data, DataEncoding::Unarmored)
+            .expect("Failed to sign");
+
+        let signature = load_signatures_inline(&data_bytes)
+            .into_iter()
+            .next()
+            .unwrap();
+        assert_eq!(signature.version(), SignatureVersion::V6);
+        assert_eq!(signature.typ(), Some(SignatureType::Binary));
+        assert_eq!(signature.hash_alg(), Some(HashAlgorithm::Sha512));
+        assert_eq!(
+            signature.issuer_fingerprint().first().copied(),
+            Some(&key.fingerprint())
+        );
+        assert!(signature.issuer().is_empty());
+        assert!(signature.notations().is_empty());
+    }
+
+    fn load_signatures_inline(inline_message: &[u8]) -> Vec<Signature> {
+        PacketParser::new(inline_message)
+            .filter_map(|parse_result| match parse_result {
+                Ok(Packet::Signature(signature)) => Some(signature),
+                _ => None,
+            })
+            .collect()
+    }
+
     fn load_signature(signature: &[u8]) -> Signature {
         let mut parser = PacketParser::new(signature);
         let packet = parser.next().unwrap().unwrap();
