@@ -244,6 +244,47 @@ impl<'a> Encryptor<'a> {
             .map(|(data, _)| data)
     }
 
+    /// Generates a session key that is used for the encryption.
+    ///
+    /// Considers the recipient preferences and internal profile for algorithm selection.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use proton_rpgp::{AsPublicKeyRef, DataEncoding, Encryptor, PrivateKey};
+    ///
+    /// let key = PrivateKey::import_unlocked(include_bytes!("../test-data/keys/private_key_v4.asc"), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    ///
+    /// let session_key = Encryptor::default()
+    ///     .with_encryption_key(key.as_public_key())
+    ///     .generate_session_key()
+    ///     .expect("Failed generate session key");
+    /// ```
+    pub fn generate_session_key(self) -> Result<SessionKey, EncryptionError> {
+        self.check_encryption_tools()?;
+        let encryption_keys = self.select_encryption_keys()?;
+
+        let recipients_algorithm_selection = RecipientsAlgorithms::select(
+            self.message_symmetric_algorithm,
+            self.message_cipher_suite,
+            self.message_compression,
+            &encryption_keys,
+            self.profile(),
+        );
+
+        let session_key = match recipients_algorithm_selection.encryption_mechanism() {
+            EncryptionMechanism::SeipdV1(symmetric_key_algorithm) => {
+                SessionKey::generate_v4(symmetric_key_algorithm, self.profile())
+            }
+            EncryptionMechanism::SeipdV2(symmetric_key_algorithm, _) => {
+                SessionKey::generate_v6(symmetric_key_algorithm, self.profile())
+            }
+        };
+
+        Ok(session_key)
+    }
+
     fn write_and_signcrypt(
         self,
         data: &'a [u8],

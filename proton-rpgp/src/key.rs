@@ -1,9 +1,12 @@
+use std::vec;
+
 use pgp::{
     composed::{ArmorOptions, Deserializable, PlainSessionKey, SignedPublicKey, SignedSecretKey},
     crypto::sym::SymmetricKeyAlgorithm,
     ser::Serialize,
     types::{KeyDetails, KeyVersion, Password},
 };
+use rand::RngCore as _;
 use zeroize::Zeroizing;
 
 use crate::{
@@ -396,6 +399,35 @@ impl SessionKey {
         self.inner.sym_algorithm()
     }
 
+    /// Generate an `OpenPGP` session key.
+    pub fn generate(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
+        Self {
+            inner: PlainSessionKey::Unknown {
+                sym_alg: algorithm,
+                key: generate_session_key_bytes(algorithm, profile).to_vec(),
+            },
+        }
+    }
+
+    /// Generate a session key that is used with `OpenPGP` `PKESKv4` and `SEIPDv1` packets.
+    pub fn generate_v4(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
+        Self {
+            inner: PlainSessionKey::V3_4 {
+                sym_alg: algorithm,
+                key: generate_session_key_bytes(algorithm, profile).to_vec(),
+            },
+        }
+    }
+
+    /// Generate a session key that is used with `OpenPGP` `PKESKv6` and `SEIPDv2` packets.
+    pub fn generate_v6(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
+        Self {
+            inner: PlainSessionKey::V6 {
+                key: generate_session_key_bytes(algorithm, profile).to_vec(),
+            },
+        }
+    }
+
     pub(crate) fn as_bytes(&self) -> &[u8] {
         match &self.inner {
             PlainSessionKey::V3_4 { key, .. }
@@ -455,6 +487,16 @@ impl From<SessionKey> for PlainSessionKey {
     fn from(value: SessionKey) -> Self {
         value.inner
     }
+}
+
+fn generate_session_key_bytes(
+    algorithm: SymmetricKeyAlgorithm,
+    profile: &Profile,
+) -> Zeroizing<Vec<u8>> {
+    let mut rng = profile.rng();
+    let mut key = Zeroizing::new(vec![0_u8; algorithm.key_size()]);
+    rng.fill_bytes(&mut key);
+    key
 }
 
 #[cfg(test)]

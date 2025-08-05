@@ -350,3 +350,18 @@ pub fn encrypt_session_key_passphrase_seipdv2() {
     );
     assert!(output_session_key.algorithm().is_none());
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn generate_session_key_for_encryption() {
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let session_key = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .generate_session_key()
+        .expect("Failed to generate session key");
+
+    assert_eq!(session_key.algorithm(), Some(SymmetricKeyAlgorithm::AES256));
+    assert_eq!(session_key.export_bytes().len(), 32);
+}
