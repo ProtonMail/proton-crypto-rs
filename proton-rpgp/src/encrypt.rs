@@ -105,7 +105,15 @@ impl<'a> Encryptor<'a> {
         self
     }
 
-    /// TODO: Add datapacket session key encryption.
+    /// Adds a session key to the encryptor.
+    ///
+    /// The data packet will be encrypted with the provided session key.
+    ///
+    /// # Warning
+    ///
+    /// Use this function only if you fully understand the implications.
+    /// Providing a custom session key can compromise security if not handled correctly.
+    /// Prefer letting the library generate a secure session key unless you have a specific, well-understood use case.
     pub fn with_session_key(mut self, key: &SessionKey) -> Self {
         self.session_key = Some(key.clone());
         self
