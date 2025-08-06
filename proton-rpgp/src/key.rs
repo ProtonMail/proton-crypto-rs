@@ -1,7 +1,10 @@
 use std::vec;
 
 use pgp::{
-    composed::{ArmorOptions, Deserializable, PlainSessionKey, SignedPublicKey, SignedSecretKey},
+    composed::{
+        ArmorOptions, Deserializable, PlainSessionKey, RawSessionKey, SignedPublicKey,
+        SignedSecretKey,
+    },
     crypto::sym::SymmetricKeyAlgorithm,
     ser::Serialize,
     types::{KeyDetails, KeyVersion, Password},
@@ -358,36 +361,31 @@ pub struct SessionKey {
 
 impl SessionKey {
     pub fn new(key: &[u8], algorithm: SymmetricKeyAlgorithm) -> Self {
-        Self {
-            inner: PlainSessionKey::Unknown {
-                sym_alg: algorithm,
-                key: key.to_vec(),
-            },
-        }
+        // Default is v4
+        Self::new_v4(key, algorithm)
     }
 
     pub fn new_v4(key: &[u8], algorithm: SymmetricKeyAlgorithm) -> Self {
         Self {
             inner: PlainSessionKey::V3_4 {
                 sym_alg: algorithm,
-                key: key.to_vec(),
+                key: key.into(),
             },
         }
     }
 
     pub fn new_v6(key: &[u8]) -> Self {
         Self {
-            inner: PlainSessionKey::V6 { key: key.to_vec() },
+            inner: PlainSessionKey::V6 { key: key.into() },
         }
     }
 
     /// Export the raw session key bytes.
-    pub fn export_bytes(&self) -> Zeroizing<Vec<u8>> {
+    pub fn export_bytes(&self) -> RawSessionKey {
         match &self.inner {
             PlainSessionKey::V3_4 { key, sym_alg: _ }
             | PlainSessionKey::V5 { key }
-            | PlainSessionKey::V6 { key }
-            | PlainSessionKey::Unknown { key, sym_alg: _ } => Zeroizing::new(key.clone()),
+            | PlainSessionKey::V6 { key } => key.clone(),
         }
     }
 
@@ -399,22 +397,12 @@ impl SessionKey {
         self.inner.sym_algorithm()
     }
 
-    /// Generate an `OpenPGP` session key.
-    pub fn generate(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
-        Self {
-            inner: PlainSessionKey::Unknown {
-                sym_alg: algorithm,
-                key: generate_session_key_bytes(algorithm, profile).to_vec(),
-            },
-        }
-    }
-
     /// Generate a session key that is used with `OpenPGP` `PKESKv4` and `SEIPDv1` packets.
     pub fn generate_v4(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
         Self {
             inner: PlainSessionKey::V3_4 {
                 sym_alg: algorithm,
-                key: generate_session_key_bytes(algorithm, profile).to_vec(),
+                key: generate_session_key_bytes(algorithm, profile),
             },
         }
     }
@@ -423,17 +411,16 @@ impl SessionKey {
     pub fn generate_v6(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
         Self {
             inner: PlainSessionKey::V6 {
-                key: generate_session_key_bytes(algorithm, profile).to_vec(),
+                key: generate_session_key_bytes(algorithm, profile),
             },
         }
     }
 
-    pub(crate) fn as_bytes(&self) -> &[u8] {
+    pub(crate) fn as_raw_session_key(&self) -> &RawSessionKey {
         match &self.inner {
             PlainSessionKey::V3_4 { key, .. }
             | PlainSessionKey::V5 { key }
-            | PlainSessionKey::V6 { key }
-            | PlainSessionKey::Unknown { key, .. } => key,
+            | PlainSessionKey::V6 { key } => key,
         }
     }
 
@@ -461,15 +448,6 @@ impl SessionKey {
                     aead_algorithm,
                 ))
             }
-            PlainSessionKey::Unknown { sym_alg, .. } => {
-                let mechanism = recipients_algo.encryption_mechanism();
-                match mechanism {
-                    EncryptionMechanism::SeipdV1(_) => Ok(EncryptionMechanism::SeipdV1(*sym_alg)),
-                    EncryptionMechanism::SeipdV2(_, aead_algorithm) => {
-                        Ok(EncryptionMechanism::SeipdV2(*sym_alg, aead_algorithm))
-                    }
-                }
-            }
             PlainSessionKey::V5 { .. } => Err(EncryptionError::NotSupported(
                 "V5 session key is not supported for encryption".to_string(),
             )),
@@ -489,14 +467,20 @@ impl From<SessionKey> for PlainSessionKey {
     }
 }
 
+impl AsRef<[u8]> for SessionKey {
+    fn as_ref(&self) -> &[u8] {
+        self.as_raw_session_key().as_ref()
+    }
+}
+
 fn generate_session_key_bytes(
     algorithm: SymmetricKeyAlgorithm,
     profile: &Profile,
-) -> Zeroizing<Vec<u8>> {
+) -> RawSessionKey {
     let mut rng = profile.rng();
     let mut key = Zeroizing::new(vec![0_u8; algorithm.key_size()]);
     rng.fill_bytes(&mut key);
-    key
+    key.into()
 }
 
 #[cfg(test)]

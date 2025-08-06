@@ -3,7 +3,7 @@ use std::io::{self, Read};
 use pgp::{
     composed::{
         ArmorOptions, Encryption, EncryptionSeipdV1, EncryptionSeipdV2, MessageBuilder,
-        NoEncryption, PlainSessionKey,
+        NoEncryption, PlainSessionKey, RawSessionKey,
     },
     crypto::{aead::AeadAlgorithm, sym::SymmetricKeyAlgorithm},
     packet::{PacketTrait, PublicKeyEncryptedSessionKey, SymKeyEncryptedSessionKey},
@@ -189,7 +189,7 @@ impl<'a> Encryptor<'a> {
         let encryption_mechanism =
             session_key.encryption_mechanism(&recipients_algo, self.profile())?;
 
-        let session_key_bytes = session_key.as_bytes();
+        let session_key_bytes = session_key.as_raw_session_key();
         let mut rng = self.profile().rng();
 
         // PKESKs
@@ -461,7 +461,7 @@ where
 
     let revealed_session_key = extract_session_key.then(|| {
         SessionKey::new_v4(
-            seipd_v1_builder.session_key().as_slice(),
+            seipd_v1_builder.session_key().as_ref(),
             symmetric_key_algorithm,
         )
     });
@@ -506,7 +506,7 @@ where
     }
 
     let revealed_session_key =
-        extract_session_key.then(|| SessionKey::new_v6(seipd_v2_builder.session_key().as_slice()));
+        extract_session_key.then(|| SessionKey::new_v6(seipd_v2_builder.session_key().as_ref()));
 
     Ok((seipd_v2_builder, revealed_session_key))
 }
@@ -553,7 +553,7 @@ fn create_pkesk_packets<R>(
     encryption_keys: &[PublicComponentKey<'_>],
     encryption_mechanism: EncryptionMechanism,
     mut rng: R,
-    session_key_bytes: &[u8],
+    session_key_bytes: &RawSessionKey,
 ) -> Result<Vec<PublicKeyEncryptedSessionKey>, EncryptionError>
 where
     R: Rng + CryptoRng,
@@ -590,7 +590,7 @@ fn create_skesk_packets<R>(
     passphrases: &[Password],
     encryption_mechanism: EncryptionMechanism,
     mut rng: R,
-    session_key_bytes: &[u8],
+    session_key_bytes: &RawSessionKey,
     profile: &Profile,
 ) -> Result<Vec<SymKeyEncryptedSessionKey>, EncryptionError>
 where

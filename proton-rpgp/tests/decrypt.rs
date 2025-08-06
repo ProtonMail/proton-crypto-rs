@@ -277,7 +277,7 @@ pub fn decrypt_and_verify_encrypted_message_v4_with_session_key() {
         .expect("Failed to decrypt session key");
 
     assert_eq!(
-        session_key.export_bytes().as_slice(),
+        session_key.as_ref(),
         hex::decode(EXPECTED_SESSION_KEY).unwrap()
     );
 
@@ -313,7 +313,7 @@ pub fn decrypt_message_v4_with_password_and_session_key() {
         .expect("Failed to decrypt session key");
 
     assert_eq!(
-        session_key.export_bytes().as_slice(),
+        session_key.as_ref(),
         hex::decode(EXPECTED_SESSION_KEY).unwrap()
     );
 
