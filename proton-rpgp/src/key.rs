@@ -397,7 +397,7 @@ impl SessionKey {
         self.inner.sym_algorithm()
     }
 
-    /// Generate a session key that is used with `OpenPGP` `PKESKv4` and `SEIPDv1` packets.
+    /// Generate a session key that is used with `OpenPGP` `PKESKv3` and `SEIPDv1` packets.
     pub fn generate_v4(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
         Self {
             inner: PlainSessionKey::V3_4 {
