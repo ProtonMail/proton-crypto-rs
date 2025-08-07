@@ -393,6 +393,13 @@ pub fn encrypt_data_with_session_key_seipdv1() {
         .expect("Failed to decrypt session key");
 
     assert_eq!(output_data.data, plain_data);
+
+    let output_data = Decryptor::default()
+        .with_session_key(&session_key)
+        .decrypt(data_packet, DataEncoding::Unarmored)
+        .expect("Failed to decrypt session key");
+
+    assert_eq!(output_data.data, plain_data);
 }
 
 #[test]
@@ -418,8 +425,47 @@ pub fn encrypt_data_with_session_key_seipdv2() {
 
     let output_data = Decryptor::default()
         .with_decryption_key(&key)
-        .decrypt(message, DataEncoding::Unarmored)
+        .decrypt(&message, DataEncoding::Unarmored)
         .expect("Failed to decrypt session key");
 
     assert_eq!(output_data.data, plain_data);
+
+    let output_data = Decryptor::default()
+        .with_session_key(&session_key)
+        .decrypt(data_packet, DataEncoding::Unarmored)
+        .expect("Failed to decrypt session key");
+
+    assert_eq!(output_data.data, plain_data);
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_and_then_decrypt_with_session_key() {
+    let input_data = b"hello world";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let encrypted_data = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .encrypt(input_data)
+        .expect("Failed to encrypt");
+
+    let sk = Decryptor::default()
+        .with_decryption_key(&key)
+        .decrypt_session_key(encrypted_data.as_key_packets_unchecked())
+        .expect("Failed to decrypt");
+
+    let verified_data = Decryptor::default()
+        .with_session_key(&sk)
+        .decrypt(
+            encrypted_data.as_data_packet_unchecked(),
+            DataEncoding::Unarmored,
+        )
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, input_data);
+    assert!(matches!(
+        verified_data.verification_result,
+        Err(VerificationError::NotSigned)
+    ));
 }

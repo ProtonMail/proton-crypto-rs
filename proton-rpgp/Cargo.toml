@@ -6,7 +6,7 @@ license = "MIT"
 authors.workspace = true
 
 [dependencies]
-pgp = { version = "0.16.0", default-features = false, features = ["draft-pqc"], git = "https://github.com/rpgp/rpgp.git", rev = "f168ff350e2fa24ff147f3abfd1e3c8f42f7077a"}
+pgp = { version = "0.16.0", default-features = false, features = ["draft-pqc"], git = "https://github.com/rpgp/rpgp.git", rev = "8006ccf3f1ac2cae72d866b02058a3058145fc5b"}
 thiserror = "2"
 chrono = { version = "0.4.39", default-features = false, features = [
     "clock",
