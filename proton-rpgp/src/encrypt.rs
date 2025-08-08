@@ -14,8 +14,8 @@ use rand::{CryptoRng, Rng};
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    CipherSuite, DataEncoding, EncryptionError, KeySelectionError, PrivateKey, Profile,
-    PublicComponentKey, PublicKey, PublicKeySelectionExt, SessionKey, Signer, UnixTime,
+    CipherSuite, ClonablePasswords, DataEncoding, EncryptionError, KeySelectionError, PrivateKey,
+    Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, SessionKey, Signer, UnixTime,
     DEFAULT_PROFILE,
 };
 
@@ -28,7 +28,7 @@ pub struct Encryptor<'a> {
     encryption_keys: Vec<&'a PublicKey>,
 
     /// The passphrases to encrypt the message with.
-    passphrases: Vec<Password>,
+    passphrases: ClonablePasswords,
 
     /// The session keys to use.
     session_key: Option<SessionKey>,
@@ -51,7 +51,7 @@ impl<'a> Encryptor<'a> {
     pub fn new(profile: Profile) -> Self {
         Self {
             encryption_keys: Vec::new(),
-            passphrases: Vec::new(),
+            passphrases: ClonablePasswords::default(),
             session_key: None,
             message_compression: profile.message_compression(),
             message_symmetric_algorithm: profile.message_symmetric_algorithm(),
@@ -91,7 +91,7 @@ impl<'a> Encryptor<'a> {
     /// If a password is set, the output message will contain a key packet encrypted
     /// with the password.
     pub fn with_passphrase(mut self, passphrase: impl AsRef<[u8]>) -> Self {
-        self.passphrases.push(Password::from(passphrase.as_ref()));
+        self.passphrases.0.push(Password::from(passphrase.as_ref()));
         self
     }
 
@@ -101,6 +101,7 @@ impl<'a> Encryptor<'a> {
         passphrases: impl IntoIterator<Item = impl AsRef<[u8]>>,
     ) -> Self {
         self.passphrases
+            .0
             .extend(passphrases.into_iter().map(|p| Password::from(p.as_ref())));
         self
     }

@@ -1,12 +1,13 @@
 use std::{
     fmt::{self, Display},
+    ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use chrono::{DateTime, Utc};
 use pgp::{
     packet::KeyFlags,
-    types::{Fingerprint, KeyId},
+    types::{Fingerprint, KeyId, Password},
 };
 
 use crate::FingerprintError;
@@ -257,5 +258,33 @@ impl From<SignatureMode> for pgp::packet::SignatureType {
             SignatureMode::Binary => pgp::packet::SignatureType::Binary,
             SignatureMode::Text => pgp::packet::SignatureType::Text,
         }
+    }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct ClonablePasswords(pub(crate) Vec<Password>);
+
+impl Clone for ClonablePasswords {
+    fn clone(&self) -> Self {
+        let passwords: Vec<_> = self
+            .0
+            .iter()
+            .map(|p| Password::from(p.read().as_slice()))
+            .collect();
+        Self(passwords)
+    }
+}
+
+impl Deref for ClonablePasswords {
+    type Target = Vec<Password>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<Vec<Password>> for ClonablePasswords {
+    fn from(value: Vec<Password>) -> Self {
+        Self(value)
     }
 }

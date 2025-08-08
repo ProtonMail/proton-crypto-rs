@@ -5,21 +5,21 @@ use pgp::{
 };
 
 use crate::{
-    armor, DataEncoding, DecryptionError, PrivateKey, Profile, PublicKey, SessionKey, UnixTime,
-    VerifiedData, Verifier, DEFAULT_PROFILE,
+    armor, ClonablePasswords, DataEncoding, DecryptionError, PrivateKey, Profile, PublicKey,
+    SessionKey, UnixTime, VerifiedData, Verifier, DEFAULT_PROFILE,
 };
 
 mod message;
 pub use message::*;
 
 /// A decryptor for decrypting messages.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Decryptor<'a> {
     /// The signing keys to create signatures with.
     decryption_keys: Vec<&'a PrivateKey>,
 
     /// The passphrases to decrypt the message with.
-    passphrases: Vec<Password>,
+    passphrases: ClonablePasswords,
 
     /// The session keys to decrypt the message with.
     session_keys: Vec<&'a SessionKey>,
@@ -33,7 +33,7 @@ impl<'a> Decryptor<'a> {
     pub fn new(profile: Profile) -> Self {
         Self {
             decryption_keys: Vec::new(),
-            passphrases: Vec::new(),
+            passphrases: ClonablePasswords::default(),
             session_keys: Vec::new(),
             verifier: Verifier::new(profile),
         }
@@ -65,7 +65,7 @@ impl<'a> Decryptor<'a> {
 
     /// Adds a passphrase to the decryptor to decrypt the message with.
     pub fn with_passphrase(mut self, passphrase: impl AsRef<[u8]>) -> Self {
-        self.passphrases.push(Password::from(passphrase.as_ref()));
+        self.passphrases.0.push(Password::from(passphrase.as_ref()));
         self
     }
 
@@ -75,6 +75,7 @@ impl<'a> Decryptor<'a> {
         passphrases: impl IntoIterator<Item = impl AsRef<[u8]>>,
     ) -> Self {
         self.passphrases
+            .0
             .extend(passphrases.into_iter().map(|p| Password::from(p.as_ref())));
         self
     }
@@ -175,7 +176,7 @@ impl<'a> Decryptor<'a> {
                     }
                 }
                 Packet::SymKeyEncryptedSessionKey(skesk) => {
-                    for passphrase in &self.passphrases {
+                    for passphrase in &*self.passphrases {
                         match decrypt_session_key_with_password(&skesk, passphrase) {
                             Ok(session_key) => return Ok(session_key.into()),
                             Err(err) => errors.push(DecryptionError::SkeskDecryption(err)),
