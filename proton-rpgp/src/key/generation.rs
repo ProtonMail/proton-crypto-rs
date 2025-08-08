@@ -1,110 +1,13 @@
 use std::fmt::Display;
 
 use pgp::{
-    composed::{KeyType, SecretKeyParamsBuilder, SubkeyParamsBuilder},
-    crypto::{
-        aead::AeadAlgorithm, ecc_curve::ECCCurve, hash::HashAlgorithm, sym::SymmetricKeyAlgorithm,
-    },
-    types::{CompressionAlgorithm, KeyVersion, Password},
+    composed::{SecretKeyParamsBuilder, SubkeyParamsBuilder},
+    types::Password,
 };
-use smallvec::SmallVec;
 
-use crate::{KeyGenerationError, PrivateKey, Profile, UnixTime, DEFAULT_PROFILE};
-
-const KEY_PREFERRED_SYMMETRIC_KEY_ALGORITHMS: &[SymmetricKeyAlgorithm] =
-    &[SymmetricKeyAlgorithm::AES256, SymmetricKeyAlgorithm::AES128];
-
-const KEY_PREFERRED_HASH_ALGORITHMS: &[HashAlgorithm] =
-    &[HashAlgorithm::Sha256, HashAlgorithm::Sha512];
-
-const KEY_PREFERRED_AEAD_ALGORITHMS: &[(SymmetricKeyAlgorithm, AeadAlgorithm)] = &[];
-
-const PREFERRED_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
-    CompressionAlgorithm::Uncompressed,
-    CompressionAlgorithm::ZLIB,
-    CompressionAlgorithm::ZIP,
-];
-
-/// The algorithm type to use for the key generation.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum KeyGenerationType {
-    /// An RSA 4096-bit v4 signing and encryption key.
-    RSA,
-
-    /// An ECC v4 signing (`EdDsaLegacy`) and encryption key (`ECDH` with `Curve25519` legacy).
-    #[default]
-    ECC,
-
-    /// A PQC v6 signing (`ML-DSA`) and encryption key (`ML-KEM)`.
-    PQC,
-}
-
-impl KeyGenerationType {
-    fn encryption_key_type(self) -> KeyType {
-        match self {
-            KeyGenerationType::RSA => KeyType::Rsa(4096),
-            KeyGenerationType::ECC => KeyType::ECDH(ECCCurve::Curve25519),
-            KeyGenerationType::PQC => KeyType::MlKem768X25519,
-        }
-    }
-
-    fn primary_key_type(self) -> KeyType {
-        match self {
-            KeyGenerationType::RSA => KeyType::Rsa(4096),
-            KeyGenerationType::ECC => KeyType::Ed25519Legacy,
-            KeyGenerationType::PQC => KeyType::MlDsa65Ed25519,
-        }
-    }
-}
-
-/// The profile to use for the key generation.
-pub struct KeyGenerationProfile {
-    /// The key version to use for the key generation.
-    pub key_version: KeyVersion,
-
-    /// The preferred symmetric algorithms to use for the key generation.
-    pub preferred_symmetric_algorithms: SmallVec<[SymmetricKeyAlgorithm; 8]>,
-
-    /// The preferred hash algorithms to use for the key generation.
-    pub preferred_hash_algorithms: SmallVec<[HashAlgorithm; 8]>,
-
-    /// The preferred compression algorithms to use for the key generation.
-    pub preferred_compression_algorithms: SmallVec<[CompressionAlgorithm; 8]>,
-
-    /// The preferred AEAD algorithms to use for the key generation.
-    pub preferred_aead_algorithms: SmallVec<[(SymmetricKeyAlgorithm, AeadAlgorithm); 4]>,
-
-    /// Whether to signal support for SEIPD v2.
-    pub seipd_v2: bool,
-}
-
-impl Default for KeyGenerationProfile {
-    fn default() -> Self {
-        Self {
-            key_version: KeyVersion::V4,
-            preferred_symmetric_algorithms: KEY_PREFERRED_SYMMETRIC_KEY_ALGORITHMS.into(),
-            preferred_hash_algorithms: KEY_PREFERRED_HASH_ALGORITHMS.into(),
-            preferred_compression_algorithms: PREFERRED_COMPRESSION_ALGORITHMS.into(),
-            preferred_aead_algorithms: KEY_PREFERRED_AEAD_ALGORITHMS.into(),
-            seipd_v2: false,
-        }
-    }
-}
-
-impl KeyGenerationProfile {
-    fn apply_to_primary_builder(self, builder: &mut SecretKeyParamsBuilder) {
-        builder
-            .version(self.key_version)
-            .can_certify(true)
-            .can_sign(true)
-            .preferred_symmetric_algorithms(self.preferred_symmetric_algorithms)
-            .preferred_hash_algorithms(self.preferred_hash_algorithms)
-            .preferred_compression_algorithms(self.preferred_compression_algorithms)
-            .preferred_aead_algorithms(self.preferred_aead_algorithms)
-            .feature_seipd_v1(true)
-            .feature_seipd_v2(self.seipd_v2);
-    }
-}
+use crate::{
+    KeyGenerationError, KeyGenerationType, PrivateKey, Profile, UnixTime, DEFAULT_PROFILE,
+};
 
 /// Internal representation of a user-id.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,9 +24,9 @@ impl Display for KeyUserId {
 
 /// A key generator that can be used to generate `OpenPGP` private keys.
 #[derive(Debug)]
-pub struct KeyGenerator<'a> {
+pub struct KeyGenerator {
     /// The profile to use for the key generation.
-    profile: &'a Profile,
+    profile: Profile,
 
     /// The user-ids to use for the key generation.
     user_ids: Vec<KeyUserId>,
@@ -135,9 +38,9 @@ pub struct KeyGenerator<'a> {
     date: UnixTime,
 }
 
-impl<'a> KeyGenerator<'a> {
+impl KeyGenerator {
     /// Create a new key generator with the given profile.
-    pub fn new(profile: &'a Profile) -> Self {
+    pub fn new(profile: Profile) -> Self {
         Self {
             profile,
             user_ids: Vec::new(),
@@ -225,8 +128,8 @@ impl<'a> KeyGenerator<'a> {
     }
 }
 
-impl Default for KeyGenerator<'_> {
+impl Default for KeyGenerator {
     fn default() -> Self {
-        Self::new(&DEFAULT_PROFILE)
+        Self::new(DEFAULT_PROFILE.clone())
     }
 }

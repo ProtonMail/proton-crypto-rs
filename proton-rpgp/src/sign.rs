@@ -23,7 +23,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Signer<'a> {
     /// The profile to use for the signer.
-    pub(crate) profile: &'a Profile,
+    pub(crate) profile: Profile,
 
     /// The signing keys to create signatures with.
     pub(crate) signing_keys: Vec<&'a PrivateKey>,
@@ -39,7 +39,7 @@ pub struct Signer<'a> {
 
 impl<'a> Signer<'a> {
     /// Create a new verifier with the given profile.
-    pub fn new(profile: &'a Profile) -> Self {
+    pub fn new(profile: Profile) -> Self {
         Self {
             profile,
             signing_keys: Vec::new(),
@@ -149,7 +149,7 @@ impl<'a> Signer<'a> {
             self.profile.message_hash_algorithm(),
             &signing_keys,
             None,
-            self.profile,
+            &self.profile,
         );
 
         // Create a signature for each key.
@@ -163,7 +163,7 @@ impl<'a> Signer<'a> {
                         self.date,
                         self.signature_type,
                         hash_algorithm,
-                        self.profile,
+                        &self.profile,
                     )
                     .map(StandaloneSignature::new)
             })
@@ -208,7 +208,7 @@ impl<'a> Signer<'a> {
             self.profile.message_hash_algorithm(),
             &signing_keys,
             None,
-            self.profile,
+            &self.profile,
         );
 
         // Closure to create the signatures in rPGP.
@@ -223,7 +223,7 @@ impl<'a> Signer<'a> {
                             self.date,
                             SignatureMode::Text,
                             *hash_algorithm,
-                            self.profile,
+                            &self.profile,
                         )
                         .map_err(|err| pgp::errors::Error::Message {
                             message: err.to_string(),
@@ -264,7 +264,7 @@ impl<'a> Signer<'a> {
             .iter()
             .map(|key| {
                 key.secret
-                    .signing_key(self.date, None, SignatureUsage::Sign, self.profile)
+                    .signing_key(self.date, None, SignatureUsage::Sign, &self.profile)
             })
             .collect()
     }
@@ -280,14 +280,14 @@ impl<'a> Signer<'a> {
             recipient_preferences.select_hash_algorithm(
                 self.profile.message_hash_algorithm(),
                 signing_keys,
-                self.profile,
+                &self.profile,
             )
         } else {
             preferences::select_hash_algorithm_from_keys(
                 self.profile.message_hash_algorithm(),
                 signing_keys,
                 None,
-                self.profile,
+                &self.profile,
             )
         };
 
@@ -316,13 +316,13 @@ impl<'a> Signer<'a> {
     }
 
     pub(crate) fn profile(&self) -> &Profile {
-        self.profile
+        &self.profile
     }
 }
 
 impl Default for Signer<'_> {
     fn default() -> Self {
-        Self::new(&DEFAULT_PROFILE)
+        Self::new(DEFAULT_PROFILE.clone())
     }
 }
 

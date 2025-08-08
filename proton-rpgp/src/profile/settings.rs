@@ -1,0 +1,391 @@
+use std::collections::{HashMap, HashSet};
+
+use pgp::{
+    crypto::{
+        aead::{AeadAlgorithm, ChunkSize},
+        ecc_curve::ECCCurve,
+        hash::HashAlgorithm,
+        public_key::PublicKeyAlgorithm,
+        sym::SymmetricKeyAlgorithm,
+    },
+    types::{CompressionAlgorithm, KeyVersion},
+};
+
+use super::{KeyGenerationProfile, KeyGenerationType};
+use crate::{KeyGenerationProfileBuilder, StringToKeyOption};
+
+use super::CipherSuite;
+
+/// Preferred symmetric-key algorithms (in descending order of preference)
+pub const CANDIDATE_SYMMETRIC_KEY_ALGORITHMS: &[SymmetricKeyAlgorithm] =
+    &[SymmetricKeyAlgorithm::AES256, SymmetricKeyAlgorithm::AES128];
+
+/// Preferred AEAD algorithms (in descending order of preference)
+pub const CANDIDATE_AEAD_CIPHERSUITES: &[(SymmetricKeyAlgorithm, AeadAlgorithm)] = &[
+    (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Gcm),
+    (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Ocb),
+    (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Eax),
+    (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm),
+    (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Ocb),
+    (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Eax),
+];
+
+/// Preferred hash algorithms (in descending order of preference)
+pub const CANDIDATE_HASH_ALGORITHMS: &[HashAlgorithm] = &[
+    HashAlgorithm::Sha256,
+    HashAlgorithm::Sha384,
+    HashAlgorithm::Sha512,
+    HashAlgorithm::Sha3_256,
+    HashAlgorithm::Sha3_512,
+];
+
+pub const CANDIDATE_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
+    CompressionAlgorithm::Uncompressed,
+    CompressionAlgorithm::ZIP,
+    CompressionAlgorithm::ZLIB,
+];
+
+pub type KeyGenerationForType = Box<dyn Fn(KeyGenerationType) -> KeyGenerationProfile>;
+
+/// Represents the configuration options for `OpenPGP` operations.
+///
+/// This struct provides granular control over all `OpenPGP` settings
+/// used throughout the library. The default configuration matches the recommended Proton profile,
+/// but all options can be customized to suit specific requirements or interoperability needs.
+#[derive(Debug, Clone)]
+pub struct ProfileSettings {
+    /// Candidate hash algorithms, in descending order of preference.
+    ///
+    /// Used when selecting encryption algorithms based on recipient preferences.
+    pub candidate_hash_algorithms: Vec<HashAlgorithm>,
+
+    /// Candidate symmetric-key algorithms, in descending order of preference.
+    ///
+    /// Used when selecting encryption algorithms based on recipient preferences.
+    pub candidate_symmetric_key_algorithms: Vec<SymmetricKeyAlgorithm>,
+
+    /// Candidate compression algorithms, in descending order of preference.
+    ///
+    /// Used when selecting compression algorithms based on recipient preferences.
+    pub candidate_compression_algorithms: Vec<CompressionAlgorithm>,
+
+    /// Candidate AEAD cipher suites, in descending order of preference.
+    ///
+    /// Used when selecting AEAD cipher suites based on recipient preferences.
+    pub candidate_aead_ciphersuites: Vec<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
+
+    /// The preferred hash algorithm for signatures.
+    pub preferred_hash_algorithm: HashAlgorithm,
+
+    /// The preferred AEAD cipher suite for encryption, if any.
+    ///
+    /// If this option is `None`, `SEIPDv1` will be enforced for encrpytion.
+    pub preferred_aead_cipher_suite: Option<CipherSuite>,
+
+    /// The preferred symmetric-key algorithm for encryption.
+    pub preferred_symmetric_algorithm: SymmetricKeyAlgorithm,
+
+    /// The preferred compression algorithm for message compression.
+    pub preferred_compression: CompressionAlgorithm,
+
+    /// String-to-key (S2K) parameters for message encryption.
+    ///
+    /// This is used in password based encryption.
+    pub message_encryption_s2k_params: StringToKeyOption,
+
+    /// String-to-key (S2K) parameters for key encryption.
+    ///
+    /// This is used when encrypting a key in the lock operation.
+    pub key_encryption_s2k_params: StringToKeyOption,
+
+    /// AEAD chunk size to use for chunked encryption.
+    ///
+    /// If AEAD is used, this setting allows to define the used chunk size.
+    pub aead_chunk_size: ChunkSize,
+
+    /// Hash algorithms that are explicitly rejected for any use.
+    pub rejected_hashes: HashSet<HashAlgorithm>,
+
+    /// Hash algorithms that are rejected for message signatures.
+    ///
+    /// This must be a superset of `rejected_hashes`
+    pub rejected_message_hashes: HashSet<HashAlgorithm>,
+
+    /// Public key algorithms that are rejected.
+    pub rejected_public_key_algorithms: Vec<PublicKeyAlgorithm>,
+
+    /// ECC curves that are rejected.
+    pub rejected_ecc_curves: Vec<ECCCurve>,
+
+    /// Set of critical notation names that are recognized as known.
+    pub known_notation_names: HashSet<String>,
+
+    /// Minimum number of bits required for RSA keys.
+    pub min_rsa_bits: usize,
+
+    /// Mapping from key generation type to the corresponding key generation profile.
+    pub key_generation_for_type: HashMap<KeyGenerationType, KeyGenerationProfile>,
+
+    /// Maximum allowed recursion depth for parsing or processing.
+    pub max_recursion_depth: usize,
+
+    /// If true, ignore key flags in key usage checks.
+    pub ignore_key_flags: bool,
+}
+
+impl Default for ProfileSettings {
+    fn default() -> Self {
+        Self {
+            candidate_hash_algorithms: CANDIDATE_HASH_ALGORITHMS.to_vec(),
+            candidate_symmetric_key_algorithms: CANDIDATE_SYMMETRIC_KEY_ALGORITHMS.to_vec(),
+            candidate_compression_algorithms: CANDIDATE_COMPRESSION_ALGORITHMS.to_vec(),
+            candidate_aead_ciphersuites: CANDIDATE_AEAD_CIPHERSUITES.to_vec(),
+            preferred_hash_algorithm: HashAlgorithm::Sha512,
+            preferred_aead_cipher_suite: None,
+            preferred_symmetric_algorithm: SymmetricKeyAlgorithm::AES256,
+            preferred_compression: CompressionAlgorithm::Uncompressed,
+            message_encryption_s2k_params: StringToKeyOption::IteratedAndSalted {
+                sym_alg: SymmetricKeyAlgorithm::AES256,
+                hash_alg: HashAlgorithm::Sha256,
+                count: 224,
+            },
+            aead_chunk_size: ChunkSize::C4MiB,
+            key_encryption_s2k_params: StringToKeyOption::IteratedAndSalted {
+                sym_alg: SymmetricKeyAlgorithm::AES256,
+                hash_alg: HashAlgorithm::Sha256,
+                count: 96,
+            },
+            rejected_hashes: HashSet::from([HashAlgorithm::Md5, HashAlgorithm::Ripemd160]),
+            rejected_message_hashes: HashSet::from([
+                HashAlgorithm::Md5,
+                HashAlgorithm::Ripemd160,
+                HashAlgorithm::Sha1,
+            ]),
+            rejected_public_key_algorithms: vec![
+                PublicKeyAlgorithm::Elgamal,
+                PublicKeyAlgorithm::ElgamalEncrypt,
+                PublicKeyAlgorithm::DSA,
+            ],
+            rejected_ecc_curves: vec![ECCCurve::Secp256k1],
+            min_rsa_bits: 1023,
+            key_generation_for_type: HashMap::from([
+                (KeyGenerationType::RSA, KeyGenerationProfile::default()),
+                (KeyGenerationType::ECC, KeyGenerationProfile::default()),
+                (
+                    KeyGenerationType::PQC,
+                    KeyGenerationProfileBuilder::new()
+                        .key_version(KeyVersion::V6)
+                        .build(),
+                ),
+            ]),
+            max_recursion_depth: 8,
+            ignore_key_flags: false,
+            known_notation_names: HashSet::new(),
+        }
+    }
+}
+
+/// Builder for `ProfileSettings`.
+#[derive(Default, Debug, Clone)]
+pub struct ProfileSettingsBuilder {
+    settings: ProfileSettings,
+}
+
+impl ProfileSettingsBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the candidate hash algorithms to consider for signatures.
+    ///
+    /// These are the hash algorithms that will be considered when selecting the hash algorithm for creating signatures.
+    pub fn candidate_hash_algorithms<I>(mut self, algs: I) -> Self
+    where
+        I: IntoIterator<Item = HashAlgorithm>,
+    {
+        self.settings.candidate_hash_algorithms = algs.into_iter().collect();
+        self
+    }
+
+    /// Sets the candidate symmetric key algorithms to consider for encryption.
+    ///
+    /// These are the symmetric algorithms that will be considered when selecting the symmetric algorithm for encryption.
+    pub fn candidate_symmetric_key_algorithms<I>(mut self, algs: I) -> Self
+    where
+        I: IntoIterator<Item = SymmetricKeyAlgorithm>,
+    {
+        self.settings.candidate_symmetric_key_algorithms = algs.into_iter().collect();
+        self
+    }
+
+    /// Sets the candidate compression algorithms to consider for message compression.
+    ///
+    /// These are the compression algorithms that will be considered when selecting the compression algorithm for compressing messages.
+    pub fn candidate_compression_algorithms<I>(mut self, algs: I) -> Self
+    where
+        I: IntoIterator<Item = CompressionAlgorithm>,
+    {
+        self.settings.candidate_compression_algorithms = algs.into_iter().collect();
+        self
+    }
+
+    /// Sets the candidate AEAD cipher suites to consider for AEAD encryption.
+    ///
+    /// These are the (symmetric, AEAD) algorithm pairs that will be considered when selecting the AEAD cipher suite for encryption.
+    /// If not set, `SEIPDv1` will be enforced for encrpytion.
+    pub fn candidate_aead_ciphersuites<I>(mut self, suites: I) -> Self
+    where
+        I: IntoIterator<Item = (SymmetricKeyAlgorithm, AeadAlgorithm)>,
+    {
+        self.settings.candidate_aead_ciphersuites = suites.into_iter().collect();
+        self
+    }
+
+    /// Sets the preferred hash algorithm for signatures.
+    ///
+    /// This is the hash algorithm that will be preferred for signing operations.
+    pub fn preferred_hash_algorithm(mut self, alg: HashAlgorithm) -> Self {
+        self.settings.preferred_hash_algorithm = alg;
+        self
+    }
+
+    /// Sets the preferred AEAD cipher suite for AEAD encryption.
+    ///
+    /// This is the (symmetric, AEAD) algorithm pair that will be preferred for AEAD encryption.
+    pub fn preferred_aead_cipher_suite(
+        mut self,
+        suite: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
+    ) -> Self {
+        self.settings.preferred_aead_cipher_suite = suite;
+        self
+    }
+
+    /// Sets the preferred symmetric key algorithm for encryption.
+    ///
+    /// This is the symmetric algorithm that will be preferred for message encryption.
+    pub fn preferred_symmetric_algorithm(mut self, alg: SymmetricKeyAlgorithm) -> Self {
+        self.settings.preferred_symmetric_algorithm = alg;
+        self
+    }
+
+    /// Sets the preferred compression algorithm for message compression.
+    ///
+    /// This is the compression algorithm that will be preferred for compressing messages.
+    pub fn preferred_compression(mut self, alg: CompressionAlgorithm) -> Self {
+        self.settings.preferred_compression = alg;
+        self
+    }
+
+    /// Sets the S2K (String-to-Key) parameters for message encryption.
+    ///
+    /// These parameters control how passphrases are converted to keys for message encryption.
+    pub fn message_encryption_s2k_params(mut self, params: StringToKeyOption) -> Self {
+        self.settings.message_encryption_s2k_params = params;
+        self
+    }
+
+    /// Sets the AEAD chunk size for AEAD-encrypted messages.
+    ///
+    /// This controls the chunk size used for AEAD encryption.
+    pub fn aead_chunk_size(mut self, size: ChunkSize) -> Self {
+        self.settings.aead_chunk_size = size;
+        self
+    }
+
+    /// Sets the S2K (String-to-Key) parameters for key encryption.
+    ///
+    /// These parameters control how passphrases are converted to keys for key encryption.
+    pub fn key_encryption_s2k_params(mut self, params: StringToKeyOption) -> Self {
+        self.settings.key_encryption_s2k_params = params;
+        self
+    }
+
+    /// Sets the hash algorithms that should be rejected for any use.
+    ///
+    /// These hash algorithms will not be used for any cryptographic operation.
+    pub fn rejected_hashes<I>(mut self, hashes: I) -> Self
+    where
+        I: IntoIterator<Item = HashAlgorithm>,
+    {
+        self.settings.rejected_hashes = hashes.into_iter().collect();
+        self
+    }
+
+    /// Sets the hash algorithms that should be rejected for message signatures.
+    ///
+    /// These hash algorithms will not be used for message signatures.
+    pub fn rejected_message_hashes<I>(mut self, hashes: I) -> Self
+    where
+        I: IntoIterator<Item = HashAlgorithm>,
+    {
+        self.settings.rejected_message_hashes = hashes.into_iter().collect();
+        self
+    }
+
+    /// Sets the public key algorithms that should be rejected.
+    ///
+    /// These public key algorithms will not be used for any cryptographic operation.
+    pub fn rejected_public_key_algorithms<I>(mut self, algs: I) -> Self
+    where
+        I: IntoIterator<Item = PublicKeyAlgorithm>,
+    {
+        self.settings.rejected_public_key_algorithms = algs.into_iter().collect();
+        self
+    }
+
+    /// Sets the ECC curves that should be rejected.
+    ///
+    /// These elliptic curves will not be used for any cryptographic operation.
+    pub fn rejected_ecc_curves<I>(mut self, curves: I) -> Self
+    where
+        I: IntoIterator<Item = ECCCurve>,
+    {
+        self.settings.rejected_ecc_curves = curves.into_iter().collect();
+        self
+    }
+
+    /// Sets the minimum number of bits required for RSA keys.
+    ///
+    /// RSA keys with fewer bits than this value will be rejected.
+    pub fn min_rsa_bits(mut self, bits: usize) -> Self {
+        self.settings.min_rsa_bits = bits;
+        self
+    }
+
+    /// Sets the key generation profiles for each key type.
+    ///
+    /// This map determines the key generation profile to use for each key type.
+    pub fn key_generation_for_type<I>(mut self, map: I) -> Self
+    where
+        I: IntoIterator<Item = (KeyGenerationType, KeyGenerationProfile)>,
+    {
+        self.settings.key_generation_for_type = map.into_iter().collect();
+        self
+    }
+
+    /// Sets the maximum recursion depth for signature verification.
+    ///
+    /// This limits the depth of recursive signature verification.
+    pub fn max_recursion_depth(mut self, depth: usize) -> Self {
+        self.settings.max_recursion_depth = depth;
+        self
+    }
+
+    /// Sets whether to ignore key flags during verification.
+    ///
+    /// If true, key flags will be ignored when verifying signatures.
+    pub fn ignore_key_flags(mut self, ignore: bool) -> Self {
+        self.settings.ignore_key_flags = ignore;
+        self
+    }
+
+    /// Builds the `ProfileSettings` from the builder.
+    ///
+    /// This will also ensure that all rejected hashes are included in the set of rejected message hashes.
+    pub fn build(mut self) -> ProfileSettings {
+        self.settings
+            .rejected_message_hashes
+            .extend(self.settings.rejected_hashes.iter());
+        self.settings
+    }
+}

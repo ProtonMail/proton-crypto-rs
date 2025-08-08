@@ -438,7 +438,7 @@ impl SessionKey {
                 let (symmetric_algorithm, aead_algorithm) = recipients_algo
                     .aead_ciphersuite
                     .filter(|c| c.0.key_size() == key.len())
-                    .or_else(|| profile.default_ciphersuite_for_key_length(key.len()))
+                    .or_else(|| profile.fallback_ciphersuite_for_key_length(key.len()))
                     .ok_or(EncryptionError::NotSupported(
                         "missing aead algorithm for v6 session key".to_owned(),
                     ))?;

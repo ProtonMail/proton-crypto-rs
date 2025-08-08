@@ -228,6 +228,11 @@ pub(crate) fn check_message_signature_details(
     selected_key: &PublicComponentKey<'_>,
     profile: &Profile,
 ) -> Result<(), SignatureError> {
+    // Check the used message hash algorithm, might reject more than in the
+    // default rejection.
+    if profile.reject_message_hash_algorithm(signature.hash_alg()) {
+        return Err(SignatureError::InvalidHash(signature.hash_alg()));
+    }
     // Check the signature details of the signature.
     check_signature_details(signature, date, profile)?;
 

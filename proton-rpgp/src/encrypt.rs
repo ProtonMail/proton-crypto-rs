@@ -48,7 +48,7 @@ pub struct Encryptor<'a> {
 
 impl<'a> Encryptor<'a> {
     /// Creates a new encryptor with the given profile.
-    pub fn new(profile: &'a Profile) -> Self {
+    pub fn new(profile: Profile) -> Self {
         Self {
             encryption_keys: Vec::new(),
             passphrases: Vec::new(),
@@ -453,7 +453,7 @@ impl<'a> Encryptor<'a> {
 
 impl Default for Encryptor<'_> {
     fn default() -> Self {
-        Self::new(&DEFAULT_PROFILE)
+        Self::new(DEFAULT_PROFILE.clone())
     }
 }
 

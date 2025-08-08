@@ -1,6 +1,6 @@
 use proton_rpgp::{
-    AccessKeyInfo, AsPublicKeyRef, DataEncoding, PrivateKey, Profile, PublicKey, UnixTime,
-    VerificationError, Verifier,
+    AccessKeyInfo, AsPublicKeyRef, DataEncoding, PrivateKey, Profile, ProfileSettingsBuilder,
+    PublicKey, UnixTime, VerificationError, Verifier,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
@@ -94,10 +94,9 @@ pub fn verify_detached_signature_v4_fails_rsa_512() {
         Err(VerificationError::NoVerifier(_, _))
     ));
 
-    let mut profile = Profile::new();
-    profile.min_rsa_bits = 512;
+    let profile = Profile::new(ProfileSettingsBuilder::new().min_rsa_bits(512).build());
 
-    let verification_result = Verifier::new(&profile)
+    let verification_result = Verifier::new(profile)
         .with_verification_key(verification_key.as_public_key())
         .at_date(date)
         .verify_detached(

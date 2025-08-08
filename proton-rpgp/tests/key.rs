@@ -1,12 +1,27 @@
-use pgp::crypto::sym::SymmetricKeyAlgorithm;
+use std::sync::LazyLock;
+
+use pgp::crypto::{hash::HashAlgorithm, sym::SymmetricKeyAlgorithm};
 use proton_rpgp::{
     AccessKeyInfo, DataEncoding, KeyGenerationType, KeyGenerator, KeyOperationError,
-    LockedPrivateKey, PrivateKey, Profile, PublicKey, SessionKey, UnixTime,
+    LockedPrivateKey, PrivateKey, Profile, ProfileSettingsBuilder, PublicKey, SessionKey,
+    StringToKeyOption, UnixTime,
 };
 
 pub const TEST_PRIVATE_KEY: &str = include_str!("../test-data/keys/locked_private_key_v6.asc");
 pub const TEST_PUBLIC_KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
 pub const TEST_PRIVATE_KEY_PASSWORD: &str = "password";
+
+pub static KEY_TEST_PROFILE: LazyLock<Profile> = LazyLock::new(|| {
+    let s2k = StringToKeyOption::IteratedAndSalted {
+        sym_alg: SymmetricKeyAlgorithm::AES256,
+        hash_alg: HashAlgorithm::Sha256,
+        count: 0,
+    };
+    ProfileSettingsBuilder::new()
+        .key_encryption_s2k_params(s2k)
+        .build()
+        .into()
+});
 
 #[test]
 fn key_import_and_unlock_private_key() {
@@ -66,7 +81,7 @@ fn key_export_import_unlock_key() {
 
     let exported = unlocked_key
         .export(
-            &Profile::default(),
+            &KEY_TEST_PROFILE,
             TEST_PRIVATE_KEY_PASSWORD.as_bytes(),
             DataEncoding::Armored,
         )
@@ -116,8 +131,8 @@ fn key_is_revoked() {
     let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let expect_is_revoked = key_revoked.is_revoked(&Profile::default(), date);
-    let expect_is_not_revoked = key.is_revoked(&Profile::default(), date);
+    let expect_is_revoked = key_revoked.is_revoked(&KEY_TEST_PROFILE, date);
+    let expect_is_not_revoked = key.is_revoked(&KEY_TEST_PROFILE, date);
 
     assert!(expect_is_revoked && !expect_is_not_revoked);
 }
@@ -202,10 +217,10 @@ fn key_generation_default() {
         .export_unlocked(DataEncoding::Armored)
         .expect("Failed to export key");
 
-    key.check_can_encrypt(&Profile::default(), UnixTime::now().unwrap())
+    key.check_can_encrypt(&KEY_TEST_PROFILE, UnixTime::now().unwrap())
         .expect("Cannot encrypt");
 
-    key.check_can_verify(&Profile::default(), UnixTime::now().unwrap())
+    key.check_can_verify(&KEY_TEST_PROFILE, UnixTime::now().unwrap())
         .expect("Cannot verify");
 
     assert_eq!(key.version(), 4);

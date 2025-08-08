@@ -30,7 +30,7 @@ pub struct Decryptor<'a> {
 
 impl<'a> Decryptor<'a> {
     /// Creates a new decryptor with the given profile.
-    pub fn new(profile: &'a Profile) -> Self {
+    pub fn new(profile: Profile) -> Self {
         Self {
             decryption_keys: Vec::new(),
             passphrases: Vec::new(),
@@ -194,12 +194,12 @@ impl<'a> Decryptor<'a> {
     }
 
     pub(crate) fn profile(&self) -> &Profile {
-        self.verifier.profile
+        &self.verifier.profile
     }
 }
 
 impl Default for Decryptor<'_> {
     fn default() -> Self {
-        Self::new(&DEFAULT_PROFILE)
+        Self::new(DEFAULT_PROFILE.clone())
     }
 }

@@ -17,7 +17,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Verifier<'a> {
     /// The profile to use for verification.
-    pub(crate) profile: &'a Profile,
+    pub(crate) profile: Profile,
 
     /// The verification keys that are used to verify the signatures.
     pub(crate) verification_keys: Vec<&'a PublicKey>,
@@ -32,7 +32,7 @@ pub struct Verifier<'a> {
 
 impl<'a> Verifier<'a> {
     /// Create a new verifier with the given profile.
-    pub fn new(profile: &'a Profile) -> Self {
+    pub fn new(profile: Profile) -> Self {
         Self {
             profile,
             verification_keys: Vec::new(),
@@ -154,7 +154,7 @@ impl<'a> Verifier<'a> {
                     signature,
                     &self.verification_keys,
                     VerificationInput::Data(data.as_ref()),
-                    self.profile,
+                    &self.profile,
                 )
             })
             .collect();
@@ -213,7 +213,7 @@ impl<'a> Verifier<'a> {
                     signature.signature.clone(),
                     &self.verification_keys,
                     VerificationInput::Data(signed_data.as_ref()),
-                    self.profile,
+                    &self.profile,
                 )
             })
             .collect();
@@ -248,7 +248,7 @@ impl<'a> Verifier<'a> {
         let verified_signatures = message.verify_nested_to_verified_signatures(
             self.date,
             &self.verification_keys,
-            self.profile,
+            &self.profile,
         )?;
 
         if self.native_newlines_utf8 {
@@ -266,7 +266,7 @@ impl<'a> Verifier<'a> {
 
 impl Default for Verifier<'_> {
     fn default() -> Self {
-        Self::new(&DEFAULT_PROFILE)
+        Self::new(DEFAULT_PROFILE.clone())
     }
 }
 

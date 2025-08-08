@@ -1,5 +1,4 @@
 use pgp::{
-    bytes::Bytes,
     crypto::{
         aead::{AeadAlgorithm, ChunkSize},
         ecc_curve::ECCCurve,
@@ -8,59 +7,34 @@ use pgp::{
         sym::SymmetricKeyAlgorithm,
     },
     packet::Notation,
-    types::{CompressionAlgorithm, KeyVersion, S2kParams, StringToKey},
+    types::{CompressionAlgorithm, S2kParams, StringToKey},
 };
-use rand::{CryptoRng, Rng, RngCore};
+use rand::{CryptoRng, Rng};
+
+mod settings;
+pub use settings::*;
+mod s2k;
+pub use s2k::*;
+mod keygen;
+pub use keygen::*;
+
+use std::sync::{Arc, LazyLock};
 
 /// AEAD ciphersuite.
 pub type CipherSuite = (SymmetricKeyAlgorithm, AeadAlgorithm);
 
-/// Preferred symmetric-key algorithms (in descending order of preference)
-pub const PREFERRED_SYMMETRIC_KEY_ALGORITHMS: &[SymmetricKeyAlgorithm] =
-    &[SymmetricKeyAlgorithm::AES256, SymmetricKeyAlgorithm::AES128];
-
-/// Preferred AEAD algorithms (in descending order of preference)
-pub const PREFERRED_AEAD_ALGORITHMS: &[(SymmetricKeyAlgorithm, AeadAlgorithm)] = &[
-    (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Gcm),
-    (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Ocb),
-    (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Eax),
-    (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm),
-    (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Ocb),
-    (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Eax),
-];
-
-/// Preferred hash algorithms (in descending order of preference)
-pub const PREFERRED_HASH_ALGORITHMS: &[HashAlgorithm] = &[
-    HashAlgorithm::Sha256,
-    HashAlgorithm::Sha384,
-    HashAlgorithm::Sha512,
-    HashAlgorithm::Sha3_256,
-    HashAlgorithm::Sha3_512,
-];
-
-pub const PREFERRED_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
-    CompressionAlgorithm::Uncompressed,
-    CompressionAlgorithm::ZIP,
-    CompressionAlgorithm::ZLIB,
-];
-
-use std::sync::LazyLock;
-
-use crate::{KeyGenerationProfile, KeyGenerationType};
-
-pub static DEFAULT_PROFILE: LazyLock<Profile> = LazyLock::new(Profile::new);
+/// The default profile.
+pub static DEFAULT_PROFILE: LazyLock<Profile> = LazyLock::new(Profile::default);
 
 #[derive(Debug, Clone)]
 pub struct Profile {
-    pub min_rsa_bits: usize,
-    pub cipher_suite: Option<CipherSuite>,
+    settings: Arc<ProfileSettings>,
 }
 
 impl Profile {
-    pub fn new() -> Self {
+    pub fn new(settings: ProfileSettings) -> Self {
         Self {
-            min_rsa_bits: 1024,
-            cipher_suite: None,
+            settings: Arc::new(settings),
         }
     }
 
@@ -68,71 +42,80 @@ impl Profile {
         rand::thread_rng()
     }
 
-    pub fn hash_algorithms(&self) -> &[HashAlgorithm] {
-        PREFERRED_HASH_ALGORITHMS
+    pub fn canditate_compression_algorithms(&self) -> &[CompressionAlgorithm] {
+        &self.settings.candidate_compression_algorithms
+    }
+
+    pub fn candidate_hash_algorithms(&self) -> &[HashAlgorithm] {
+        &self.settings.candidate_hash_algorithms
+    }
+
+    pub fn candidate_symmetric_key_algorithms(&self) -> &[SymmetricKeyAlgorithm] {
+        &self.settings.candidate_symmetric_key_algorithms
+    }
+
+    pub fn candidate_aead_ciphersuites(&self) -> &[(SymmetricKeyAlgorithm, AeadAlgorithm)] {
+        &self.settings.candidate_aead_ciphersuites
     }
 
     pub fn message_hash_algorithm(&self) -> HashAlgorithm {
-        HashAlgorithm::Sha512
+        self.settings.preferred_hash_algorithm
     }
 
     pub fn message_aead_cipher_suite(&self) -> Option<CipherSuite> {
-        self.cipher_suite
+        self.settings.preferred_aead_cipher_suite
     }
 
     pub fn message_symmetric_algorithm(&self) -> SymmetricKeyAlgorithm {
-        SymmetricKeyAlgorithm::AES256
+        self.settings.preferred_symmetric_algorithm
     }
 
     pub fn message_compression(&self) -> CompressionAlgorithm {
-        CompressionAlgorithm::Uncompressed
+        self.settings.preferred_compression
     }
 
     pub fn message_aead_chunk_size(&self) -> ChunkSize {
-        ChunkSize::default()
+        self.settings.aead_chunk_size
     }
 
-    pub fn symmetric_key_algorithms(&self) -> &[SymmetricKeyAlgorithm] {
-        PREFERRED_SYMMETRIC_KEY_ALGORITHMS
+    pub fn reject_hash_algorithm(&self, hash_opt: Option<HashAlgorithm>) -> bool {
+        hash_opt.is_some_and(|hash| self.settings.rejected_hashes.contains(&hash))
     }
 
-    pub fn compression_algorithms(&self) -> &[CompressionAlgorithm] {
-        PREFERRED_COMPRESSION_ALGORITHMS
+    pub fn reject_message_hash_algorithm(&self, hash_opt: Option<HashAlgorithm>) -> bool {
+        hash_opt.is_some_and(|hash| self.settings.rejected_message_hashes.contains(&hash))
     }
 
-    pub fn aead_ciphersuites(&self) -> &[(SymmetricKeyAlgorithm, AeadAlgorithm)] {
-        PREFERRED_AEAD_ALGORITHMS
+    pub fn reject_public_key_algorithm(&self, algorithm: PublicKeyAlgorithm) -> bool {
+        self.settings
+            .rejected_public_key_algorithms
+            .contains(&algorithm)
     }
 
-    pub fn reject_hash_algorithm(&self, _hash: Option<HashAlgorithm>) -> bool {
-        false
+    pub fn reject_ecc_curve(&self, curve: &ECCCurve) -> bool {
+        self.settings.rejected_ecc_curves.contains(curve)
     }
 
-    pub fn accept_critical_notation(&self, _notation: &Notation) -> bool {
-        true
-    }
-
-    pub fn reject_public_key_algorithm(&self, _algorithm: PublicKeyAlgorithm) -> bool {
-        false
-    }
-
-    pub fn reject_ecc_curve(&self, _curve: &ECCCurve) -> bool {
-        false
+    pub fn accept_critical_notation(&self, notation: &Notation) -> bool {
+        let Ok(notation_name) = std::str::from_utf8(notation.name.as_ref()) else {
+            return false;
+        };
+        self.settings.known_notation_names.contains(notation_name)
     }
 
     pub fn max_recursion_depth(&self) -> usize {
-        1024
+        self.settings.max_recursion_depth
     }
 
     pub fn ignore_key_flags(&self) -> bool {
-        false
+        self.settings.ignore_key_flags
     }
 
     pub fn min_rsa_bits(&self) -> usize {
-        self.min_rsa_bits
+        self.settings.min_rsa_bits
     }
 
-    pub fn default_ciphersuite_for_key_length(&self, length: usize) -> Option<CipherSuite> {
+    pub fn fallback_ciphersuite_for_key_length(&self, length: usize) -> Option<CipherSuite> {
         match length {
             16 => Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)),
             24 => Some((SymmetricKeyAlgorithm::AES192, AeadAlgorithm::Gcm)),
@@ -142,48 +125,34 @@ impl Profile {
     }
 
     pub fn key_s2k_params(&self) -> S2kParams {
-        // TODO(CRYPTO-292): Rand generation logic should not be handled here.
-        let mut salt = [0; 8];
-        let mut iv = [0; 16];
-        self.rng().fill_bytes(&mut salt);
-        self.rng().fill_bytes(&mut iv);
-        let s2k = StringToKey::IteratedAndSalted {
-            hash_alg: HashAlgorithm::Sha256,
-            salt,
-            count: 96,
-        };
-        S2kParams::Cfb {
-            sym_alg: SymmetricKeyAlgorithm::AES256,
-            s2k,
-            iv: Bytes::from(iv.to_vec()),
-        }
+        self.settings
+            .key_encryption_s2k_params
+            .generate_s2k_encryption_params(self.rng())
     }
 
     pub fn message_s2k_params(&self) -> StringToKey {
-        // TODO(CRYPTO-292): Rand generation logic should not be handled here.
-        let mut salt = [0; 8];
-        self.rng().fill_bytes(&mut salt);
-        StringToKey::IteratedAndSalted {
-            hash_alg: HashAlgorithm::Sha256,
-            salt,
-            count: 96,
-        }
+        self.settings
+            .message_encryption_s2k_params
+            .generate_s2k_params(self.rng())
     }
 
     pub fn key_generation_options(&self, algorithm: KeyGenerationType) -> KeyGenerationProfile {
-        let mut options = KeyGenerationProfile::default();
-        match algorithm {
-            KeyGenerationType::RSA | KeyGenerationType::ECC => options,
-            KeyGenerationType::PQC => {
-                options.key_version = KeyVersion::V6;
-                options
-            }
-        }
+        self.settings
+            .key_generation_for_type
+            .get(&algorithm)
+            .cloned()
+            .unwrap_or_default()
     }
 }
 
 impl Default for Profile {
     fn default() -> Self {
-        Self::new()
+        Self::new(ProfileSettings::default())
+    }
+}
+
+impl From<ProfileSettings> for Profile {
+    fn from(settings: ProfileSettings) -> Self {
+        Self::new(settings)
     }
 }

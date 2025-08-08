@@ -48,10 +48,12 @@ impl RecipientsAlgorithms {
         keys: &[PublicComponentKey<'_>],
         profile: &Profile,
     ) -> Self {
-        let mut candidate_hashes_to_sign = profile.hash_algorithms().to_vec();
-        let mut candidate_symmetric_algorithms = profile.symmetric_key_algorithms().to_vec();
-        let mut candidate_compression_algorithms = profile.compression_algorithms().to_vec();
-        let mut candidate_aead_algorithms = profile.aead_ciphersuites().to_vec();
+        let mut candidate_hashes_to_sign = profile.candidate_hash_algorithms().to_vec();
+        let mut candidate_symmetric_algorithms =
+            profile.candidate_symmetric_key_algorithms().to_vec();
+        let mut candidate_compression_algorithms =
+            profile.canditate_compression_algorithms().to_vec();
+        let mut candidate_aead_algorithms = profile.candidate_aead_ciphersuites().to_vec();
         let mut aead_support = true;
 
         // Intersect the candidate algorithms with the preferences of the recipients.
@@ -153,7 +155,7 @@ pub(crate) fn select_hash_algorithm_from_keys<'a>(
         let mut candidates = if let Some(selection) = preference {
             selection.signing_hash_candidates.clone()
         } else {
-            profile.hash_algorithms().to_vec()
+            profile.candidate_hash_algorithms().to_vec()
         };
 
         intersect(
@@ -204,9 +206,9 @@ fn acceptable_sign_hash_algorithms<'a>(
         PublicParams::ECDSA(ecdsa_public_params) => match ecdsa_public_params {
             pgp::types::EcdsaPublicParams::P384 { key: _ } => HASH_ALGORITHMS_MID,
             pgp::types::EcdsaPublicParams::P521 { key: _ } => HASH_ALGORITHMS_HIGH,
-            _ => profile.hash_algorithms(),
+            _ => profile.candidate_hash_algorithms(),
         },
         PublicParams::Ed448(_) | PublicParams::MlDsa87Ed448(_) => HASH_ALGORITHMS_HIGH,
-        _ => profile.hash_algorithms(),
+        _ => profile.candidate_hash_algorithms(),
     }
 }

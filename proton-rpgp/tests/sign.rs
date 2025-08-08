@@ -1,6 +1,6 @@
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, PrivateKey, Profile, SignError, Signer, UnixTime,
-    VerificationError, Verifier,
+    AsPublicKeyRef, DataEncoding, PrivateKey, SignError, Signer, UnixTime, VerificationError,
+    Verifier,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -94,19 +94,16 @@ pub fn sign_create_detached_signature_rsa_1023() {
     let date = UnixTime::new(1_752_476_259);
     let input_data = b"hello world";
 
-    let mut profile = Profile::new();
-    profile.min_rsa_bits = 1023;
-
     let key = PrivateKey::import(TEST_KEY_V4.as_bytes(), b"password", DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let signature_bytes = Signer::new(&profile)
+    let signature_bytes = Signer::default()
         .with_signing_key(&key)
         .at_date(date)
         .sign_detached(input_data, DataEncoding::Armored)
         .expect("Failed to sign");
 
-    let verification_result = Verifier::new(&profile)
+    let verification_result = Verifier::default()
         .with_verification_key(key.as_public_key())
         .at_date(date)
         .verify_detached(input_data, &signature_bytes, DataEncoding::Armored);
