@@ -361,11 +361,11 @@ pub struct SessionKey {
 
 impl SessionKey {
     pub fn new(key: &[u8], algorithm: SymmetricKeyAlgorithm) -> Self {
-        // Default is v4
-        Self::new_v4(key, algorithm)
+        // Default is seipdv1
+        Self::new_for_seipdv1(key, algorithm)
     }
 
-    pub fn new_v4(key: &[u8], algorithm: SymmetricKeyAlgorithm) -> Self {
+    pub fn new_for_seipdv1(key: &[u8], algorithm: SymmetricKeyAlgorithm) -> Self {
         Self {
             inner: PlainSessionKey::V3_4 {
                 sym_alg: algorithm,
@@ -374,7 +374,7 @@ impl SessionKey {
         }
     }
 
-    pub fn new_v6(key: &[u8]) -> Self {
+    pub fn new_for_seipdv2(key: &[u8]) -> Self {
         Self {
             inner: PlainSessionKey::V6 { key: key.into() },
         }
@@ -398,7 +398,7 @@ impl SessionKey {
     }
 
     /// Generate a session key that is used with `OpenPGP` `PKESKv3` and `SEIPDv1` packets.
-    pub fn generate_v4(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
+    pub fn generate_for_seipdv1(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
         Self {
             inner: PlainSessionKey::V3_4 {
                 sym_alg: algorithm,
@@ -408,7 +408,7 @@ impl SessionKey {
     }
 
     /// Generate a session key that is used with `OpenPGP` `PKESKv6` and `SEIPDv2` packets.
-    pub fn generate_v6(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
+    pub fn generate_for_seipdv2(algorithm: SymmetricKeyAlgorithm, profile: &Profile) -> Self {
         Self {
             inner: PlainSessionKey::V6 {
                 key: generate_session_key_bytes(algorithm, profile),

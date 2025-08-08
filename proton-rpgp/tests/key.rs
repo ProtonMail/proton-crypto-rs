@@ -215,7 +215,8 @@ fn key_generation_default() {
 fn session_key_generation() {
     let profile = Profile::default();
 
-    let session_key_aes128 = SessionKey::generate_v4(SymmetricKeyAlgorithm::AES128, &profile);
+    let session_key_aes128 =
+        SessionKey::generate_for_seipdv1(SymmetricKeyAlgorithm::AES128, &profile);
     let key_bytes = session_key_aes128.export_bytes();
     assert_eq!(key_bytes.len(), SymmetricKeyAlgorithm::AES128.key_size());
     assert_eq!(
@@ -223,7 +224,8 @@ fn session_key_generation() {
         Some(SymmetricKeyAlgorithm::AES128)
     );
 
-    let session_key_aes256 = SessionKey::generate_v4(SymmetricKeyAlgorithm::AES256, &profile);
+    let session_key_aes256 =
+        SessionKey::generate_for_seipdv1(SymmetricKeyAlgorithm::AES256, &profile);
     let key_bytes = session_key_aes256.export_bytes();
     assert_eq!(key_bytes.len(), SymmetricKeyAlgorithm::AES256.key_size());
     assert_eq!(
@@ -231,7 +233,7 @@ fn session_key_generation() {
         Some(SymmetricKeyAlgorithm::AES256)
     );
 
-    let session_key_v6 = SessionKey::generate_v6(SymmetricKeyAlgorithm::AES256, &profile);
+    let session_key_v6 = SessionKey::generate_for_seipdv2(SymmetricKeyAlgorithm::AES256, &profile);
     let key_bytes = session_key_v6.export_bytes();
     assert_eq!(key_bytes.len(), SymmetricKeyAlgorithm::AES256.key_size());
     assert_eq!(session_key_v6.algorithm(), None);

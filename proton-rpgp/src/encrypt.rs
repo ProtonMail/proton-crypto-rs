@@ -275,10 +275,10 @@ impl<'a> Encryptor<'a> {
 
         let session_key = match recipients_algorithm_selection.encryption_mechanism() {
             EncryptionMechanism::SeipdV1(symmetric_key_algorithm) => {
-                SessionKey::generate_v4(symmetric_key_algorithm, self.profile())
+                SessionKey::generate_for_seipdv1(symmetric_key_algorithm, self.profile())
             }
             EncryptionMechanism::SeipdV2(symmetric_key_algorithm, _) => {
-                SessionKey::generate_v6(symmetric_key_algorithm, self.profile())
+                SessionKey::generate_for_seipdv2(symmetric_key_algorithm, self.profile())
             }
         };
 
@@ -460,7 +460,7 @@ where
     }
 
     let revealed_session_key = extract_session_key.then(|| {
-        SessionKey::new_v4(
+        SessionKey::new_for_seipdv1(
             seipd_v1_builder.session_key().as_ref(),
             symmetric_key_algorithm,
         )
@@ -505,8 +505,8 @@ where
             .map_err(EncryptionError::SkeskEncryption)?;
     }
 
-    let revealed_session_key =
-        extract_session_key.then(|| SessionKey::new_v6(seipd_v2_builder.session_key().as_ref()));
+    let revealed_session_key = extract_session_key
+        .then(|| SessionKey::new_for_seipdv2(seipd_v2_builder.session_key().as_ref()));
 
     Ok((seipd_v2_builder, revealed_session_key))
 }

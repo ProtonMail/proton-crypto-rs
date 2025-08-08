@@ -275,7 +275,7 @@ pub fn encrypt_session_key_v4() {
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn encrypt_session_key_v6_seipdv2() {
-    let session_key = SessionKey::new_v6(b"0000000000000000");
+    let session_key = SessionKey::new_for_seipdv2(b"0000000000000000");
 
     let key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
@@ -328,7 +328,7 @@ pub fn encrypt_session_key_passphrase() {
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn encrypt_session_key_passphrase_seipdv2() {
-    let session_key = SessionKey::new_v6(b"0000000000000000");
+    let session_key = SessionKey::new_for_seipdv2(b"0000000000000000");
     let passphrase: &'static str = "password";
 
     let mut profile = Profile::new();
