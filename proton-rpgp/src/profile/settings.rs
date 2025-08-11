@@ -23,11 +23,11 @@ pub const PREFERRED_SYMMETRIC_KEY_ALGORITHMS: &[SymmetricKeyAlgorithm] =
 /// Preferred AEAD algorithms (in descending order of preference)
 pub const PREFERRED_AEAD_CIPHERSUITES: &[(SymmetricKeyAlgorithm, AeadAlgorithm)] = &[
     (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Gcm),
-    (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Ocb),
     (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Eax),
+    (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Ocb),
     (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm),
-    (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Ocb),
     (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Eax),
+    (SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Ocb),
 ];
 
 /// Preferred hash algorithms (in descending order of preference)
