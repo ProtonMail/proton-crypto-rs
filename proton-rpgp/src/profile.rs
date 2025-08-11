@@ -21,7 +21,7 @@ pub use keygen::*;
 use std::sync::{Arc, LazyLock};
 
 /// AEAD ciphersuite.
-pub type CipherSuite = (SymmetricKeyAlgorithm, AeadAlgorithm);
+pub type Ciphersuite = (SymmetricKeyAlgorithm, AeadAlgorithm);
 
 /// The default profile.
 pub static DEFAULT_PROFILE: LazyLock<Profile> = LazyLock::new(Profile::default);
@@ -62,8 +62,8 @@ impl Profile {
         self.settings.preferred_hash_algorithm
     }
 
-    pub fn message_aead_cipher_suite(&self) -> Option<CipherSuite> {
-        self.settings.preferred_aead_cipher_suite
+    pub fn message_aead_cipher_suite(&self) -> Option<Ciphersuite> {
+        self.settings.preferred_aead_ciphersuite
     }
 
     pub fn message_symmetric_algorithm(&self) -> SymmetricKeyAlgorithm {
@@ -115,7 +115,7 @@ impl Profile {
         self.settings.min_rsa_bits
     }
 
-    pub fn fallback_ciphersuite_for_key_length(&self, length: usize) -> Option<CipherSuite> {
+    pub fn fallback_ciphersuite_for_key_length(&self, length: usize) -> Option<Ciphersuite> {
         match length {
             16 => Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)),
             24 => Some((SymmetricKeyAlgorithm::AES192, AeadAlgorithm::Gcm)),

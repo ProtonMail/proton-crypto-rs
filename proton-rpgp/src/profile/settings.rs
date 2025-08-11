@@ -14,7 +14,7 @@ use pgp::{
 use super::{KeyGenerationProfile, KeyGenerationType};
 use crate::StringToKeyOption;
 
-use super::CipherSuite;
+use super::Ciphersuite;
 
 /// Preferred symmetric-key algorithms (in descending order of preference)
 pub const CANDIDATE_SYMMETRIC_KEY_ALGORITHMS: &[SymmetricKeyAlgorithm] =
@@ -77,10 +77,10 @@ pub struct ProfileSettings {
     /// The preferred hash algorithm for signatures.
     pub preferred_hash_algorithm: HashAlgorithm,
 
-    /// The preferred AEAD cipher suite for encryption, if any.
+    /// The preferred AEAD ciphersuite for encryption, if any.
     ///
     /// If this option is `None`, `SEIPDv1` will be enforced for encrpytion.
-    pub preferred_aead_cipher_suite: Option<CipherSuite>,
+    pub preferred_aead_ciphersuite: Option<Ciphersuite>,
 
     /// The preferred symmetric-key algorithm for encryption.
     pub preferred_symmetric_algorithm: SymmetricKeyAlgorithm,
@@ -138,7 +138,7 @@ impl Default for ProfileSettings {
             candidate_compression_algorithms: CANDIDATE_COMPRESSION_ALGORITHMS.to_vec(),
             candidate_aead_ciphersuites: CANDIDATE_AEAD_CIPHERSUITES.to_vec(),
             preferred_hash_algorithm: HashAlgorithm::Sha512,
-            preferred_aead_cipher_suite: None,
+            preferred_aead_ciphersuite: None,
             preferred_symmetric_algorithm: SymmetricKeyAlgorithm::AES256,
             preferred_compression: CompressionAlgorithm::Uncompressed,
             message_encryption_s2k_params: StringToKeyOption::IteratedAndSalted {
@@ -236,14 +236,14 @@ impl ProfileSettingsBuilder {
         self
     }
 
-    /// Sets the preferred AEAD cipher suite for AEAD encryption.
+    /// Sets the preferred AEAD ciphersuite for AEAD encryption.
     ///
     /// This is the (symmetric, AEAD) algorithm pair that will be preferred for AEAD encryption.
-    pub fn preferred_aead_cipher_suite(
+    pub fn preferred_aead_ciphersuite(
         mut self,
         suite: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
     ) -> Self {
-        self.settings.preferred_aead_cipher_suite = suite;
+        self.settings.preferred_aead_ciphersuite = suite;
         self
     }
 

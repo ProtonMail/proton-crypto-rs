@@ -14,7 +14,7 @@ use rand::{CryptoRng, Rng};
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    CipherSuite, ClonablePasswords, DataEncoding, EncryptionError, KeySelectionError, PrivateKey,
+    Ciphersuite, ClonablePasswords, DataEncoding, EncryptionError, KeySelectionError, PrivateKey,
     Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, SessionKey, Signer, UnixTime,
     DEFAULT_PROFILE,
 };
@@ -40,7 +40,7 @@ pub struct Encryptor<'a> {
     message_symmetric_algorithm: SymmetricKeyAlgorithm,
 
     /// Message AEAD cipher suite preference.
-    message_cipher_suite: Option<CipherSuite>,
+    message_cipher_suite: Option<Ciphersuite>,
 
     /// The internal signer to use for the signing part.
     signer: Signer<'a>,

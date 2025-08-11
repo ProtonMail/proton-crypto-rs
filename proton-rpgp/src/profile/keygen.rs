@@ -22,7 +22,7 @@ pub enum KeyGenerationType {
     #[default]
     ECC,
 
-    /// A PQC v6 signing (`ML-DSA`) and encryption key (`ML-KEM)`.
+    /// A PQC v6 signing (`ML-DSA`) and encryption key (`ML-KEM`).
     PQC,
 }
 
@@ -69,10 +69,10 @@ pub struct KeyGenerationProfile {
     pub preferred_compression_algorithms: SmallVec<[CompressionAlgorithm; 8]>,
 
     /// The preferred AEAD algorithms to use for the key generation.
-    pub preferred_aead_algorithms: SmallVec<[(SymmetricKeyAlgorithm, AeadAlgorithm); 4]>,
+    pub preferred_aead_ciphersuites: SmallVec<[(SymmetricKeyAlgorithm, AeadAlgorithm); 4]>,
 
     /// Whether to signal support for SEIPD v2.
-    pub seipd_v2: bool,
+    pub support_seipd_v2: bool,
 }
 
 impl Default for KeyGenerationProfile {
@@ -82,8 +82,8 @@ impl Default for KeyGenerationProfile {
             preferred_symmetric_algorithms: CANDIDATE_SYMMETRIC_KEY_ALGORITHMS.into(),
             preferred_hash_algorithms: KEY_PREFERRED_HASH_ALGORITHMS.into(),
             preferred_compression_algorithms: CANDIDATE_COMPRESSION_ALGORITHMS.into(),
-            preferred_aead_algorithms: SmallVec::new(),
-            seipd_v2: false,
+            preferred_aead_ciphersuites: SmallVec::new(),
+            support_seipd_v2: false,
         }
     }
 }
@@ -97,9 +97,9 @@ impl KeyGenerationProfile {
             .preferred_symmetric_algorithms(self.preferred_symmetric_algorithms)
             .preferred_hash_algorithms(self.preferred_hash_algorithms)
             .preferred_compression_algorithms(self.preferred_compression_algorithms)
-            .preferred_aead_algorithms(self.preferred_aead_algorithms)
+            .preferred_aead_algorithms(self.preferred_aead_ciphersuites)
             .feature_seipd_v1(true)
-            .feature_seipd_v2(self.seipd_v2);
+            .feature_seipd_v2(self.support_seipd_v2);
     }
 }
 
@@ -149,12 +149,12 @@ impl KeyGenerationProfileBuilder {
         mut self,
         aeads: impl Into<SmallVec<[(SymmetricKeyAlgorithm, AeadAlgorithm); 4]>>,
     ) -> Self {
-        self.profile.preferred_aead_algorithms = aeads.into();
+        self.profile.preferred_aead_ciphersuites = aeads.into();
         self
     }
 
     pub fn seipd_v2(mut self, seipd_v2: bool) -> Self {
-        self.profile.seipd_v2 = seipd_v2;
+        self.profile.support_seipd_v2 = seipd_v2;
         self
     }
 

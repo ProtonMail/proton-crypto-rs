@@ -296,7 +296,7 @@ pub fn encrypt_session_key_v6_seipdv2() {
 
     let profile = Profile::new(
         ProfileSettingsBuilder::new()
-            .preferred_aead_cipher_suite(Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)))
+            .preferred_aead_ciphersuite(Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)))
             .build(),
     );
 
@@ -350,7 +350,7 @@ pub fn encrypt_session_key_passphrase_seipdv2() {
 
     let profile = Profile::new(
         ProfileSettingsBuilder::new()
-            .preferred_aead_cipher_suite(Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)))
+            .preferred_aead_ciphersuite(Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)))
             .build(),
     );
 

@@ -29,13 +29,13 @@ pub enum StringToKeyOption {
         /// The AEAD algorithm to use for encryption.
         aead_mode: AeadAlgorithm,
 
-        /// Arogn2 param one-octet number of passes t
+        /// Argon2 param one-octet number of passes t
         t: u8,
 
-        /// Arogn2 param one-octet degree of parallelism p
+        /// Argon2 param one-octet degree of parallelism p
         p: u8,
 
-        ///Arogn2 param one-octet `encoded_m`, specifying the exponent of the memory size
+        /// Argon2 param one-octet `encoded_m`, specifying the exponent of the memory size
         m_enc: u8,
     },
 }

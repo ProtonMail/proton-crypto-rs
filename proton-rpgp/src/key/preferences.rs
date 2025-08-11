@@ -4,7 +4,7 @@ use pgp::{
     types::{CompressionAlgorithm, PublicParams},
 };
 
-use crate::{CipherSuite, PrivateComponentKey, Profile, PublicComponentKey};
+use crate::{Ciphersuite, PrivateComponentKey, Profile, PublicComponentKey};
 
 const HASH_ALGORITHMS_MID: &[HashAlgorithm] = &[
     HashAlgorithm::Sha512,
@@ -30,7 +30,7 @@ pub(crate) struct RecipientsAlgorithms {
     pub aead_ciphersuite: Option<(SymmetricKeyAlgorithm, AeadAlgorithm)>,
 
     /// Whether the recipients support AEAD (SEIPD v2) encryption.
-    pub aead_support: bool,
+    pub support_seipdv2: bool,
 }
 
 /// The encryption mechanism to use by the encryptor.
@@ -43,7 +43,7 @@ pub enum EncryptionMechanism {
 impl RecipientsAlgorithms {
     pub fn select(
         message_symmetric_algorithm: SymmetricKeyAlgorithm,
-        message_cipher_suite: Option<CipherSuite>,
+        message_cipher_suite: Option<Ciphersuite>,
         message_compression: CompressionAlgorithm,
         keys: &[PublicComponentKey<'_>],
         profile: &Profile,
@@ -121,12 +121,12 @@ impl RecipientsAlgorithms {
             compression_algorithm,
             symmetric_algorithm,
             aead_ciphersuite: aead_algorithm,
-            aead_support,
+            support_seipdv2: aead_support,
         }
     }
 
     pub fn encryption_mechanism(&self) -> EncryptionMechanism {
-        match (self.aead_support, self.aead_ciphersuite) {
+        match (self.support_seipdv2, self.aead_ciphersuite) {
             (true, Some((symmetric_algorithm, aead_algorithm))) => {
                 EncryptionMechanism::SeipdV2(symmetric_algorithm, aead_algorithm)
             }
