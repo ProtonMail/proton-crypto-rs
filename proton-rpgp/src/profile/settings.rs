@@ -17,11 +17,11 @@ use crate::StringToKeyOption;
 use super::Ciphersuite;
 
 /// Preferred symmetric-key algorithms (in descending order of preference)
-pub const CANDIDATE_SYMMETRIC_KEY_ALGORITHMS: &[SymmetricKeyAlgorithm] =
+pub const PREFERRED_SYMMETRIC_KEY_ALGORITHMS: &[SymmetricKeyAlgorithm] =
     &[SymmetricKeyAlgorithm::AES256, SymmetricKeyAlgorithm::AES128];
 
 /// Preferred AEAD algorithms (in descending order of preference)
-pub const CANDIDATE_AEAD_CIPHERSUITES: &[(SymmetricKeyAlgorithm, AeadAlgorithm)] = &[
+pub const PREFERRED_AEAD_CIPHERSUITES: &[(SymmetricKeyAlgorithm, AeadAlgorithm)] = &[
     (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Gcm),
     (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Ocb),
     (SymmetricKeyAlgorithm::AES256, AeadAlgorithm::Eax),
@@ -31,14 +31,14 @@ pub const CANDIDATE_AEAD_CIPHERSUITES: &[(SymmetricKeyAlgorithm, AeadAlgorithm)]
 ];
 
 /// Preferred hash algorithms (in descending order of preference)
-pub const CANDIDATE_HASH_ALGORITHMS: &[HashAlgorithm] = &[
+pub const PREFERRED_HASH_ALGORITHMS: &[HashAlgorithm] = &[
     HashAlgorithm::Sha512,
     HashAlgorithm::Sha256,
     HashAlgorithm::Sha3_512,
     HashAlgorithm::Sha3_256,
 ];
 
-pub const CANDIDATE_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
+pub const PREFERRED_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
     CompressionAlgorithm::Uncompressed,
     CompressionAlgorithm::ZLIB,
     CompressionAlgorithm::ZIP,
@@ -132,10 +132,10 @@ pub struct ProfileSettings {
 impl Default for ProfileSettings {
     fn default() -> Self {
         Self {
-            candidate_hash_algorithms: CANDIDATE_HASH_ALGORITHMS.to_vec(),
-            candidate_symmetric_key_algorithms: CANDIDATE_SYMMETRIC_KEY_ALGORITHMS.to_vec(),
-            candidate_compression_algorithms: CANDIDATE_COMPRESSION_ALGORITHMS.to_vec(),
-            candidate_aead_ciphersuites: CANDIDATE_AEAD_CIPHERSUITES.to_vec(),
+            candidate_hash_algorithms: PREFERRED_HASH_ALGORITHMS.to_vec(),
+            candidate_symmetric_key_algorithms: PREFERRED_SYMMETRIC_KEY_ALGORITHMS.to_vec(),
+            candidate_compression_algorithms: PREFERRED_COMPRESSION_ALGORITHMS.to_vec(),
+            candidate_aead_ciphersuites: PREFERRED_AEAD_CIPHERSUITES.to_vec(),
             preferred_hash_algorithm: HashAlgorithm::Sha512,
             preferred_aead_ciphersuite: None,
             preferred_symmetric_algorithm: SymmetricKeyAlgorithm::AES256,
