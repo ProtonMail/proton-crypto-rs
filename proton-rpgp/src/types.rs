@@ -262,9 +262,9 @@ impl From<SignatureMode> for pgp::packet::SignatureType {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct ClonablePasswords(pub(crate) Vec<Password>);
+pub(crate) struct CloneablePasswords(pub(crate) Vec<Password>);
 
-impl Clone for ClonablePasswords {
+impl Clone for CloneablePasswords {
     fn clone(&self) -> Self {
         let passwords: Vec<_> = self
             .0
@@ -275,7 +275,7 @@ impl Clone for ClonablePasswords {
     }
 }
 
-impl Deref for ClonablePasswords {
+impl Deref for CloneablePasswords {
     type Target = Vec<Password>;
 
     fn deref(&self) -> &Self::Target {
@@ -283,7 +283,7 @@ impl Deref for ClonablePasswords {
     }
 }
 
-impl From<Vec<Password>> for ClonablePasswords {
+impl From<Vec<Password>> for CloneablePasswords {
     fn from(value: Vec<Password>) -> Self {
         Self(value)
     }

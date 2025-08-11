@@ -14,7 +14,7 @@ use rand::{CryptoRng, Rng};
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    Ciphersuite, ClonablePasswords, DataEncoding, EncryptionError, KeySelectionError, PrivateKey,
+    Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError, KeySelectionError, PrivateKey,
     Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, SessionKey, Signer, UnixTime,
     DEFAULT_PROFILE,
 };
@@ -28,7 +28,7 @@ pub struct Encryptor<'a> {
     encryption_keys: Vec<&'a PublicKey>,
 
     /// The passphrases to encrypt the message with.
-    passphrases: ClonablePasswords,
+    passphrases: CloneablePasswords,
 
     /// The session keys to use.
     session_key: Option<SessionKey>,
@@ -51,7 +51,7 @@ impl<'a> Encryptor<'a> {
     pub fn new(profile: Profile) -> Self {
         Self {
             encryption_keys: Vec::new(),
-            passphrases: ClonablePasswords::default(),
+            passphrases: CloneablePasswords::default(),
             session_key: None,
             message_compression: profile.message_compression(),
             message_symmetric_algorithm: profile.message_symmetric_algorithm(),

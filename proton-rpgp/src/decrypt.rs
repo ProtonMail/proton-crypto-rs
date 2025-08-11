@@ -5,7 +5,7 @@ use pgp::{
 };
 
 use crate::{
-    armor, ClonablePasswords, DataEncoding, DecryptionError, PrivateKey, Profile, PublicKey,
+    armor, CloneablePasswords, DataEncoding, DecryptionError, PrivateKey, Profile, PublicKey,
     SessionKey, UnixTime, VerifiedData, Verifier, DEFAULT_PROFILE,
 };
 
@@ -19,7 +19,7 @@ pub struct Decryptor<'a> {
     decryption_keys: Vec<&'a PrivateKey>,
 
     /// The passphrases to decrypt the message with.
-    passphrases: ClonablePasswords,
+    passphrases: CloneablePasswords,
 
     /// The session keys to decrypt the message with.
     session_keys: Vec<&'a SessionKey>,
@@ -33,7 +33,7 @@ impl<'a> Decryptor<'a> {
     pub fn new(profile: Profile) -> Self {
         Self {
             decryption_keys: Vec::new(),
-            passphrases: ClonablePasswords::default(),
+            passphrases: CloneablePasswords::default(),
             session_keys: Vec::new(),
             verifier: Verifier::new(profile),
         }
