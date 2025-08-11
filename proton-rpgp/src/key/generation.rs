@@ -90,7 +90,7 @@ impl KeyGenerator {
     /// ```
     pub fn generate(self) -> Result<PrivateKey, KeyGenerationError> {
         let mut rng = self.profile.rng();
-        let key_generation_options = self.profile.key_generation_options(self.algorithm);
+        let key_generation_options = self.algorithm.key_generation_profile();
 
         let subkey = SubkeyParamsBuilder::default()
             .version(key_generation_options.key_version)

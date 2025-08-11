@@ -7,19 +7,10 @@ use pgp::{
 };
 use smallvec::SmallVec;
 
-const KEY_PREFERRED_SYMMETRIC_KEY_ALGORITHMS: &[SymmetricKeyAlgorithm] =
-    &[SymmetricKeyAlgorithm::AES256, SymmetricKeyAlgorithm::AES128];
+use crate::{CANDIDATE_COMPRESSION_ALGORITHMS, CANDIDATE_SYMMETRIC_KEY_ALGORITHMS};
 
 const KEY_PREFERRED_HASH_ALGORITHMS: &[HashAlgorithm] =
     &[HashAlgorithm::Sha256, HashAlgorithm::Sha512];
-
-const KEY_PREFERRED_AEAD_ALGORITHMS: &[(SymmetricKeyAlgorithm, AeadAlgorithm)] = &[];
-
-const KEY_PREFERRED_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
-    CompressionAlgorithm::Uncompressed,
-    CompressionAlgorithm::ZLIB,
-    CompressionAlgorithm::ZIP,
-];
 
 /// The algorithm type to use for the key generation.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -36,6 +27,14 @@ pub enum KeyGenerationType {
 }
 
 impl KeyGenerationType {
+    pub(crate) fn primary_key_type(self) -> KeyType {
+        match self {
+            KeyGenerationType::RSA => KeyType::Rsa(4096),
+            KeyGenerationType::ECC => KeyType::Ed25519Legacy,
+            KeyGenerationType::PQC => KeyType::MlDsa65Ed25519,
+        }
+    }
+
     pub(crate) fn encryption_key_type(self) -> KeyType {
         match self {
             KeyGenerationType::RSA => KeyType::Rsa(4096),
@@ -44,11 +43,12 @@ impl KeyGenerationType {
         }
     }
 
-    pub(crate) fn primary_key_type(self) -> KeyType {
+    pub(crate) fn key_generation_profile(self) -> KeyGenerationProfile {
         match self {
-            KeyGenerationType::RSA => KeyType::Rsa(4096),
-            KeyGenerationType::ECC => KeyType::Ed25519Legacy,
-            KeyGenerationType::PQC => KeyType::MlDsa65Ed25519,
+            KeyGenerationType::RSA | KeyGenerationType::ECC => KeyGenerationProfile::default(),
+            KeyGenerationType::PQC => KeyGenerationProfileBuilder::default()
+                .key_version(KeyVersion::V6)
+                .build(),
         }
     }
 }
@@ -79,10 +79,10 @@ impl Default for KeyGenerationProfile {
     fn default() -> Self {
         Self {
             key_version: KeyVersion::V4,
-            preferred_symmetric_algorithms: KEY_PREFERRED_SYMMETRIC_KEY_ALGORITHMS.into(),
+            preferred_symmetric_algorithms: CANDIDATE_SYMMETRIC_KEY_ALGORITHMS.into(),
             preferred_hash_algorithms: KEY_PREFERRED_HASH_ALGORITHMS.into(),
-            preferred_compression_algorithms: KEY_PREFERRED_COMPRESSION_ALGORITHMS.into(),
-            preferred_aead_algorithms: KEY_PREFERRED_AEAD_ALGORITHMS.into(),
+            preferred_compression_algorithms: CANDIDATE_COMPRESSION_ALGORITHMS.into(),
+            preferred_aead_algorithms: SmallVec::new(),
             seipd_v2: false,
         }
     }

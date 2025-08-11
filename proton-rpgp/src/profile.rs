@@ -135,14 +135,6 @@ impl Profile {
             .message_encryption_s2k_params
             .generate_s2k_params(self.rng())
     }
-
-    pub fn key_generation_options(&self, algorithm: KeyGenerationType) -> KeyGenerationProfile {
-        self.settings
-            .key_generation_for_type
-            .get(&algorithm)
-            .cloned()
-            .unwrap_or_default()
-    }
 }
 
 impl Default for Profile {

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use pgp::{
     crypto::{
@@ -8,11 +8,11 @@ use pgp::{
         public_key::PublicKeyAlgorithm,
         sym::SymmetricKeyAlgorithm,
     },
-    types::{CompressionAlgorithm, KeyVersion},
+    types::CompressionAlgorithm,
 };
 
 use super::{KeyGenerationProfile, KeyGenerationType};
-use crate::{KeyGenerationProfileBuilder, StringToKeyOption};
+use crate::StringToKeyOption;
 
 use super::CipherSuite;
 
@@ -41,8 +41,8 @@ pub const CANDIDATE_HASH_ALGORITHMS: &[HashAlgorithm] = &[
 
 pub const CANDIDATE_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
     CompressionAlgorithm::Uncompressed,
-    CompressionAlgorithm::ZIP,
     CompressionAlgorithm::ZLIB,
+    CompressionAlgorithm::ZIP,
 ];
 
 pub type KeyGenerationForType = Box<dyn Fn(KeyGenerationType) -> KeyGenerationProfile>;
@@ -123,9 +123,6 @@ pub struct ProfileSettings {
     /// Minimum number of bits required for RSA keys.
     pub min_rsa_bits: usize,
 
-    /// Mapping from key generation type to the corresponding key generation profile.
-    pub key_generation_for_type: HashMap<KeyGenerationType, KeyGenerationProfile>,
-
     /// Maximum allowed recursion depth for parsing or processing.
     pub max_recursion_depth: usize,
 
@@ -168,16 +165,6 @@ impl Default for ProfileSettings {
             ],
             rejected_ecc_curves: vec![ECCCurve::Secp256k1],
             min_rsa_bits: 1023,
-            key_generation_for_type: HashMap::from([
-                (KeyGenerationType::RSA, KeyGenerationProfile::default()),
-                (KeyGenerationType::ECC, KeyGenerationProfile::default()),
-                (
-                    KeyGenerationType::PQC,
-                    KeyGenerationProfileBuilder::new()
-                        .key_version(KeyVersion::V6)
-                        .build(),
-                ),
-            ]),
             max_recursion_depth: 8,
             ignore_key_flags: false,
             known_notation_names: HashSet::new(),
@@ -349,17 +336,6 @@ impl ProfileSettingsBuilder {
     /// RSA keys with fewer bits than this value will be rejected.
     pub fn min_rsa_bits(mut self, bits: usize) -> Self {
         self.settings.min_rsa_bits = bits;
-        self
-    }
-
-    /// Sets the key generation profiles for each key type.
-    ///
-    /// This map determines the key generation profile to use for each key type.
-    pub fn key_generation_for_type<I>(mut self, map: I) -> Self
-    where
-        I: IntoIterator<Item = (KeyGenerationType, KeyGenerationProfile)>,
-    {
-        self.settings.key_generation_for_type = map.into_iter().collect();
         self
     }
 
