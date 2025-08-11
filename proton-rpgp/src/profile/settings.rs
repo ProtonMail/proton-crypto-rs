@@ -34,7 +34,6 @@ pub const CANDIDATE_AEAD_CIPHERSUITES: &[(SymmetricKeyAlgorithm, AeadAlgorithm)]
 pub const CANDIDATE_HASH_ALGORITHMS: &[HashAlgorithm] = &[
     HashAlgorithm::Sha512,
     HashAlgorithm::Sha256,
-    HashAlgorithm::Sha384,
     HashAlgorithm::Sha3_512,
     HashAlgorithm::Sha3_256,
 ];
