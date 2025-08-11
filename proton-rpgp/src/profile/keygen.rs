@@ -9,8 +9,12 @@ use smallvec::SmallVec;
 
 use crate::{CANDIDATE_COMPRESSION_ALGORITHMS, CANDIDATE_SYMMETRIC_KEY_ALGORITHMS};
 
-const KEY_PREFERRED_HASH_ALGORITHMS: &[HashAlgorithm] =
-    &[HashAlgorithm::Sha256, HashAlgorithm::Sha512];
+const KEY_PREFERRED_HASH_ALGORITHMS: &[HashAlgorithm] = &[
+    HashAlgorithm::Sha512,
+    HashAlgorithm::Sha256,
+    HashAlgorithm::Sha3_512,
+    HashAlgorithm::Sha3_256,
+];
 
 /// The algorithm type to use for the key generation.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
