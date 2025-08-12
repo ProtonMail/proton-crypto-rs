@@ -10,7 +10,7 @@ use crate::{
         VerificationError, VerificationResult, VerificationResultCreator, VerifiedSignature,
     },
     DataEncoding, MessageProcessingError, MessageVerificationExt, Profile, PublicKey, UnixTime,
-    VerificationInput, VerifyMessageError, DEFAULT_PROFILE,
+    VerificationContext, VerificationInput, VerifyMessageError, DEFAULT_PROFILE,
 };
 
 /// Verifier type to verify `OpenPGP` signatures.
@@ -28,6 +28,9 @@ pub struct Verifier<'a> {
     /// Whether to sanitize the output plaintext from canonicalized line endings
     /// and check that the output is utf-8 encoded.
     pub(crate) native_newlines_utf8: bool,
+
+    /// The verification context to use for verifying message signatures.
+    pub(crate) verification_context: Option<VerificationContext>,
 }
 
 impl<'a> Verifier<'a> {
@@ -37,6 +40,7 @@ impl<'a> Verifier<'a> {
             profile,
             verification_keys: Vec::new(),
             date: UnixTime::now().unwrap_or_default(),
+            verification_context: None,
             native_newlines_utf8: false,
         }
     }
@@ -50,6 +54,14 @@ impl<'a> Verifier<'a> {
     /// Set the verification keys to use.
     pub fn with_verification_keys(mut self, keys: impl IntoIterator<Item = &'a PublicKey>) -> Self {
         self.verification_keys.extend(keys);
+        self
+    }
+
+    /// Allows to specify the expected application context of a signature.
+    ///
+    /// The [`VerificationContext`] encodes how the signature context should be checked.
+    pub fn with_verification_context(mut self, context: VerificationContext) -> Self {
+        self.verification_context = Some(context);
         self
     }
 
@@ -154,6 +166,7 @@ impl<'a> Verifier<'a> {
                     signature,
                     &self.verification_keys,
                     VerificationInput::Data(data.as_ref()),
+                    self.verification_context.as_ref(),
                     &self.profile,
                 )
             })
@@ -213,6 +226,7 @@ impl<'a> Verifier<'a> {
                     signature.signature.clone(),
                     &self.verification_keys,
                     VerificationInput::Data(signed_data.as_ref()),
+                    self.verification_context.as_ref(),
                     &self.profile,
                 )
             })
@@ -248,6 +262,7 @@ impl<'a> Verifier<'a> {
         let verified_signatures = message.verify_nested_to_verified_signatures(
             self.date,
             &self.verification_keys,
+            self.verification_context.as_ref(),
             &self.profile,
         )?;
 

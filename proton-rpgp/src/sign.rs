@@ -16,7 +16,7 @@ use crate::{
     core::signature_subpackets,
     preferences::{self, RecipientsAlgorithms},
     DataEncoding, KeySelectionError, PrivateComponentKey, PrivateKey, PrivateKeySelectionExt,
-    Profile, SignError, SignatureMode, SignatureUsage, UnixTime, DEFAULT_PROFILE,
+    Profile, SignError, SignatureContext, SignatureMode, SignatureUsage, UnixTime, DEFAULT_PROFILE,
 };
 
 /// A signer that can create `OpenPGP` signatures over data.
@@ -35,6 +35,9 @@ pub struct Signer<'a> {
     ///
     /// Either binary or text.
     pub(crate) signature_type: SignatureMode,
+
+    /// The signature context to use for the message signatures.
+    pub(crate) signature_context: Option<SignatureContext>,
 }
 
 impl<'a> Signer<'a> {
@@ -45,6 +48,7 @@ impl<'a> Signer<'a> {
             signing_keys: Vec::new(),
             date: UnixTime::now().unwrap_or_default(),
             signature_type: SignatureMode::default(),
+            signature_context: None,
         }
     }
 
@@ -65,6 +69,12 @@ impl<'a> Signer<'a> {
     /// Sets the date to use for the signatures.
     pub fn at_date(mut self, date: UnixTime) -> Self {
         self.date = date;
+        self
+    }
+
+    /// Sets the application signature context to use for the message signatures.
+    pub fn with_signature_context(mut self, context: SignatureContext) -> Self {
+        self.signature_context = Some(context);
         self
     }
 
@@ -163,6 +173,7 @@ impl<'a> Signer<'a> {
                         self.date,
                         self.signature_type,
                         hash_algorithm,
+                        self.signature_context.as_ref(),
                         &self.profile,
                     )
                     .map(StandaloneSignature::new)
@@ -223,6 +234,7 @@ impl<'a> Signer<'a> {
                             self.date,
                             SignatureMode::Text,
                             *hash_algorithm,
+                            self.signature_context.as_ref(),
                             &self.profile,
                         )
                         .map_err(|err| pgp::errors::Error::Message {
@@ -302,6 +314,7 @@ impl<'a> Signer<'a> {
                 &signing_key.private_key,
                 self.date,
                 hash_algorithm,
+                self.signature_context.as_ref(),
                 &mut rng,
             )?;
             message_builder.sign_with_subpackets(

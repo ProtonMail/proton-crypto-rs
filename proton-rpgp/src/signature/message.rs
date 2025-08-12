@@ -1,9 +1,14 @@
-use pgp::{composed::Message, packet::Signature, types::KeyId};
+use pgp::{
+    composed::Message,
+    packet::{Signature, Subpacket, SubpacketData},
+    types::KeyId,
+};
 
 use crate::{
     check_signature_details, types::UnixTime, AsPublicKeyRef, GenericKeyIdentifierList, KeyInfo,
     MessageProcessingError, MessageSignatureError, Profile, PublicComponentKey,
-    PublicKeySelectionExt, SignatureError, SignatureExt, SignatureUsage, ERROR_PREFIX,
+    PublicKeySelectionExt, SignatureContextError, SignatureError, SignatureExt, SignatureUsage,
+    VerificationContext, ERROR_PREFIX,
 };
 
 /// The result of verifying signature in an `OpenPGP` message.
@@ -122,6 +127,7 @@ impl VerifiedSignature {
         signature: Signature,
         with_public_keys: &[impl AsPublicKeyRef],
         data_to_verify: VerificationInput<'_>,
+        context: Option<&VerificationContext>,
         profile: &Profile,
     ) -> Self {
         // Select the verification keys from the list of public keys.
@@ -146,9 +152,13 @@ impl VerifiedSignature {
         for candidate in verification_candidates {
             verification_result = match data_to_verify {
                 VerificationInput::Message(message) => candidate
-                    .verify_message_signature_with_message(date, &signature, message, profile),
+                    .verify_message_signature_with_message(
+                        date, &signature, message, context, profile,
+                    ),
                 VerificationInput::Data(input_data) => candidate
-                    .verify_message_signature_with_data(date, &signature, input_data, profile),
+                    .verify_message_signature_with_data(
+                        date, &signature, input_data, context, profile,
+                    ),
             };
             if verification_result.is_ok() {
                 verified_by = Some(candidate.into());
@@ -217,6 +227,13 @@ impl VerifiedSignature {
                 self.signature.issuer_generic_identifier().into(),
                 err.to_string(),
             )),
+            Err(MessageSignatureError::Context(err)) => Err(VerificationError::BadContext(
+                Box::new(VerificationInformation::new(
+                    self.signature,
+                    self.verified_by,
+                )),
+                err.to_string(),
+            )),
         }
     }
 }
@@ -226,12 +243,13 @@ pub(crate) fn check_message_signature_details(
     date: UnixTime,
     signature: &Signature,
     selected_key: &PublicComponentKey<'_>,
+    context: Option<&VerificationContext>,
     profile: &Profile,
-) -> Result<(), SignatureError> {
+) -> Result<(), MessageSignatureError> {
     // Check the used message hash algorithm, might reject more than in the
     // default rejection.
     if profile.reject_message_hash_algorithm(signature.hash_alg()) {
-        return Err(SignatureError::InvalidHash(signature.hash_alg()));
+        return Err(SignatureError::InvalidHash(signature.hash_alg()).into());
     }
     // Check the signature details of the signature.
     check_signature_details(signature, date, profile)?;
@@ -243,7 +261,35 @@ pub(crate) fn check_message_signature_details(
         return Err(SignatureError::SignatureOlderThanKey {
             signature_date: signature_creation_time,
             key_date: key_creation_time,
-        });
+        }
+        .into());
+    }
+
+    let Some(config) = signature.config() else {
+        return Err(SignatureError::ConfigAccess.into());
+    };
+
+    // Check the Proton signature context.
+    if let Some(verification_context) = context {
+        // If there is a verification context, we check if signature notations match the verification context.
+        verification_context.check_subpackets(&config.hashed_subpackets, date)?;
+    } else if let Some(criticial_context) =
+        // If there is no verification context, we check if there is a critical Proton context in the notations.
+        VerificationContext::filter_context(
+            &config.hashed_subpackets,
+        )
+        .find_map(|subpacket| match subpacket {
+            Subpacket {
+                is_critical: true,
+                data: SubpacketData::Notation(notation),
+                ..
+            } => Some(String::from_utf8_lossy(notation.value.as_ref()).to_string()),
+            _ => None,
+        })
+    {
+        return Err(MessageSignatureError::Context(
+            SignatureContextError::CriticialContext(criticial_context),
+        ));
     }
 
     // Check key signatures details at the signature creation time.
@@ -266,6 +312,7 @@ pub(crate) trait MessageVerificationExt {
         &self,
         date: UnixTime,
         keys: &[impl AsPublicKeyRef],
+        context: Option<&VerificationContext>,
         profile: &Profile,
     ) -> Result<Vec<VerifiedSignature>, MessageProcessingError>;
 }
@@ -276,6 +323,7 @@ impl MessageVerificationExt for Message<'_> {
         &self,
         date: UnixTime,
         keys: &[impl AsPublicKeyRef],
+        context: Option<&VerificationContext>,
         profile: &Profile,
     ) -> Result<Vec<VerifiedSignature>, MessageProcessingError> {
         let mut verification_results = Vec::new();
@@ -293,6 +341,7 @@ impl MessageVerificationExt for Message<'_> {
                         signature.clone(),
                         keys,
                         VerificationInput::Message(current_message),
+                        context,
                         profile,
                     );
                     verification_results.push(result);
@@ -305,6 +354,7 @@ impl MessageVerificationExt for Message<'_> {
                         signature.clone(),
                         keys,
                         VerificationInput::Message(current_message),
+                        context,
                         profile,
                     );
                     verification_results.push(result);

@@ -12,7 +12,8 @@ use pgp::{
 
 use crate::{
     core, signature::check_message_signature_details, MessageSignatureError, PkeskDecryptionError,
-    Profile, SignError, SignatureError, SignatureMode, UnixTime,
+    Profile, SignError, SignatureContext, SignatureError, SignatureMode, UnixTime,
+    VerificationContext,
 };
 
 /// Represents a view on a selected public component key in an `OpenPGP` key.
@@ -54,13 +55,13 @@ impl<'a> PublicComponentKey<'a> {
         date: UnixTime,
         signature: &Signature,
         data_to_verify: R,
+        context: Option<&VerificationContext>,
         profile: &Profile,
     ) -> Result<(), MessageSignatureError> {
         signature
             .verify(&self.public_key, data_to_verify)
             .map_err(|err| MessageSignatureError::Failed(SignatureError::Verification(err)))?;
-        check_message_signature_details(date, signature, self, profile)
-            .map_err(MessageSignatureError::Failed)
+        check_message_signature_details(date, signature, self, context, profile)
     }
 
     pub fn verify_message_signature_with_message(
@@ -68,13 +69,13 @@ impl<'a> PublicComponentKey<'a> {
         date: UnixTime,
         signature: &Signature,
         message: &Message<'_>,
+        context: Option<&VerificationContext>,
         profile: &Profile,
     ) -> Result<(), MessageSignatureError> {
         message
             .verify(&self.public_key)
             .map_err(|err| MessageSignatureError::Failed(SignatureError::Verification(err)))?;
-        check_message_signature_details(date, signature, self, profile)
-            .map_err(MessageSignatureError::Failed)
+        check_message_signature_details(date, signature, self, context, profile)
     }
 
     /// Get the unix creation time of the public component key.
@@ -122,6 +123,7 @@ impl<'a> PrivateComponentKey<'a> {
         at_date: UnixTime,
         signature_mode: SignatureMode,
         hash_algorithm: HashAlgorithm,
+        signature_context: Option<&SignatureContext>,
         profile: &Profile,
     ) -> Result<Signature, SignError> {
         let config = core::configure_signature(
@@ -129,6 +131,7 @@ impl<'a> PrivateComponentKey<'a> {
             at_date,
             signature_mode,
             hash_algorithm,
+            signature_context,
             profile.rng(),
         )?;
 

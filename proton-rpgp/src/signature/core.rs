@@ -6,7 +6,7 @@ use pgp::{
 };
 use rand::{CryptoRng, Rng};
 
-use crate::{types::UnixTime, AnySecretKey, SignError, SignatureMode};
+use crate::{types::UnixTime, AnySecretKey, SignError, SignatureContext, SignatureMode};
 
 const SALT_NOTATION_NAME: &[u8] = b"salt@notations.openpgpjs.org";
 
@@ -18,6 +18,7 @@ pub fn configure_signature<R: Rng + CryptoRng>(
     at_date: UnixTime,
     signature_mode: SignatureMode,
     hash_algorithm: HashAlgorithm,
+    signature_context: Option<&SignatureContext>,
     mut rng: R,
 ) -> Result<SignatureConfig, SignError> {
     // Create a signature config based on the key version and hash algorithm.
@@ -37,8 +38,13 @@ pub fn configure_signature<R: Rng + CryptoRng>(
         .map_err(SignError::Sign)?,
         _ => return Err(SignError::InvalidKeyVersion),
     };
-    let (hashed_subpackets, unhashed_subpackets) =
-        signature_subpackets(private_key, at_date, hash_algorithm, &mut rng)?;
+    let (hashed_subpackets, unhashed_subpackets) = signature_subpackets(
+        private_key,
+        at_date,
+        hash_algorithm,
+        signature_context,
+        &mut rng,
+    )?;
     config.hashed_subpackets = hashed_subpackets;
     config.unhashed_subpackets = unhashed_subpackets;
     Ok(config)
@@ -48,6 +54,7 @@ pub fn signature_subpackets<R: Rng + CryptoRng>(
     private_key: &AnySecretKey<'_>,
     at_date: UnixTime,
     hash_algorithm: HashAlgorithm,
+    signature_context: Option<&SignatureContext>,
     mut rng: R,
 ) -> Result<(Vec<Subpacket>, Vec<Subpacket>), SignError> {
     let mut hashed_subpackets = Vec::with_capacity(4);
@@ -78,6 +85,18 @@ pub fn signature_subpackets<R: Rng + CryptoRng>(
                 .map_err(SignError::Sign)?,
         );
     }
+
+    // Add the signature context if any.
+    if let Some(signature_context) = signature_context {
+        let notation = SubpacketData::Notation(Notation::from(signature_context.clone()));
+        let subpacket_result = if signature_context.is_critical {
+            Subpacket::critical(notation)
+        } else {
+            Subpacket::regular(notation)
+        };
+        hashed_subpackets.push(subpacket_result.map_err(SignError::Sign)?);
+    }
+
     Ok((hashed_subpackets, Vec::new()))
 }
 

@@ -15,8 +15,8 @@ use rand::{CryptoRng, Rng};
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
     Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError, KeySelectionError, PrivateKey,
-    Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, SessionKey, Signer, UnixTime,
-    DEFAULT_PROFILE,
+    Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, SessionKey, SignatureContext,
+    Signer, UnixTime, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -117,6 +117,12 @@ impl<'a> Encryptor<'a> {
     /// Prefer letting the library generate a secure session key unless you have a specific, well-understood use case.
     pub fn with_session_key(mut self, key: &SessionKey) -> Self {
         self.session_key = Some(key.clone());
+        self
+    }
+
+    /// Sets the application signature context to use for the message signatures.
+    pub fn with_signature_context(mut self, context: SignatureContext) -> Self {
+        self.signer = self.signer.with_signature_context(context);
         self
     }
 

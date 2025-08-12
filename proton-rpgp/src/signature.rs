@@ -12,6 +12,9 @@ pub use message::*;
 mod text;
 pub(crate) use text::*;
 
+mod context;
+pub use context::*;
+
 pub(crate) mod core;
 
 pub(crate) trait SignatureExt {

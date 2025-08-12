@@ -6,7 +6,7 @@ use pgp::{
 
 use crate::{
     armor, CloneablePasswords, DataEncoding, DecryptionError, PrivateKey, Profile, PublicKey,
-    SessionKey, UnixTime, VerifiedData, Verifier, DEFAULT_PROFILE,
+    SessionKey, UnixTime, VerificationContext, VerifiedData, Verifier, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -89,6 +89,14 @@ impl<'a> Decryptor<'a> {
     /// Adds multiple session keys to the decryptor to decrypt the message with.
     pub fn with_session_keys(mut self, keys: impl IntoIterator<Item = &'a SessionKey>) -> Self {
         self.session_keys.extend(keys);
+        self
+    }
+
+    /// Allows to specify the expected application context of message signatures.
+    ///
+    /// The [`VerificationContext`] encodes how the signature context should be checked.
+    pub fn with_verification_context(mut self, context: VerificationContext) -> Self {
+        self.verifier = self.verifier.with_verification_context(context);
         self
     }
 

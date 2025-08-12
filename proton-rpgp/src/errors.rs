@@ -7,7 +7,10 @@ use pgp::{
     types::{KeyId, PkeskVersion},
 };
 
-use crate::{types::UnixTime, GenericKeyIdentifier, GenericKeyIdentifierList, PrettyKeyFlags};
+use crate::{
+    types::UnixTime, GenericKeyIdentifier, GenericKeyIdentifierList, PrettyKeyFlags,
+    VerificationContext,
+};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -89,12 +92,30 @@ pub enum SignatureError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum SignatureContextError {
+    #[error("Signature context is required but is not provided: {0}")]
+    MissingContext(VerificationContext),
+
+    #[error("Signature context {0} does not match the verification context: {0}")]
+    WrongContext(String, VerificationContext),
+
+    #[error("Signature has multiple context notations: {0:?}")]
+    MultipleContexts(Vec<String>),
+
+    #[error("Signature contains a critical context \"{0}\", but no matching verification context was provided")]
+    CriticialContext(String),
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum MessageSignatureError {
     #[error("Message signature verification failed: {0}")]
     Failed(#[from] SignatureError),
 
     #[error("No key found to verify signature: {0}")]
     NoMatchingKey(ErrorList<KeySelectionError>),
+
+    #[error(transparent)]
+    Context(SignatureContextError),
 }
 
 #[derive(Debug, thiserror::Error)]

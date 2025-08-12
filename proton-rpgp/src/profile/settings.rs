@@ -12,7 +12,7 @@ use pgp::{
 };
 
 use super::{KeyGenerationProfile, KeyGenerationType};
-use crate::StringToKeyOption;
+use crate::{StringToKeyOption, PROTON_CONTEXT_NOTATION_NAME};
 
 use super::Ciphersuite;
 
@@ -166,7 +166,7 @@ impl Default for ProfileSettings {
             min_rsa_bits: 1023,
             max_recursion_depth: 8,
             ignore_key_flags: false,
-            known_notation_names: HashSet::new(),
+            known_notation_names: HashSet::from([PROTON_CONTEXT_NOTATION_NAME.to_string()]),
         }
     }
 }

@@ -1,6 +1,6 @@
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, PrivateKey, SignError, Signer, UnixTime, VerificationError,
-    Verifier,
+    AsPublicKeyRef, DataEncoding, PrivateKey, SignError, SignatureContext, Signer, UnixTime,
+    VerificationContext, VerificationError, Verifier,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -314,4 +314,103 @@ pub fn sign_verify_inline_cleartext_message_v4() {
         result.verification_result,
         Err(VerificationError::NoVerifier(_, _))
     ));
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn sign_check_signature_context() {
+    let date = UnixTime::new(1_752_476_259);
+    let input_data = b"hello world";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored).unwrap();
+    let signature_critical = Signer::default()
+        .with_signing_key(&key)
+        .with_signature_context(SignatureContext::new("test".into(), true))
+        .at_date(date)
+        .sign_detached(input_data, DataEncoding::Armored)
+        .unwrap();
+
+    let pubkey = key.as_public_key();
+
+    let verify = |ctx: Option<VerificationContext>, signature: &[u8], expect_ok: bool| {
+        let mut verifier = Verifier::default().with_verification_key(pubkey);
+        if let Some(ctx) = ctx {
+            verifier = verifier.with_verification_context(ctx);
+        }
+        let result =
+            verifier
+                .at_date(date)
+                .verify_detached(input_data, signature, DataEncoding::Armored);
+        if expect_ok {
+            assert!(result.is_ok());
+        } else {
+            assert!(matches!(result, Err(VerificationError::BadContext(_, _))));
+        }
+    };
+
+    // correct context
+    verify(
+        Some(VerificationContext::new_required("test".into())),
+        &signature_critical,
+        true,
+    );
+
+    // wrong context
+    verify(
+        Some(VerificationContext::new(
+            "test_fail".into(),
+            true,
+            Some(date),
+        )),
+        &signature_critical,
+        false,
+    );
+
+    // missing context
+    verify(None, &signature_critical, false);
+
+    // required_after is after signature date
+    verify(
+        Some(VerificationContext::new(
+            "test_wrong".into(),
+            true,
+            Some(UnixTime::new(1_752_476_260)),
+        )),
+        &signature_critical,
+        true,
+    );
+
+    // not required context
+    verify(
+        Some(VerificationContext::new("test_wrong".into(), false, None)),
+        &signature_critical,
+        true,
+    );
+
+    let signature_non_critical = Signer::default()
+        .with_signing_key(&key)
+        .with_signature_context(SignatureContext::new("test".into(), false))
+        .at_date(date)
+        .sign_detached(input_data, DataEncoding::Armored)
+        .unwrap();
+
+    // correct context
+    verify(
+        Some(VerificationContext::new_required("test".into())),
+        &signature_non_critical,
+        true,
+    );
+
+    // wrong context
+    verify(
+        Some(VerificationContext::new(
+            "test_fail".into(),
+            true,
+            Some(date),
+        )),
+        &signature_non_critical,
+        false,
+    );
+
+    // missing context
+    verify(None, &signature_non_critical, true);
 }
