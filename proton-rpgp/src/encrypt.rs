@@ -1,4 +1,7 @@
-use std::io::{self, Read};
+use std::{
+    borrow::Cow,
+    io::{self, Read},
+};
 
 use pgp::{
     composed::{
@@ -31,7 +34,7 @@ pub struct Encryptor<'a> {
     passphrases: CloneablePasswords,
 
     /// The session keys to use.
-    session_key: Option<SessionKey>,
+    session_key: Option<Cow<'a, SessionKey>>,
 
     /// Message compression preference.
     message_compression: CompressionAlgorithm,
@@ -115,13 +118,16 @@ impl<'a> Encryptor<'a> {
     /// Use this function only if you fully understand the implications.
     /// Providing a custom session key can compromise security if not handled correctly.
     /// Prefer letting the library generate a secure session key unless you have a specific, well-understood use case.
-    pub fn with_session_key(mut self, key: &SessionKey) -> Self {
-        self.session_key = Some(key.clone());
+    pub fn with_session_key(mut self, key: impl Into<Cow<'a, SessionKey>>) -> Self {
+        self.session_key = Some(key.into());
         self
     }
 
     /// Sets the application signature context to use for the message signatures.
-    pub fn with_signature_context(mut self, context: SignatureContext) -> Self {
+    pub fn with_signature_context<C>(
+        mut self,
+        context: impl Into<Cow<'a, SignatureContext>>,
+    ) -> Self {
         self.signer = self.signer.with_signature_context(context);
         self
     }

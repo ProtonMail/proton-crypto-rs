@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use pgp::{
     armor::BlockType,
     composed::{CleartextSignedMessage, Message},
@@ -30,7 +32,7 @@ pub struct Verifier<'a> {
     pub(crate) native_newlines_utf8: bool,
 
     /// The verification context to use for verifying message signatures.
-    pub(crate) verification_context: Option<VerificationContext>,
+    pub(crate) verification_context: Option<Cow<'a, VerificationContext>>,
 }
 
 impl<'a> Verifier<'a> {
@@ -60,8 +62,11 @@ impl<'a> Verifier<'a> {
     /// Allows to specify the expected application context of a signature.
     ///
     /// The [`VerificationContext`] encodes how the signature context should be checked.
-    pub fn with_verification_context(mut self, context: VerificationContext) -> Self {
-        self.verification_context = Some(context);
+    pub fn with_verification_context(
+        mut self,
+        context: impl Into<Cow<'a, VerificationContext>>,
+    ) -> Self {
+        self.verification_context = Some(context.into());
         self
     }
 
@@ -166,7 +171,7 @@ impl<'a> Verifier<'a> {
                     signature,
                     &self.verification_keys,
                     VerificationInput::Data(data.as_ref()),
-                    self.verification_context.as_ref(),
+                    self.verification_context.as_deref(),
                     &self.profile,
                 )
             })
@@ -226,7 +231,7 @@ impl<'a> Verifier<'a> {
                     signature.signature.clone(),
                     &self.verification_keys,
                     VerificationInput::Data(signed_data.as_ref()),
-                    self.verification_context.as_ref(),
+                    self.verification_context.as_deref(),
                     &self.profile,
                 )
             })
@@ -262,7 +267,7 @@ impl<'a> Verifier<'a> {
         let verified_signatures = message.verify_nested_to_verified_signatures(
             self.date,
             &self.verification_keys,
-            self.verification_context.as_ref(),
+            self.verification_context.as_deref(),
             &self.profile,
         )?;
 

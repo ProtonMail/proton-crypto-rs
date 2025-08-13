@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use pgp::{
     composed::decrypt_session_key_with_password,
     packet::{Packet, PacketParser},
@@ -22,7 +24,7 @@ pub struct Decryptor<'a> {
     passphrases: CloneablePasswords,
 
     /// The session keys to decrypt the message with.
-    session_keys: Vec<&'a SessionKey>,
+    session_keys: Vec<Cow<'a, SessionKey>>,
 
     /// The verifier to use for verifying the message.
     verifier: Verifier<'a>,
@@ -81,21 +83,24 @@ impl<'a> Decryptor<'a> {
     }
 
     /// Adds a session key to the decryptor to decrypt the message with.
-    pub fn with_session_key(mut self, key: &'a SessionKey) -> Self {
-        self.session_keys.push(key);
+    pub fn with_session_key(mut self, key: impl Into<Cow<'a, SessionKey>>) -> Self {
+        self.session_keys.push(key.into());
         self
     }
 
     /// Adds multiple session keys to the decryptor to decrypt the message with.
     pub fn with_session_keys(mut self, keys: impl IntoIterator<Item = &'a SessionKey>) -> Self {
-        self.session_keys.extend(keys);
+        self.session_keys.extend(keys.into_iter().map(Into::into));
         self
     }
 
-    /// Allows to specify the expected application context of message signatures.
+    /// Allows to specify the expected application context of a signature.
     ///
     /// The [`VerificationContext`] encodes how the signature context should be checked.
-    pub fn with_verification_context(mut self, context: VerificationContext) -> Self {
+    pub fn with_verification_context(
+        mut self,
+        context: impl Into<Cow<'a, VerificationContext>>,
+    ) -> Self {
         self.verifier = self.verifier.with_verification_context(context);
         self
     }

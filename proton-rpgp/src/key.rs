@@ -1,4 +1,4 @@
-use std::vec;
+use std::{borrow::Cow, vec};
 
 use pgp::{
     composed::{
@@ -464,6 +464,18 @@ impl From<PlainSessionKey> for SessionKey {
 impl From<SessionKey> for PlainSessionKey {
     fn from(value: SessionKey) -> Self {
         value.inner
+    }
+}
+
+impl<'a> From<&'a SessionKey> for Cow<'a, SessionKey> {
+    fn from(key: &'a SessionKey) -> Self {
+        Cow::Borrowed(key)
+    }
+}
+
+impl From<SessionKey> for Cow<'_, SessionKey> {
+    fn from(key: SessionKey) -> Self {
+        Cow::Owned(key)
     }
 }
 

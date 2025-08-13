@@ -1,6 +1,6 @@
 use pgp::packet::{Notation, Subpacket, SubpacketData};
 
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
 use crate::{MessageSignatureError, SignatureContextError, UnixTime};
 
@@ -34,6 +34,18 @@ impl From<SignatureContext> for Notation {
             name: PROTON_CONTEXT_NOTATION_NAME.into(),
             value: context.value.into(),
         }
+    }
+}
+
+impl<'a> From<&'a SignatureContext> for Cow<'a, SignatureContext> {
+    fn from(context: &'a SignatureContext) -> Self {
+        Cow::Borrowed(context)
+    }
+}
+
+impl From<SignatureContext> for Cow<'_, SignatureContext> {
+    fn from(context: SignatureContext) -> Self {
+        Cow::Owned(context)
     }
 }
 
@@ -144,6 +156,18 @@ impl VerificationContext {
                 } if notation.name.as_ref() == PROTON_CONTEXT_NOTATION_NAME.as_bytes()
             )
         })
+    }
+}
+
+impl<'a> From<&'a VerificationContext> for Cow<'a, VerificationContext> {
+    fn from(context: &'a VerificationContext) -> Self {
+        Cow::Borrowed(context)
+    }
+}
+
+impl From<VerificationContext> for Cow<'_, VerificationContext> {
+    fn from(context: VerificationContext) -> Self {
+        Cow::Owned(context)
     }
 }
 

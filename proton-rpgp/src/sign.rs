@@ -1,4 +1,7 @@
-use std::io::{self, Read};
+use std::{
+    borrow::Cow,
+    io::{self, Read},
+};
 
 use pgp::{
     armor::{self, BlockType},
@@ -37,7 +40,7 @@ pub struct Signer<'a> {
     pub(crate) signature_type: SignatureMode,
 
     /// The signature context to use for the message signatures.
-    pub(crate) signature_context: Option<SignatureContext>,
+    pub(crate) signature_context: Option<Cow<'a, SignatureContext>>,
 }
 
 impl<'a> Signer<'a> {
@@ -73,8 +76,11 @@ impl<'a> Signer<'a> {
     }
 
     /// Sets the application signature context to use for the message signatures.
-    pub fn with_signature_context(mut self, context: SignatureContext) -> Self {
-        self.signature_context = Some(context);
+    pub fn with_signature_context<C>(mut self, context: C) -> Self
+    where
+        C: Into<Cow<'a, SignatureContext>>,
+    {
+        self.signature_context = Some(context.into());
         self
     }
 
@@ -173,7 +179,7 @@ impl<'a> Signer<'a> {
                         self.date,
                         self.signature_type,
                         hash_algorithm,
-                        self.signature_context.as_ref(),
+                        self.signature_context.as_deref(),
                         &self.profile,
                     )
                     .map(StandaloneSignature::new)
@@ -234,7 +240,7 @@ impl<'a> Signer<'a> {
                             self.date,
                             SignatureMode::Text,
                             *hash_algorithm,
-                            self.signature_context.as_ref(),
+                            self.signature_context.as_deref(),
                             &self.profile,
                         )
                         .map_err(|err| pgp::errors::Error::Message {
@@ -314,7 +320,7 @@ impl<'a> Signer<'a> {
                 &signing_key.private_key,
                 self.date,
                 hash_algorithm,
-                self.signature_context.as_ref(),
+                self.signature_context.as_deref(),
                 &mut rng,
             )?;
             message_builder.sign_with_subpackets(
