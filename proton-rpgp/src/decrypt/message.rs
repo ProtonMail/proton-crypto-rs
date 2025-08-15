@@ -1,6 +1,7 @@
 use pgp::{
     composed::{DecryptionOptions, Esk, Message, PlainSessionKey, TheRing},
     packet::PublicKeyEncryptedSessionKey,
+    types::PkeskVersion,
 };
 
 use crate::{
@@ -81,11 +82,23 @@ pub(crate) trait PkeskExt {
 
 impl PkeskExt for PublicKeyEncryptedSessionKey {
     fn generic_identifier(&self) -> Option<GenericKeyIdentifier> {
-        match (self.id(), self.fingerprint()) {
-            (Ok(id), Ok(Some(fp))) => Some(GenericKeyIdentifier::Both(*id, fp.clone())),
-            (Ok(id), Err(_) | Ok(None)) => Some(GenericKeyIdentifier::KeyId(*id)),
-            (Err(_), Ok(Some(fp))) => Some(GenericKeyIdentifier::Fingerprint(fp.clone())),
-            (Err(_), Err(_) | Ok(None)) => None,
+        match self.version() {
+            PkeskVersion::V3 => match self.id() {
+                Ok(key_id) => {
+                    if key_id.is_wildcard() {
+                        Some(GenericKeyIdentifier::WildcardKeyId)
+                    } else {
+                        Some(GenericKeyIdentifier::KeyId(*key_id))
+                    }
+                }
+                Err(_) => None,
+            },
+            PkeskVersion::V6 => match self.fingerprint() {
+                Ok(Some(fp)) => Some(GenericKeyIdentifier::Fingerprint(fp.clone())),
+                Ok(None) => Some(GenericKeyIdentifier::WildcardFingerprint),
+                Err(_) => None,
+            },
+            PkeskVersion::Other(_) => None,
         }
     }
 }

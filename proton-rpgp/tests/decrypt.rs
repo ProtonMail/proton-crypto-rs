@@ -329,3 +329,23 @@ pub fn decrypt_message_v4_with_password_and_session_key() {
 
     assert_eq!(verified_data.data, b"hello world");
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_encrypted_message_v4_wildcard() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v4_wildcard.asc");
+    const WILDCARD_KEY: &str = include_str!("../test-data/keys/private_key_v4_for_wildcard.asc");
+    let date = UnixTime::new(1_752_572_300);
+
+    let key = PrivateKey::import_unlocked(WILDCARD_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let verified_data = Decryptor::default()
+        .with_decryption_key(&key)
+        .at_date(date)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"Hello World :)");
+}
