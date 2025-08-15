@@ -209,7 +209,7 @@ fn key_sha256_fingerprints() {
 fn key_generation_default() {
     let key = KeyGenerator::default()
         .with_user_id("test", "test@test.com")
-        .with_key_type(KeyGenerationType::RSA)
+        .with_key_type(KeyGenerationType::ECC)
         .generate()
         .expect("Failed to generate key");
 
