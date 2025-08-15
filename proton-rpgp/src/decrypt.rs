@@ -217,3 +217,9 @@ impl Default for Decryptor<'_> {
         Self::new(DEFAULT_PROFILE.clone())
     }
 }
+
+impl<'a> From<Decryptor<'a>> for Verifier<'a> {
+    fn from(decryptor: Decryptor<'a>) -> Self {
+        decryptor.verifier
+    }
+}

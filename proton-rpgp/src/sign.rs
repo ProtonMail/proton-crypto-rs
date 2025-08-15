@@ -76,10 +76,7 @@ impl<'a> Signer<'a> {
     }
 
     /// Sets the application signature context to use for the message signatures.
-    pub fn with_signature_context<C>(mut self, context: C) -> Self
-    where
-        C: Into<Cow<'a, SignatureContext>>,
-    {
+    pub fn with_signature_context(mut self, context: impl Into<Cow<'a, SignatureContext>>) -> Self {
         self.signature_context = Some(context.into());
         self
     }

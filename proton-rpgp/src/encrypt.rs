@@ -26,6 +26,7 @@ mod message;
 pub use message::*;
 
 /// The encryptor to use to perform `OpenPGP` encryption/signcryption operations.
+#[derive(Debug, Clone)]
 pub struct Encryptor<'a> {
     /// The encryption keys to use.
     encryption_keys: Vec<&'a PublicKey>,
@@ -124,10 +125,7 @@ impl<'a> Encryptor<'a> {
     }
 
     /// Sets the application signature context to use for the message signatures.
-    pub fn with_signature_context<C>(
-        mut self,
-        context: impl Into<Cow<'a, SignatureContext>>,
-    ) -> Self {
+    pub fn with_signature_context(mut self, context: impl Into<Cow<'a, SignatureContext>>) -> Self {
         self.signer = self.signer.with_signature_context(context);
         self
     }
@@ -467,6 +465,12 @@ impl<'a> Encryptor<'a> {
 impl Default for Encryptor<'_> {
     fn default() -> Self {
         Self::new(DEFAULT_PROFILE.clone())
+    }
+}
+
+impl<'a> From<Encryptor<'a>> for Signer<'a> {
+    fn from(encryptor: Encryptor<'a>) -> Self {
+        encryptor.signer
     }
 }
 
