@@ -228,7 +228,7 @@ impl<'a> Verifier<'a> {
             .map(|signature| {
                 VerifiedSignature::create_by_verifying(
                     self.date,
-                    signature.signature.clone(),
+                    signature.clone(),
                     &self.verification_keys,
                     VerificationInput::Data(signed_data.as_ref()),
                     self.verification_context.as_deref(),

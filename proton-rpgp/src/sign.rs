@@ -6,7 +6,7 @@ use std::{
 use pgp::{
     armor::{self, BlockType},
     composed::{
-        ArmorOptions, CleartextSignedMessage, Encryption, MessageBuilder, StandaloneSignature,
+        ArmorOptions, CleartextSignedMessage, DetachedSignature, Encryption, MessageBuilder,
         SubpacketConfig,
     },
     packet::SignatureVersion,
@@ -179,7 +179,7 @@ impl<'a> Signer<'a> {
                         self.signature_context.as_deref(),
                         &self.profile,
                     )
-                    .map(StandaloneSignature::new)
+                    .map(DetachedSignature::new)
             })
             .collect();
 
@@ -343,7 +343,7 @@ impl Default for Signer<'_> {
 }
 
 fn handle_signature_encoding(
-    signatures: &[StandaloneSignature],
+    signatures: &[DetachedSignature],
     signature_encoding: DataEncoding,
 ) -> Result<Vec<u8>, SignError> {
     match signature_encoding {
