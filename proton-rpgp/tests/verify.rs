@@ -287,3 +287,25 @@ pub fn verify_inline_signed_cleartext_message_v4() {
     );
     assert!(verified_data.verification_result.is_ok());
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_inline_signed_cleartext_message_v4_escaped() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/signed_cleartext_message_v4_escaped.asc");
+    const KEY: &str = include_str!("../test-data/keys/public_key_v4_cleartext_escaped.asc");
+    let expected_data = hex::decode("46726f6d207468652067726f636572792073746f7265207765206e6565643a0a0a2d20746f66750a2d20766567657461626c65730a2d206e6f6f646c65730a0a").unwrap();
+    let date = UnixTime::new(1_755_528_534);
+
+    let key =
+        PublicKey::import(KEY.as_bytes(), DataEncoding::Armored).expect("Failed to import key");
+
+    let verified_data = Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .at_date(date)
+        .verify_cleartext(INPUT_DATA)
+        .expect("Failed to verifiy");
+
+    assert_eq!(verified_data.data, expected_data);
+    assert!(verified_data.verification_result.is_ok());
+}

@@ -215,10 +215,13 @@ impl<'a> Verifier<'a> {
         self,
         cleartext_message: impl AsRef<[u8]>,
     ) -> Result<VerifiedData, VerifyMessageError> {
-        let (parsed_message, _) = CleartextSignedMessage::from_armor(cleartext_message.as_ref())
-            .map_err(|err| {
-                VerifyMessageError::MessageProcessing(MessageProcessingError::MessageParsing(err))
-            })?;
+        let (parsed_message, _) =
+            CleartextSignedMessage::from_armor(cleartext_message.as_ref().trim_ascii_end())
+                .map_err(|err| {
+                    VerifyMessageError::MessageProcessing(MessageProcessingError::MessageParsing(
+                        err,
+                    ))
+                })?;
 
         let signed_data = parsed_message.signed_text();
 
@@ -237,9 +240,12 @@ impl<'a> Verifier<'a> {
             })
             .collect();
 
+        let output_sanitized = check_and_sanitize_text(parsed_message.signed_text().as_bytes())
+            .map_err(MessageProcessingError::TextSanitization)?;
+
         let verification_result = VerificationResultCreator::with_signatures(verified_signatures);
         Ok(VerifiedData {
-            data: parsed_message.text().as_bytes().to_vec(),
+            data: output_sanitized,
             verification_result,
         })
     }
