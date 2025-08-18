@@ -253,3 +253,19 @@ fn session_key_generation() {
     assert_eq!(key_bytes.len(), SymmetricKeyAlgorithm::AES256.key_size());
     assert_eq!(session_key_v6.algorithm(), None);
 }
+
+#[test]
+fn key_is_not_expired_with_zero_expiration_time() {
+    const LOCAL_TEST_KEY: &str =
+        include_str!("../test-data/keys/public_key_v4_zero_expiration.asc");
+    let profile = Profile::default();
+
+    let date = UnixTime::new(1_755_509_416);
+
+    let key = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let expired = key.is_expired(&profile, date);
+
+    assert!(!expired);
+}

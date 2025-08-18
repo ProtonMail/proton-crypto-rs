@@ -622,6 +622,11 @@ pub(crate) fn check_key_not_expired<K: PublicKeyTrait + Serialize>(
     }
 
     if let Some(expiration_time) = self_signature.key_expiration_time() {
+        if expiration_time.is_zero() {
+            // If the key expiration time is zero, it means that the key has no expiration time,
+            // and is thus not expired.
+            return Ok(());
+        }
         let expiration_date = UnixTime::from(*key_creation_time + *expiration_time);
         if expiration_date < date {
             return Err(KeyCertificationSelectionError::ExpiredKey {

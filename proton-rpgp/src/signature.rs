@@ -78,6 +78,11 @@ impl SignatureExt for Signature {
             return Err(SignatureError::FutureSignature(unix_creation_time));
         }
         if let Some(expire_delta) = self.signature_expiration_time() {
+            if expire_delta.is_zero() {
+                // If the signature expiration delta is zero, it means that the signature has
+                // no expiration time, and is thus not expired.
+                return Ok(());
+            }
             let expiration_date = UnixTime::from(*creation_time + *expire_delta);
             if expiration_date < date {
                 return Err(SignatureError::Expired {
