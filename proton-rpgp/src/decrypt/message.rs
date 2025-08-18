@@ -86,7 +86,7 @@ impl PkeskExt for PublicKeyEncryptedSessionKey {
             PkeskVersion::V3 => match self.id() {
                 Ok(key_id) => {
                     if key_id.is_wildcard() {
-                        Some(GenericKeyIdentifier::WildcardKeyId)
+                        Some(GenericKeyIdentifier::Wildcard)
                     } else {
                         Some(GenericKeyIdentifier::KeyId(*key_id))
                     }
@@ -95,7 +95,7 @@ impl PkeskExt for PublicKeyEncryptedSessionKey {
             },
             PkeskVersion::V6 => match self.fingerprint() {
                 Ok(Some(fp)) => Some(GenericKeyIdentifier::Fingerprint(fp.clone())),
-                Ok(None) => Some(GenericKeyIdentifier::WildcardFingerprint),
+                Ok(None) => Some(GenericKeyIdentifier::Wildcard),
                 Err(_) => None,
             },
             PkeskVersion::Other(_) => None,

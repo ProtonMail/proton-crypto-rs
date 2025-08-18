@@ -178,7 +178,7 @@ impl Display for GenericKeyIdentifierList {
 
 /// A generic key identifier, which can be a key id, a fingerprint, or both.
 ///
-/// Also encodes a wildcard keyId for `PKESKv3` and awildcard fingerprint for `PKESKv6`.
+/// Can also encode a wildcard that matches any key id or fingerprint.
 #[derive(Debug, Clone)]
 pub enum GenericKeyIdentifier {
     /// A key id.   
@@ -187,10 +187,8 @@ pub enum GenericKeyIdentifier {
     Fingerprint(Fingerprint),
     /// A key id and a fingerprint.
     Both(KeyId, Fingerprint),
-    /// A wildcard key id in `PKESKv3`.
-    WildcardKeyId,
-    /// No key fingerprint in `PKESKv6` interpreted as a wildcard.
-    WildcardFingerprint,
+    /// A wildcard that matches any key id or fingerprint.
+    Wildcard,
 }
 
 impl PartialEq for GenericKeyIdentifier {
@@ -201,10 +199,7 @@ impl PartialEq for GenericKeyIdentifier {
             (Self::Both(l0, l1), Self::Both(r0, r1)) => l0 == r0 && l1 == r1,
             (Self::Both(l0, _), Self::KeyId(r0))
             | (Self::KeyId(l0), Self::KeyId(r0) | Self::Both(r0, _)) => l0 == r0,
-            (Self::WildcardKeyId, Self::WildcardFingerprint)
-            | (Self::WildcardFingerprint, Self::WildcardKeyId) => false,
-            (Self::WildcardKeyId | Self::WildcardFingerprint, _)
-            | (_, Self::WildcardKeyId | Self::WildcardFingerprint) => true,
+            (Self::Wildcard, _) | (_, Self::Wildcard) => true,
             _ => false,
         }
     }
@@ -216,8 +211,7 @@ impl Display for GenericKeyIdentifier {
             Self::KeyId(key_id) => write!(f, "{key_id}"),
             Self::Fingerprint(fingerprint) => write!(f, "{fingerprint}"),
             Self::Both(key_id, fingerprint) => write!(f, "{key_id} ({fingerprint})"),
-            Self::WildcardKeyId => write!(f, "Wildcard PKESKv3"),
-            Self::WildcardFingerprint => write!(f, "Wildcard PKESKv6"),
+            Self::Wildcard => write!(f, "Wildcard"),
         }
     }
 }
