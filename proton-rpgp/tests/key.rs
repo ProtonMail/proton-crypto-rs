@@ -269,3 +269,17 @@ fn key_is_not_expired_with_zero_expiration_time() {
 
     assert!(!expired);
 }
+
+#[test]
+fn key_can_verify_revoked_based_on_time() {
+    const LOCAL_TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4_revoked_valid.asc");
+    let profile = Profile::default();
+
+    let key = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let can_verify = key.check_can_verify(&profile, UnixTime::new(1_573_576_706));
+    assert!(can_verify.is_err());
+    let can_verify = key.check_can_verify(&profile, UnixTime::new(1_751_984_424));
+    assert!(can_verify.is_ok());
+}

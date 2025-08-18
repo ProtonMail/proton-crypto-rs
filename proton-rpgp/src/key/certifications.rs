@@ -106,9 +106,7 @@ pub trait CertificationSelectionExt {
         // 1. Check hard revocations
         if self
             .iter_self_revocations()
-            .filter(|sig| {
-                sig.is_issued_by(primary_key) && sig.is_revocation() && sig.is_hard_revocation()
-            })
+            .filter(|sig| sig.is_issued_by(primary_key) && sig.is_hard_revocation())
             .any(|sig| is_valid(sig, UnixTime::zero()))
         {
             return true;

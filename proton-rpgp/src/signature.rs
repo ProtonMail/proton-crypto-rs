@@ -52,12 +52,12 @@ impl SignatureExt for Signature {
 
     fn is_hard_revocation(&self) -> bool {
         self.is_revocation()
-            && matches!(
+            && !matches!(
                 self.revocation_reason_code(),
                 Some(
                     RevocationCode::KeyRetired
-                        | RevocationCode::CertUserIdInvalid
                         | RevocationCode::KeySuperseded
+                        | RevocationCode::CertUserIdInvalid
                 )
             )
     }
