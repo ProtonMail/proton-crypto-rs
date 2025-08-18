@@ -47,6 +47,40 @@ pub fn encrypt_message_v4() {
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
+pub fn encrypt_message_v4_text() {
+    let input_data = b"hello world\n ds   \n";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let encrypted_data = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .with_signing_key(&key)
+        .as_utf8()
+        .encrypt_raw(input_data, DataEncoding::Armored)
+        .expect("Failed to encrypt");
+
+    let verified_data = Decryptor::default()
+        .with_decryption_key(&key)
+        .with_verification_key(key.as_public_key())
+        .output_utf8()
+        .decrypt(encrypted_data.as_slice(), DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, input_data);
+    assert!(verified_data.verification_result.is_ok());
+
+    let verified_data = Decryptor::default()
+        .with_decryption_key(&key)
+        .with_verification_key(key.as_public_key())
+        .decrypt(encrypted_data.as_slice(), DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"hello world\r\n ds   \r\n");
+    assert!(verified_data.verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
 pub fn encrypt_message_v4_passphrase() {
     let input_data = b"hello world";
     let passphrase: &'static str = "password";

@@ -130,9 +130,7 @@ impl<'a> Encryptor<'a> {
         self
     }
 
-    /// Sets the signature type to text.
-    ///
-    /// TODO(CRYPTO-296): This option should also trigger the utf-8 literal data packet type.
+    /// Sets the signature and data type to text.
     pub fn as_utf8(mut self) -> Self {
         self.signer = self.signer.as_utf8();
         self
@@ -321,7 +319,12 @@ impl<'a> Encryptor<'a> {
             self.profile(),
         );
 
-        let mut message_builder = MessageBuilder::from_reader("", data);
+        let mut utf8_buffer = String::new();
+        let message_data_ref = self
+            .signer
+            .handle_data_mode(data.as_ref(), &mut utf8_buffer)?;
+
+        let mut message_builder = MessageBuilder::from_reader("", message_data_ref);
 
         // Set the compression algorithm if any.
         if recipients_algorithm_selection.compression_algorithm

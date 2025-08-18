@@ -138,8 +138,7 @@ pub fn sign_create_text_signature_with_non_utf8_data_should_fail() {
     assert!(result.is_ok());
 }
 
-// TODO: Update rpgp to accept ml-dsa as a valid signature algorithm.
-/*#[test]
+#[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn sign_create_detached_signature_v6_pqc() {
     const KEY: &str = include_str!("../test-data/keys/private_key_v6_pqc.asc");
@@ -162,7 +161,7 @@ pub fn sign_create_detached_signature_v6_pqc() {
         .verify_detached(input_data, &signature_bytes, DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
-}*/
+}
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
@@ -239,10 +238,18 @@ pub fn sign_verify_inline_message_v4_text() {
     let verified_data = Verifier::default()
         .with_verification_key(key.as_public_key())
         .output_utf8()
-        .verify(message, DataEncoding::Armored)
+        .verify(&message, DataEncoding::Armored)
         .expect("Failed to verify");
 
     assert_eq!(verified_data.data, input_data);
+    assert!(verified_data.verification_result.is_ok());
+
+    let verified_data = Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .verify(message, DataEncoding::Armored)
+        .expect("Failed to verify");
+
+    assert_eq!(verified_data.data, b"hello\r\n world \r\n   \r\n   \r\n ");
     assert!(verified_data.verification_result.is_ok());
 }
 

@@ -9,7 +9,9 @@ use pgp::{
         ArmorOptions, CleartextSignedMessage, DetachedSignature, Encryption, MessageBuilder,
         SubpacketConfig,
     },
-    packet::SignatureVersion,
+    line_writer::LineBreak,
+    normalize_lines::NormalizedReader,
+    packet::{DataMode, SignatureVersion},
     ser::Serialize,
     types::{CompressionAlgorithm, KeyDetails, KeyVersion, Password},
 };
@@ -39,6 +41,9 @@ pub struct Signer<'a> {
     /// Either binary or text.
     pub(crate) signature_type: SignatureMode,
 
+    /// The literal packet type to use for the data.
+    pub(crate) data_mode: DataMode,
+
     /// The signature context to use for the message signatures.
     pub(crate) signature_context: Option<Cow<'a, SignatureContext>>,
 }
@@ -52,6 +57,7 @@ impl<'a> Signer<'a> {
             date: UnixTime::now().unwrap_or_default(),
             signature_type: SignatureMode::default(),
             signature_context: None,
+            data_mode: DataMode::Binary,
         }
     }
 
@@ -86,6 +92,7 @@ impl<'a> Signer<'a> {
     /// If this is set, `OpenPGP` will canonicalize the line endings in the signature data before signing.
     pub fn as_utf8(mut self) -> Self {
         self.signature_type = SignatureMode::Text;
+        self.data_mode = DataMode::Utf8;
         self
     }
 
@@ -109,7 +116,9 @@ impl<'a> Signer<'a> {
         data: impl AsRef<[u8]>,
         message_encoding: DataEncoding,
     ) -> Result<Vec<u8>, SignError> {
-        let mut message_builder = MessageBuilder::from_reader("", data.as_ref());
+        let mut utf8_buffer = String::new();
+        let message_data_ref = self.handle_data_mode(data.as_ref(), &mut utf8_buffer)?;
+        let mut message_builder = MessageBuilder::from_reader("", message_data_ref);
 
         let signing_keys = self.select_signing_keys()?;
 
@@ -272,6 +281,21 @@ impl<'a> Signer<'a> {
         }
     }
 
+    pub(crate) fn handle_data_mode<'b>(
+        &self,
+        data: &'b [u8],
+        buffer: &'b mut String,
+    ) -> Result<&'b [u8], SignError> {
+        match self.data_mode {
+            DataMode::Utf8 => {
+                let mut reader = NormalizedReader::new(data, LineBreak::Crlf);
+                reader.read_to_string(buffer)?;
+                Ok(buffer.as_bytes())
+            }
+            _ => Ok(data),
+        }
+    }
+
     pub(crate) fn select_signing_keys(
         &self,
     ) -> Result<Vec<PrivateComponentKey<'_>>, KeySelectionError> {
@@ -310,6 +334,10 @@ impl<'a> Signer<'a> {
             SignatureMode::Binary => message_builder.sign_binary(),
             SignatureMode::Text => message_builder.sign_text(),
         };
+
+        message_builder
+            .data_mode(self.data_mode)
+            .map_err(SignError::DataMode)?;
 
         let mut rng = self.profile.rng();
         for (signing_key, hash_algorithm) in signing_keys.iter().zip(hash_algorithms) {
@@ -412,7 +440,7 @@ where
 mod tests {
     use pgp::{
         crypto::hash::HashAlgorithm,
-        packet::{Packet, PacketParser, Signature, SignatureType, SignatureVersion},
+        packet::{LiteralData, Packet, PacketParser, Signature, SignatureType, SignatureVersion},
     };
 
     use crate::{AccessKeyInfo, DataEncoding, PrivateKey, SignatureExt, Signer, UnixTime};
@@ -534,6 +562,43 @@ mod tests {
     }
 
     #[test]
+    pub fn create_inline_signature_v4_text() {
+        let date = UnixTime::new(1_752_476_259);
+        let input_data = b"hello world\n ds   \n";
+        let expected = b"hello world\r\n ds   \r\n";
+
+        let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+            .expect("Failed to import key");
+
+        let data_bytes = Signer::default()
+            .with_signing_key(&key)
+            .at_date(date)
+            .as_utf8()
+            .sign(input_data, DataEncoding::Unarmored)
+            .expect("Failed to sign");
+
+        let literal_packet = load_literal_packet(&data_bytes);
+        assert!(!literal_packet.is_binary());
+        assert_eq!(literal_packet.data(), expected);
+
+        let signature = load_signatures_inline(&data_bytes)
+            .into_iter()
+            .next()
+            .unwrap();
+
+        assert_eq!(signature.version(), SignatureVersion::V4);
+        assert_eq!(signature.typ(), Some(SignatureType::Text));
+        assert_eq!(signature.hash_alg(), Some(HashAlgorithm::Sha512));
+        assert_eq!(
+            signature.issuer_fingerprint().first().copied(),
+            Some(&key.fingerprint())
+        );
+        assert_eq!(signature.issuer().first().copied(), Some(&key.key_id()));
+        assert_eq!(signature.unix_created_at().unwrap(), date);
+        assert_eq!(signature.notations().len(), 1);
+    }
+
+    #[test]
     pub fn create_inline_signature_v6() {
         const TEST_KEY_V6: &str = include_str!("../test-data/keys/private_key_v6.asc");
 
@@ -580,5 +645,14 @@ mod tests {
             Packet::Signature(signature) => signature,
             _ => panic!("Expected a signature packet"),
         }
+    }
+
+    fn load_literal_packet(inline_message: &[u8]) -> LiteralData {
+        PacketParser::new(inline_message)
+            .find_map(|parse_result| match parse_result {
+                Ok(Packet::LiteralData(literal_data)) => Some(literal_data),
+                _ => None,
+            })
+            .unwrap()
     }
 }

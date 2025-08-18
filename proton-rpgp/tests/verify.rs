@@ -186,8 +186,7 @@ pub fn verify_detached_signature_v6() {
     assert!(verification_result.is_ok());
 }
 
-// TODO: Update rpgp to accept ml-dsa as a valid signature algorithm.
-/*#[test]
+#[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v6_pqc() {
     const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v6_pqc.asc");
@@ -204,7 +203,7 @@ pub fn verify_detached_signature_v6_pqc() {
         .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
-}*/
+}
 
 #[test]
 #[allow(clippy::missing_panics_doc)]

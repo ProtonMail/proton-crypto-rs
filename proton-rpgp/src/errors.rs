@@ -327,6 +327,9 @@ pub enum PkeskDecryptionError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SignError {
+    #[error("{ERROR_PREFIX}: Failed to set data mode: {0}")]
+    DataMode(pgp::errors::Error),
+
     #[error("{ERROR_PREFIX}: Failed to serialize signatures: {0}")]
     Serialize(pgp::errors::Error),
 
@@ -344,6 +347,9 @@ pub enum SignError {
 
     #[error("{ERROR_PREFIX}: Invalid input encoding for text signature: {0}")]
     InvalidInputData(#[from] std::str::Utf8Error),
+
+    #[error("{ERROR_PREFIX}: Invalid input encoding for text signature: {0}")]
+    InvalidInputDataLineEnding(#[from] io::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -393,11 +399,8 @@ pub enum PgpMessageError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TextSanitizationError {
-    #[error("Failed to normalize line endings: {0}")]
+    #[error("Failed to normalize line endings or encode as utf-8: {0}")]
     Normalization(#[from] io::Error),
-
-    #[error("Failed to decode data as utf-8: {0}")]
-    NotText(#[from] std::str::Utf8Error),
 }
 
 #[derive(Debug)]
