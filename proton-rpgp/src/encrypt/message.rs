@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::armor;
+use crate::{armor, ExternalDetachedSignature};
 
 use pgp::{
     armor::{self as pgp_armor, BlockType},
@@ -20,14 +20,18 @@ pub struct EncryptedMessage {
     /// The encrypted data.
     pub encrypted_data: Vec<u8>,
 
+    /// An optional detached signature.
+    pub(crate) detached_signature: Option<ExternalDetachedSignature<'static>>,
+
     /// The revealed session key if any.
-    revealed_session_key: Option<SessionKey>,
+    pub(crate) revealed_session_key: Option<SessionKey>,
 }
 
 impl EncryptedMessage {
     pub(crate) fn new(encrypted_data: Vec<u8>, revealed_session_key: Option<SessionKey>) -> Self {
         Self {
             encrypted_data,
+            detached_signature: None,
             revealed_session_key,
         }
     }
@@ -97,6 +101,21 @@ impl EncryptedMessage {
         pgp_armor::write(self, BlockType::Message, &mut output, None, true)
             .map_err(ArmorError::Encode)?;
         Ok(output)
+    }
+
+    /// Returns the detached signature if any.
+    pub fn detached_signature(&self) -> Option<&ExternalDetachedSignature<'static>> {
+        self.detached_signature.as_ref()
+    }
+
+    /// Splits the detached signature from the message.
+    ///
+    /// Returns the message without the detached signature and the detached signature.
+    pub fn split_detached_signature(
+        mut self,
+    ) -> (Self, Option<ExternalDetachedSignature<'static>>) {
+        let detached_signature = self.detached_signature.take();
+        (self, detached_signature)
     }
 }
 

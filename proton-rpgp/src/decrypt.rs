@@ -7,8 +7,9 @@ use pgp::{
 };
 
 use crate::{
-    armor, CloneablePasswords, DataEncoding, DecryptionError, PrivateKey, Profile, PublicKey,
-    SessionKey, UnixTime, VerificationContext, VerifiedData, Verifier, DEFAULT_PROFILE,
+    armor, CloneablePasswords, DataEncoding, DecryptionError, ExternalDetachedSignature,
+    PrivateKey, Profile, PublicKey, SessionKey, UnixTime, VerificationContext, VerificationResult,
+    VerifiedData, Verifier, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -28,6 +29,11 @@ pub struct Decryptor<'a> {
 
     /// The verifier to use for verifying the message.
     verifier: Verifier<'a>,
+
+    /// Allows to specify an external detached signature to verify over the decrytped data.
+    ///
+    /// When supplied only this signature is consider and message signatures are ignored.
+    detached_signature: Option<ExternalDetachedSignature<'a>>,
 }
 
 impl<'a> Decryptor<'a> {
@@ -38,6 +44,7 @@ impl<'a> Decryptor<'a> {
             passphrases: CloneablePasswords::default(),
             session_keys: Vec::new(),
             verifier: Verifier::new(profile),
+            detached_signature: None,
         }
     }
 
@@ -105,6 +112,18 @@ impl<'a> Decryptor<'a> {
         self
     }
 
+    /// Allows to specify an external detached signature to verify over the decytped data.
+    ///
+    /// When supplied only this signature is considered and message signatures are ignored
+    /// for the verification result.
+    pub fn with_external_detached_signature(
+        mut self,
+        detached_signature: ExternalDetachedSignature<'a>,
+    ) -> Self {
+        self.detached_signature = Some(detached_signature);
+        self
+    }
+
     /// Set the date to verify the signature against.
     ///
     /// In default mode, the system clock is used.
@@ -149,7 +168,7 @@ impl<'a> Decryptor<'a> {
     /// assert!(verified_data.verification_result.is_ok());
     /// ```
     pub fn decrypt(
-        self,
+        mut self,
         data: impl AsRef<[u8]>,
         data_encoding: DataEncoding,
     ) -> Result<VerifiedData, DecryptionError> {
@@ -162,9 +181,19 @@ impl<'a> Decryptor<'a> {
 
         let message = message.decrypt_with_decryptor(&self)?;
 
-        self.verifier
-            .verify_message(message)
-            .map_err(DecryptionError::MessageProcessing)
+        if let Some(detached_signature) = self.detached_signature.take() {
+            let mut verified_data = self
+                .verifier
+                .verify_message(message)
+                .map_err(DecryptionError::MessageProcessing)?;
+            verified_data.verification_result =
+                self.verify_detached_signature(detached_signature, &verified_data.data)?;
+            Ok(verified_data)
+        } else {
+            self.verifier
+                .verify_message(message)
+                .map_err(DecryptionError::MessageProcessing)
+        }
     }
 
     /// Decrypts the session key from the given key packets.
@@ -210,6 +239,26 @@ impl<'a> Decryptor<'a> {
 
     pub(crate) fn profile(&self) -> &Profile {
         &self.verifier.profile
+    }
+
+    /// Helper function to verify external detached signature on the decrypted data.
+    fn verify_detached_signature(
+        self,
+        signature: ExternalDetachedSignature,
+        data: &[u8],
+    ) -> Result<VerificationResult, DecryptionError> {
+        let verification_result = match signature {
+            ExternalDetachedSignature::Plain(signature, signature_data_encoding) => self
+                .verifier
+                .verify_detached(data, signature, signature_data_encoding),
+            ExternalDetachedSignature::Encrypted(signature, signature_data_encoding) => {
+                let verifier = self.verifier.clone();
+                let decrytped_siganture =
+                    self.decrypt(signature.as_ref(), signature_data_encoding)?;
+                verifier.verify_detached(data, &decrytped_siganture.data, DataEncoding::Unarmored)
+            }
+        };
+        Ok(verification_result)
     }
 }
 

@@ -258,7 +258,7 @@ impl<'a> Verifier<'a> {
 
     /// Helper function to verify and process a decrypted `OpenPGP` message.
     pub(crate) fn verify_message(
-        self,
+        &self,
         mut message: Message<'_>,
     ) -> Result<VerifiedData, MessageProcessingError> {
         if message.is_encrypted() {

@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     io::{self, Read},
+    mem,
 };
 
 use pgp::{
@@ -17,8 +18,8 @@ use rand::{CryptoRng, Rng};
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError, KeySelectionError, PrivateKey,
-    Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, ResolvedDataEncoding,
+    Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError, ExternalDetachedSignature,
+    KeySelectionError, PrivateKey, Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt,
     SessionKey, SignatureContext, Signer, UnixTime, DEFAULT_PROFILE,
 };
 
@@ -46,6 +47,9 @@ pub struct Encryptor<'a> {
     /// Message AEAD cipher suite preference.
     message_cipher_suite: Option<Ciphersuite>,
 
+    /// Determines if a detached signature should be created.
+    detached_signature_op: SignDetachedOperation,
+
     /// The internal signer to use for the signing part.
     signer: Signer<'a>,
 }
@@ -60,6 +64,7 @@ impl<'a> Encryptor<'a> {
             message_compression: profile.message_compression(),
             message_symmetric_algorithm: profile.message_symmetric_algorithm(),
             message_cipher_suite: profile.message_aead_cipher_suite(),
+            detached_signature_op: SignDetachedOperation::default(),
             signer: Signer::new(profile),
         }
     }
@@ -130,7 +135,20 @@ impl<'a> Encryptor<'a> {
         self
     }
 
-    /// Sets the signature and data type to text.
+    /// Sets the detached signature operation to use for the message.
+    ///
+    /// If `encrypt` is true, the detached signature will be encrypted.
+    /// If `encrypt` is false, the detached signature will be plain.
+    pub fn using_detached_signature(mut self, encrypt: bool) -> Self {
+        self.detached_signature_op = if encrypt {
+            SignDetachedOperation::Encrypted
+        } else {
+            SignDetachedOperation::Plain
+        };
+        self
+    }
+
+    /// Sets the signature type to text.
     pub fn as_utf8(mut self) -> Self {
         self.signer = self.signer.as_utf8();
         self
@@ -170,11 +188,18 @@ impl<'a> Encryptor<'a> {
     ///     .encrypt(b"Hello world!")
     ///     .expect("Failed to encrypt");
     /// ```
-    pub fn encrypt(self, data: &'a [u8]) -> Result<EncryptedMessage, EncryptionError> {
-        self.write_and_signcrypt(data, DataEncoding::Unarmored, true)
+    pub fn encrypt(mut self, data: &'a [u8]) -> Result<EncryptedMessage, EncryptionError> {
+        let detached_signature = self.handle_detached_signature_operation(data)?;
+
+        let mut message = self
+            .write_and_signcrypt(data, DataEncoding::Unarmored, true)
             .map(|(encrypted_data, revealed_session_key)| {
                 EncryptedMessage::new(encrypted_data, revealed_session_key)
-            })
+            })?;
+
+        message.detached_signature = detached_signature;
+
+        Ok(message)
     }
 
     /// Encrypts the session key and returns the encrypted session key packets (Key packets).
@@ -237,6 +262,7 @@ impl<'a> Encryptor<'a> {
     ///
     /// If no signing key is provided, the data will be encrypted without a signature.
     /// If a signing key is provided, the data will be signed before encryption.
+    /// In detached signature mode, the signature is not included in the message, use [`Self::encrypt`] instead.
     ///
     /// # Example
     ///
@@ -448,6 +474,35 @@ impl<'a> Encryptor<'a> {
             return Err(EncryptionError::MissingEncryptionTools);
         }
         Ok(())
+    }
+
+    /// Handles the detached signature operation in encryption.
+    fn handle_detached_signature_operation(
+        &mut self,
+        data: &[u8],
+    ) -> Result<Option<ExternalDetachedSignature<'static>>, EncryptionError> {
+        match self.detached_signature_op {
+            SignDetachedOperation::No => Ok(None),
+            SignDetachedOperation::Plain | SignDetachedOperation::Encrypted => {
+                let profile = self.signer.profile.clone();
+                let signer = mem::replace(&mut self.signer, Signer::new(profile));
+                let signature = signer.sign_detached(data, DataEncoding::Unarmored)?;
+                if self.detached_signature_op == SignDetachedOperation::Plain {
+                    Ok(Some(ExternalDetachedSignature::new_plain(
+                        signature,
+                        DataEncoding::Unarmored,
+                    )))
+                } else {
+                    let encrypted_signature = self
+                        .clone()
+                        .encrypt_raw(&signature, DataEncoding::Unarmored)?;
+                    Ok(Some(ExternalDetachedSignature::new_encrypted(
+                        encrypted_signature,
+                        DataEncoding::Unarmored,
+                    )))
+                }
+            }
+        }
     }
 
     /// Returns the internally set profile.
@@ -695,4 +750,12 @@ fn key_packets_to_bytes(
             .map_err(EncryptionError::DataEncryption)?;
     }
     Ok(output)
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum SignDetachedOperation {
+    #[default]
+    No,
+    Plain,
+    Encrypted,
 }

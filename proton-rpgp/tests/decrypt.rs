@@ -2,8 +2,8 @@ use std::{fs, path::PathBuf};
 
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, PrivateKey, UnixTime,
-    VerificationError,
+    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, ExternalDetachedSignature,
+    PrivateKey, UnixTime, VerificationContext, VerificationError,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -348,4 +348,32 @@ pub fn decrypt_encrypted_message_v4_wildcard() {
         .expect("Failed to decrypt");
 
     assert_eq!(verified_data.data, b"Hello World :)");
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_and_verify_encrypted_message_with_detached_signature() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v6_detached_signature.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_v6_for_message.asc");
+    const KEY: &str = include_str!("../test-data/keys/private_key_v6_detached_sig_message.asc");
+    let date = UnixTime::new(1_752_572_300);
+
+    let key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let verified_data = Decryptor::default()
+        .with_decryption_key(&key)
+        .with_verification_key(key.as_public_key())
+        .with_verification_context(VerificationContext::new("test".to_owned(), true, None))
+        .with_external_detached_signature(ExternalDetachedSignature::new_plain(
+            SIGNATURE.as_bytes(),
+            DataEncoding::Armored,
+        ))
+        .at_date(date)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"Hello World :)");
+    assert!(verified_data.verification_result.is_ok());
 }

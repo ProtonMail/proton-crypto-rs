@@ -2,8 +2,8 @@ use std::sync::LazyLock;
 
 use pgp::crypto::{aead::AeadAlgorithm, hash::HashAlgorithm, sym::SymmetricKeyAlgorithm};
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, Encryptor, PrivateKey, Profile,
-    ProfileSettingsBuilder, SessionKey, StringToKeyOption, VerificationError,
+    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, EncryptedMessage, Encryptor,
+    PrivateKey, Profile, ProfileSettingsBuilder, SessionKey, StringToKeyOption, VerificationError,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -522,4 +522,35 @@ pub fn encrypt_and_then_decrypt_with_session_key() {
         verified_data.verification_result,
         Err(VerificationError::NotSigned)
     ));
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_and_sign_message_v4_with_detached_signature() {
+    let input_data = b"hello world";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let test = |encrypt: bool| {
+        let (encrypted_data, detached_signature) = Encryptor::default()
+            .with_encryption_key(key.as_public_key())
+            .with_signing_key(&key)
+            .using_detached_signature(encrypt)
+            .encrypt(input_data)
+            .map(EncryptedMessage::split_detached_signature)
+            .expect("Failed to encrypt");
+
+        let verified_data = Decryptor::default()
+            .with_decryption_key(&key)
+            .with_verification_key(key.as_public_key())
+            .with_external_detached_signature(detached_signature.unwrap())
+            .decrypt(encrypted_data.armor().unwrap(), DataEncoding::Armored)
+            .expect("Failed to decrypt");
+
+        assert_eq!(verified_data.data, input_data);
+        assert!(verified_data.verification_result.is_ok());
+    };
+
+    test(true);
+    test(false);
 }

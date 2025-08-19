@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fmt::{self, Display},
     ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
@@ -10,7 +11,7 @@ use pgp::{
     types::{Fingerprint, KeyId, Password},
 };
 
-use crate::{armor, FingerprintError};
+use crate::{armor, ArmorError, FingerprintError};
 
 /// Possible encodings of an `OpenPGP` message.
 ///
@@ -325,5 +326,59 @@ impl Deref for CloneablePasswords {
 impl From<Vec<Password>> for CloneablePasswords {
     fn from(value: Vec<Password>) -> Self {
         Self(value)
+    }
+}
+
+/// A detached signature to verify over the decrypted data.
+#[derive(Debug, Clone)]
+pub enum ExternalDetachedSignature<'a> {
+    Plain(Cow<'a, [u8]>, DataEncoding),
+    Encrypted(Cow<'a, [u8]>, DataEncoding),
+}
+
+impl<'a> ExternalDetachedSignature<'a> {
+    /// Creates a new plain detached signature.
+    ///
+    /// The signature is not encrypted.
+    pub fn new_plain(
+        detached_signature: impl Into<Cow<'a, [u8]>>,
+        signature_data_encoding: DataEncoding,
+    ) -> Self {
+        Self::Plain(detached_signature.into(), signature_data_encoding)
+    }
+
+    /// Creates a new encrypted detached signature.
+    ///
+    /// The signature is encrypted alongside its message.
+    pub fn new_encrypted(
+        detached_signature: impl Into<Cow<'a, [u8]>>,
+        signature_data_encoding: DataEncoding,
+    ) -> Self {
+        Self::Encrypted(detached_signature.into(), signature_data_encoding)
+    }
+
+    pub fn armored(&self) -> Result<Vec<u8>, ArmorError> {
+        match self {
+            Self::Plain(signature, signature_data_encoding) => match signature_data_encoding {
+                DataEncoding::Armored => Ok(signature.to_vec()),
+                DataEncoding::Unarmored => armor::armor_signature(signature),
+            },
+            Self::Encrypted(signature, signature_data_encoding) => match signature_data_encoding {
+                DataEncoding::Armored => Ok(signature.to_vec()),
+                DataEncoding::Unarmored => armor::armor_message(signature),
+            },
+        }
+    }
+
+    pub fn unarmored(&self) -> Result<Vec<u8>, ArmorError> {
+        match self {
+            Self::Plain(signature, signature_data_encoding)
+            | Self::Encrypted(signature, signature_data_encoding) => {
+                match signature_data_encoding {
+                    DataEncoding::Armored => armor::unarmor(signature),
+                    DataEncoding::Unarmored => Ok(signature.to_vec()),
+                }
+            }
+        }
     }
 }
