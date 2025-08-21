@@ -347,21 +347,16 @@ impl<'a> Encryptor<'a> {
 
         let revealed_session_key = match encryption_mechanism {
             EncryptionMechanism::SeipdV1(symmetric_key_algorithm) => {
-                let (mut seipd_v1_builder, session_key) = create_seipd_v1_message_builder(
+                let (seipd_v1_builder, session_key) = create_seipd_v1_message_builder(
                     message_builder,
                     &encryption_keys,
                     &self.passphrases,
                     symmetric_key_algorithm,
                     extract_session_key,
+                    self.session_key.as_deref(),
                     &mut rng,
                     self.profile(),
                 )?;
-
-                if let Some(session_key) = &self.session_key {
-                    seipd_v1_builder
-                        .set_session_key(session_key.export_bytes())
-                        .map_err(EncryptionError::DataEncryption)?;
-                }
 
                 self.write_and_sign(
                     seipd_v1_builder,
@@ -375,22 +370,17 @@ impl<'a> Encryptor<'a> {
                 session_key
             }
             EncryptionMechanism::SeipdV2(symmetric_key_algorithm, aead_algorithm) => {
-                let (mut seipd_v2_builder, session_key) = create_seipd_v2_message_builder(
+                let (seipd_v2_builder, session_key) = create_seipd_v2_message_builder(
                     message_builder,
                     &encryption_keys,
                     &self.passphrases,
                     symmetric_key_algorithm,
                     aead_algorithm,
                     extract_session_key,
+                    self.session_key.as_deref(),
                     &mut rng,
                     self.profile(),
                 )?;
-
-                if let Some(session_key) = &self.session_key {
-                    seipd_v2_builder
-                        .set_session_key(session_key.export_bytes())
-                        .map_err(EncryptionError::DataEncryption)?;
-                }
 
                 self.write_and_sign(
                     seipd_v2_builder,
@@ -478,12 +468,14 @@ impl<'a> From<Encryptor<'a>> for Signer<'a> {
 }
 
 /// Helper function to create the message builder for SEIPD v1.
+#[allow(clippy::too_many_arguments)]
 fn create_seipd_v1_message_builder<'b, RAND, R>(
     message_builder: MessageBuilder<'b, R, NoEncryption>,
     encryption_keys: &[PublicComponentKey<'_>],
     passphrases: &[Password],
     symmetric_key_algorithm: SymmetricKeyAlgorithm,
     extract_session_key: bool,
+    provided_session_key: Option<&SessionKey>,
     mut rng: RAND,
     profile: &Profile,
 ) -> Result<(MessageBuilder<'b, R, EncryptionSeipdV1>, Option<SessionKey>), EncryptionError>
@@ -492,6 +484,12 @@ where
     R: Read,
 {
     let mut seipd_v1_builder = message_builder.seipd_v1(&mut rng, symmetric_key_algorithm);
+
+    if let Some(session_key) = provided_session_key {
+        seipd_v1_builder
+            .set_session_key(session_key.export_bytes())
+            .map_err(EncryptionError::DataEncryption)?;
+    }
 
     for encryption_key in encryption_keys {
         seipd_v1_builder
@@ -525,6 +523,7 @@ fn create_seipd_v2_message_builder<'b, RAND, R>(
     symmetric_key_algorithm: SymmetricKeyAlgorithm,
     aead_algorithm: AeadAlgorithm,
     extract_session_key: bool,
+    provided_session_key: Option<&SessionKey>,
     mut rng: RAND,
     profile: &Profile,
 ) -> Result<(MessageBuilder<'b, R, EncryptionSeipdV2>, Option<SessionKey>), EncryptionError>
@@ -538,6 +537,12 @@ where
         aead_algorithm,
         profile.message_aead_chunk_size(),
     );
+
+    if let Some(session_key) = provided_session_key {
+        seipd_v2_builder
+            .set_session_key(session_key.export_bytes())
+            .map_err(EncryptionError::DataEncryption)?;
+    }
 
     for encryption_key in encryption_keys {
         seipd_v2_builder
