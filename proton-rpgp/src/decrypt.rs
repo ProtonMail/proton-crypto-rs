@@ -30,7 +30,7 @@ pub struct Decryptor<'a> {
     /// The verifier to use for verifying the message.
     verifier: Verifier<'a>,
 
-    /// Allows to specify an external detached signature to verify over the decrytped data.
+    /// Allows to specify an external detached signature to verify over the decrypted data.
     ///
     /// When supplied only this signature is consider and message signatures are ignored.
     detached_signature: Option<ExternalDetachedSignature<'a>>,
@@ -112,7 +112,7 @@ impl<'a> Decryptor<'a> {
         self
     }
 
-    /// Allows to specify an external detached signature to verify over the decytped data.
+    /// Allows to specify an external detached signature to verify over the decrypted data.
     ///
     /// When supplied only this signature is considered and message signatures are ignored
     /// for the verification result.
