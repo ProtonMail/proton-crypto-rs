@@ -1,4 +1,7 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    io::{BufRead, BufReader},
+};
 
 use pgp::{
     armor::BlockType,
@@ -322,7 +325,7 @@ fn handle_signature_decoding<'a>(
         ResolvedDataEncoding::Armored => {
             armor::decode_to_buffer(signature, Some(BlockType::Signature), buffer)
                 .map_err(|err| VerificationError::RuntimeError(err.to_string()))?;
-            Ok(PacketParser::new(buffer.as_slice()))
+            Ok(PacketParser::new(Box::new(BufReader::new(reader))))
         }
     }
 }

@@ -239,6 +239,9 @@ pub enum EncryptionError {
 
     #[error("Missing encryption tools: no encryption keys or passphrases provided")]
     MissingEncryptionTools,
+
+    #[error("Failed to armor detached signature: {0}")]
+    DetachedSignature(#[from] ArmorError),
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -248,14 +248,15 @@ impl<'a> Decryptor<'a> {
         data: &[u8],
     ) -> Result<VerificationResult, DecryptionError> {
         let verification_result = match signature {
-            ExternalDetachedSignature::Plain(signature, signature_data_encoding) => self
-                .verifier
-                .verify_detached(data, signature, signature_data_encoding),
-            ExternalDetachedSignature::Encrypted(signature, signature_data_encoding) => {
+            ExternalDetachedSignature::Unencrypted(signature) => {
+                self.verifier
+                    .verify_detached(data, signature, DataEncoding::Unarmored)
+            }
+            ExternalDetachedSignature::Encrypted(signature) => {
                 let verifier = self.verifier.clone();
-                let decrytped_siganture =
-                    self.decrypt(signature.as_ref(), signature_data_encoding)?;
-                verifier.verify_detached(data, &decrytped_siganture.data, DataEncoding::Unarmored)
+                let decrypted_siganture =
+                    self.decrypt(signature.as_ref(), DataEncoding::Unarmored)?;
+                verifier.verify_detached(data, &decrypted_siganture.data, DataEncoding::Unarmored)
             }
         };
         Ok(verification_result)

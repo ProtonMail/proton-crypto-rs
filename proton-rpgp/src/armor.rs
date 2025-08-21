@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::io::{self, BufRead, Read};
 
 use pgp::{
     armor::{self, BlockType, Dearmor},
@@ -131,6 +131,19 @@ pub(crate) fn decode_to_buffer(
     expected_type: Option<BlockType>,
     output: &mut Vec<u8>,
 ) -> Result<(), ArmorError> {
+    let mut dearmor = decode_to_reader(input, expected_type)?;
+    dearmor.read_to_end(output).map_err(ArmorError::Decode)?;
+    Ok(())
+}
+
+/// Unarmor the input by reading from the reader.
+pub(crate) fn decode_to_reader<R>(
+    input: R,
+    expected_type: Option<BlockType>,
+) -> Result<Dearmor<R>, ArmorError>
+where
+    R: BufRead,
+{
     let mut dearmor = Dearmor::new(input);
     dearmor
         .read_header()
@@ -144,8 +157,7 @@ pub(crate) fn decode_to_buffer(
             ));
         }
     }
-    dearmor.read_to_end(output).map_err(ArmorError::Decode)?;
-    Ok(())
+    Ok(dearmor)
 }
 
 /// Internal function to decode a [`pgp::composed::Message`] from the input buffer.

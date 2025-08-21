@@ -366,10 +366,10 @@ pub fn decrypt_and_verify_encrypted_message_with_detached_signature() {
         .with_decryption_key(&key)
         .with_verification_key(key.as_public_key())
         .with_verification_context(VerificationContext::new("test".to_owned(), true, None))
-        .with_external_detached_signature(ExternalDetachedSignature::new_plain(
-            SIGNATURE.as_bytes(),
-            DataEncoding::Armored,
-        ))
+        .with_external_detached_signature(
+            ExternalDetachedSignature::new_plain(SIGNATURE.as_bytes(), DataEncoding::Armored)
+                .unwrap(),
+        )
         .at_date(date)
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");

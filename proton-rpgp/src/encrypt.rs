@@ -10,7 +10,7 @@ use pgp::{
         NoEncryption, RawSessionKey,
     },
     crypto::{aead::AeadAlgorithm, sym::SymmetricKeyAlgorithm},
-    packet::{PacketTrait, PublicKeyEncryptedSessionKey, SymKeyEncryptedSessionKey},
+    packet::{DataMode, PacketTrait, PublicKeyEncryptedSessionKey, SymKeyEncryptedSessionKey},
     ser::Serialize,
     types::{CompressionAlgorithm, KeyDetails, KeyVersion, Password},
 };
@@ -51,7 +51,7 @@ pub struct Encryptor<'a> {
     detached_signature_op: SignDetachedOperation,
 
     /// The internal signer to use for the signing part.
-    signer: Signer<'a>,
+    pub(crate) signer: Signer<'a>,
 }
 
 impl<'a> Encryptor<'a> {
@@ -491,15 +491,16 @@ impl<'a> Encryptor<'a> {
                     Ok(Some(ExternalDetachedSignature::new_plain(
                         signature,
                         DataEncoding::Unarmored,
-                    )))
+                    )?))
                 } else {
-                    let encrypted_signature = self
-                        .clone()
-                        .encrypt_raw(&signature, DataEncoding::Unarmored)?;
+                    let mut encryptor = self.clone();
+                    encryptor.signer.data_mode = DataMode::Binary;
+                    let encrypted_signature =
+                        encryptor.encrypt_raw(&signature, DataEncoding::Unarmored)?;
                     Ok(Some(ExternalDetachedSignature::new_encrypted(
                         encrypted_signature,
                         DataEncoding::Unarmored,
-                    )))
+                    )?))
                 }
             }
         }
