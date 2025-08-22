@@ -332,9 +332,8 @@ impl From<Vec<Password>> for CloneablePasswords {
 /// A detached signature to verify over the decrypted data.
 #[derive(Debug, Clone)]
 pub enum ExternalDetachedSignature<'a> {
-    /// Insecure when signing low-entropy data.
-    Unencrypted(Cow<'a, [u8]>),
-    Encrypted(Cow<'a, [u8]>),
+    Unencrypted(Cow<'a, [u8]>, DataEncoding),
+    Encrypted(Cow<'a, [u8]>, DataEncoding),
 }
 
 impl<'a> ExternalDetachedSignature<'a> {
@@ -344,12 +343,8 @@ impl<'a> ExternalDetachedSignature<'a> {
     pub fn new_plain(
         detached_signature: impl Into<Cow<'a, [u8]>>,
         signature_data_encoding: DataEncoding,
-    ) -> Result<Self, ArmorError> {
-        let data = match signature_data_encoding {
-            DataEncoding::Armored => armor::unarmor(detached_signature.into())?.into(),
-            DataEncoding::Unarmored => detached_signature.into(),
-        };
-        Ok(Self::Unencrypted(data))
+    ) -> Self {
+        Self::Unencrypted(detached_signature.into(), signature_data_encoding)
     }
 
     /// Creates a new encrypted detached signature.
@@ -358,35 +353,34 @@ impl<'a> ExternalDetachedSignature<'a> {
     pub fn new_encrypted(
         detached_signature: impl Into<Cow<'a, [u8]>>,
         signature_data_encoding: DataEncoding,
-    ) -> Result<Self, ArmorError> {
-        let data = match signature_data_encoding {
-            DataEncoding::Armored => armor::unarmor(detached_signature.into())?.into(),
-            DataEncoding::Unarmored => detached_signature.into(),
-        };
-        Ok(Self::Encrypted(data))
+    ) -> Self {
+        Self::Encrypted(detached_signature.into(), signature_data_encoding)
     }
 
-    pub fn armor(&self) -> Result<Vec<u8>, ArmorError> {
-        armor::armor_signature(match self {
-            Self::Unencrypted(signature) | Self::Encrypted(signature) => signature,
-        })
-    }
-
-    pub fn into_unarmored(&self) -> Vec<u8> {
+    pub fn armored(&self) -> Result<Vec<u8>, ArmorError> {
         match self {
-            Self::Unencrypted(signature) | Self::Encrypted(signature) => signature.to_vec(),
+            Self::Unencrypted(signature, signature_data_encoding) => {
+                match signature_data_encoding {
+                    DataEncoding::Armored => Ok(signature.to_vec()),
+                    DataEncoding::Unarmored => armor::armor_signature(signature),
+                }
+            }
+            Self::Encrypted(signature, signature_data_encoding) => match signature_data_encoding {
+                DataEncoding::Armored => Ok(signature.to_vec()),
+                DataEncoding::Unarmored => armor::armor_message(signature),
+            },
         }
     }
 
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn unarmored(&self) -> Result<Vec<u8>, ArmorError> {
         match self {
-            Self::Unencrypted(signature) | Self::Encrypted(signature) => signature.as_ref(),
+            Self::Unencrypted(signature, signature_data_encoding)
+            | Self::Encrypted(signature, signature_data_encoding) => {
+                match signature_data_encoding {
+                    DataEncoding::Armored => armor::unarmor(signature),
+                    DataEncoding::Unarmored => Ok(signature.to_vec()),
+                }
+            }
         }
-    }
-}
-
-impl AsRef<[u8]> for ExternalDetachedSignature<'_> {
-    fn as_ref(&self) -> &[u8] {
-        self.as_bytes()
     }
 }

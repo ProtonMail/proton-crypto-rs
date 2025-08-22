@@ -491,7 +491,7 @@ impl<'a> Encryptor<'a> {
                     Ok(Some(ExternalDetachedSignature::new_plain(
                         signature,
                         DataEncoding::Unarmored,
-                    )?))
+                    )))
                 } else {
                     let mut encryptor = self.clone();
                     encryptor.signer.data_mode = DataMode::Binary;
@@ -500,7 +500,7 @@ impl<'a> Encryptor<'a> {
                     Ok(Some(ExternalDetachedSignature::new_encrypted(
                         encrypted_signature,
                         DataEncoding::Unarmored,
-                    )?))
+                    )))
                 }
             }
         }
