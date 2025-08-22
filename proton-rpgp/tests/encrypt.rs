@@ -554,3 +554,35 @@ pub fn encrypt_and_sign_message_v4_with_detached_signature() {
     test(true);
     test(false);
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_and_sign_message_v4_with_detached_signature_text() {
+    let input_data = b"hello world\n ds   \n";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let test = |encrypt: bool| {
+        let (encrypted_data, detached_signature) = Encryptor::default()
+            .with_encryption_key(key.as_public_key())
+            .with_signing_key(&key)
+            .using_detached_signature(encrypt)
+            .as_utf8()
+            .encrypt(input_data)
+            .map(EncryptedMessage::split_detached_signature)
+            .expect("Failed to encrypt");
+
+        let verified_data = Decryptor::default()
+            .with_decryption_key(&key)
+            .with_verification_key(key.as_public_key())
+            .with_external_detached_signature(detached_signature.unwrap())
+            .output_utf8()
+            .decrypt(encrypted_data.armor().unwrap(), DataEncoding::Armored)
+            .expect("Failed to decrypt");
+
+        assert_eq!(verified_data.data, input_data);
+        assert!(verified_data.verification_result.is_ok());
+    };
+    test(false);
+    test(true);
+}

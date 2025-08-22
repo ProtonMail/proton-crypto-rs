@@ -484,8 +484,9 @@ impl<'a> Encryptor<'a> {
         match self.detached_signature_op {
             SignDetachedOperation::No => Ok(None),
             SignDetachedOperation::Plain | SignDetachedOperation::Encrypted => {
-                let profile = self.signer.profile.clone();
-                let signer = mem::replace(&mut self.signer, Signer::new(profile));
+                let mut replaced_signer = Signer::new(self.signer.profile.clone());
+                replaced_signer.data_mode = self.signer.data_mode;
+                let signer = mem::replace(&mut self.signer, replaced_signer);
                 let signature = signer.sign_detached(data, DataEncoding::Unarmored)?;
                 if self.detached_signature_op == SignDetachedOperation::Plain {
                     Ok(Some(ExternalDetachedSignature::new_plain(

@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, mem};
 
 use pgp::{
     composed::decrypt_session_key_with_password,
@@ -243,7 +243,7 @@ impl<'a> Decryptor<'a> {
 
     /// Helper function to verify external detached signature on the decrypted data.
     fn verify_detached_signature(
-        self,
+        mut self,
         signature: ExternalDetachedSignature,
         data: &[u8],
     ) -> Result<VerificationResult, DecryptionError> {
@@ -252,7 +252,8 @@ impl<'a> Decryptor<'a> {
                 .verifier
                 .verify_detached(data, signature, signature_data_encoding),
             ExternalDetachedSignature::Encrypted(signature, signature_data_encoding) => {
-                let verifier = self.verifier.clone();
+                let profile = self.verifier.profile.clone();
+                let verifier = mem::replace(&mut self.verifier, Verifier::new(profile));
                 let decrypted_siganture =
                     self.decrypt(signature.as_ref(), signature_data_encoding)?;
                 verifier.verify_detached(data, &decrypted_siganture.data, DataEncoding::Unarmored)
