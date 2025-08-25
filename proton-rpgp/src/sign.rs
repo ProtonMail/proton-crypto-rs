@@ -21,7 +21,8 @@ use crate::{
     core::signature_subpackets,
     preferences::{self, RecipientsAlgorithms},
     DataEncoding, KeySelectionError, PrivateComponentKey, PrivateKey, PrivateKeySelectionExt,
-    Profile, SignError, SignatureContext, SignatureMode, SignatureUsage, UnixTime, DEFAULT_PROFILE,
+    Profile, ResolvedDataEncoding, SignError, SignatureContext, SignatureMode, SignatureUsage,
+    UnixTime, DEFAULT_PROFILE,
 };
 
 /// A signer that can create `OpenPGP` signatures over data.
@@ -134,7 +135,7 @@ impl<'a> Signer<'a> {
         to_writer(
             &signing_keys,
             signed_builder,
-            message_encoding,
+            message_encoding.resolve_for_write(),
             rng,
             &mut buffer,
         )?;
@@ -192,7 +193,10 @@ impl<'a> Signer<'a> {
             })
             .collect();
 
-        handle_signature_encoding(signatures?.as_slice(), signature_encoding)
+        handle_signature_encoding(
+            signatures?.as_slice(),
+            signature_encoding.resolve_for_write(),
+        )
     }
 
     /// Creates a cleartext signed message.
@@ -372,10 +376,10 @@ impl Default for Signer<'_> {
 
 fn handle_signature_encoding(
     signatures: &[DetachedSignature],
-    signature_encoding: DataEncoding,
+    signature_encoding: ResolvedDataEncoding,
 ) -> Result<Vec<u8>, SignError> {
     match signature_encoding {
-        DataEncoding::Armored => {
+        ResolvedDataEncoding::Armored => {
             let all_v6 = signatures
                 .iter()
                 .all(|s| s.signature.version() == SignatureVersion::V6);
@@ -390,7 +394,7 @@ fn handle_signature_encoding(
             .map_err(SignError::Serialize)?;
             Ok(buffer)
         }
-        DataEncoding::Unarmored => {
+        ResolvedDataEncoding::Unarmored => {
             let mut buffer = Vec::with_capacity(signatures.write_len());
             signatures
                 .to_writer(&mut buffer)
@@ -403,7 +407,7 @@ fn handle_signature_encoding(
 fn to_writer<'a, RAND, W, R, E>(
     signing_keys: &'a [PrivateComponentKey<'a>],
     message_builder: MessageBuilder<R, E>,
-    data_encoding: DataEncoding,
+    data_encoding: ResolvedDataEncoding,
     rng: RAND,
     output: W,
 ) -> Result<(), SignError>
@@ -414,7 +418,7 @@ where
     E: Encryption,
 {
     match data_encoding {
-        DataEncoding::Armored => {
+        ResolvedDataEncoding::Armored => {
             let all_v6 = signing_keys
                 .iter()
                 .all(|key| key.private_key.version() == KeyVersion::V6);
@@ -429,7 +433,7 @@ where
                 )
                 .map_err(SignError::Serialize)?;
         }
-        DataEncoding::Unarmored => message_builder
+        ResolvedDataEncoding::Unarmored => message_builder
             .to_writer(rng, output)
             .map_err(SignError::Serialize)?,
     }

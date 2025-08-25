@@ -10,7 +10,7 @@ use pgp::{
     types::{Fingerprint, KeyId, Password},
 };
 
-use crate::FingerprintError;
+use crate::{armor, FingerprintError};
 
 /// Possible encodings of an `OpenPGP` message.
 ///
@@ -28,12 +28,47 @@ pub enum DataEncoding {
     Armored,
     /// The data is encoded as raw bytes.
     Unarmored,
+    /// Try to detect the encoding automatically.
+    ///
+    /// On read:
+    /// - Tries to detect the encoding (armored or unarmored) automatically.
+    ///
+    /// On write:
+    /// - Auto will be resolved to [`DataEncoding::default`].
+    Auto,
 }
 
 impl DataEncoding {
     pub fn is_armor(&self) -> bool {
         *self == DataEncoding::Armored
     }
+
+    pub(crate) fn resolve_for_read(self, data: &[u8]) -> ResolvedDataEncoding {
+        match self {
+            DataEncoding::Armored => ResolvedDataEncoding::Armored,
+            DataEncoding::Unarmored => ResolvedDataEncoding::Unarmored,
+            DataEncoding::Auto => armor::detect_encoding(data),
+        }
+    }
+
+    pub(crate) fn resolve_for_write(self) -> ResolvedDataEncoding {
+        match self {
+            DataEncoding::Armored => ResolvedDataEncoding::Armored,
+            DataEncoding::Unarmored => ResolvedDataEncoding::Unarmored,
+            DataEncoding::Auto => match DataEncoding::default() {
+                DataEncoding::Armored => ResolvedDataEncoding::Armored,
+                _ => ResolvedDataEncoding::Unarmored,
+            },
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub(crate) enum ResolvedDataEncoding {
+    /// The data is armored.
+    Armored,
+    /// The data is encoded as raw bytes.
+    Unarmored,
 }
 
 /// `UnixTimestamp` represents a unix timestamp within `OpenPGP`.

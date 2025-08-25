@@ -6,7 +6,7 @@ use pgp::{
     ser::Serialize,
 };
 
-use crate::{ArmorError, DataEncoding, MessageProcessingError};
+use crate::{ArmorError, MessageProcessingError, ResolvedDataEncoding};
 
 const INCLUDE_CHECKSUM: bool = true;
 
@@ -151,15 +151,33 @@ pub(crate) fn decode_to_buffer(
 /// Internal function to decode a [`pgp::composed::Message`] from the input buffer.
 pub(crate) fn decode_to_message(
     input: &[u8],
-    data_encoding: DataEncoding,
+    data_encoding: ResolvedDataEncoding,
 ) -> Result<Message<'_>, MessageProcessingError> {
     match data_encoding {
-        DataEncoding::Armored => Message::from_armor(input)
+        ResolvedDataEncoding::Armored => Message::from_armor(input)
             .map_err(MessageProcessingError::MessageParsing)
             .map(|value| value.0),
-        DataEncoding::Unarmored => {
+        ResolvedDataEncoding::Unarmored => {
             Message::from_bytes(input).map_err(MessageProcessingError::MessageParsing)
         }
+    }
+}
+
+/// Tries to heuristically detect if the input is armored.
+pub(crate) fn detect_encoding(input: impl AsRef<[u8]>) -> ResolvedDataEncoding {
+    const CHECK_ARMOR_PREFIX: &str = "-----BEGIN PGP ";
+    let buffer = input.as_ref();
+
+    if buffer.len() < CHECK_ARMOR_PREFIX.len() {
+        return ResolvedDataEncoding::Unarmored;
+    }
+
+    if std::str::from_utf8(buffer)
+        .is_ok_and(|s| s.trim_start()[..CHECK_ARMOR_PREFIX.len()].starts_with(CHECK_ARMOR_PREFIX))
+    {
+        ResolvedDataEncoding::Armored
+    } else {
+        ResolvedDataEncoding::Unarmored
     }
 }
 
@@ -175,5 +193,40 @@ impl Serialize for BinaryArmorSource<'_> {
 
     fn write_len(&self) -> usize {
         self.data.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_encoding_armored() {
+        let armored_data = include_bytes!("../test-data/keys/public_key_v4.asc");
+        let encoding = detect_encoding(armored_data);
+        assert_eq!(encoding, ResolvedDataEncoding::Armored);
+    }
+
+    #[test]
+    fn test_detect_encoding_armored_with_leading_whitespace() {
+        let armored_data = include_bytes!("../test-data/keys/public_key_v4.asc");
+        let mut data_with_ws = b"\n  \r\n\t".to_vec();
+        data_with_ws.extend_from_slice(armored_data);
+        let encoding = detect_encoding(&data_with_ws);
+        assert_eq!(encoding, ResolvedDataEncoding::Armored);
+    }
+
+    #[test]
+    fn test_detect_encoding_unarmored() {
+        let unarmored_data = include_bytes!("../test-data/messages/encrypted_message_v4_mail.bin");
+        let encoding = detect_encoding(unarmored_data);
+        assert_eq!(encoding, ResolvedDataEncoding::Unarmored);
+    }
+
+    #[test]
+    fn test_detect_encoding_small_buffer() {
+        let small_data = b"-----BE";
+        let encoding = detect_encoding(small_data);
+        assert_eq!(encoding, ResolvedDataEncoding::Unarmored);
     }
 }

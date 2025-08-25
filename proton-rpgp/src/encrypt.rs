@@ -18,8 +18,8 @@ use rand::{CryptoRng, Rng};
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
     Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError, KeySelectionError, PrivateKey,
-    Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, SessionKey, SignatureContext,
-    Signer, UnixTime, DEFAULT_PROFILE,
+    Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt, ResolvedDataEncoding,
+    SessionKey, SignatureContext, Signer, UnixTime, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -345,6 +345,7 @@ impl<'a> Encryptor<'a> {
             recipients_algorithm_selection.encryption_mechanism()
         };
 
+        let resolved_data_encoding = data_encoding.resolve_for_write();
         let revealed_session_key = match encryption_mechanism {
             EncryptionMechanism::SeipdV1(symmetric_key_algorithm) => {
                 let (seipd_v1_builder, session_key) = create_seipd_v1_message_builder(
@@ -362,7 +363,7 @@ impl<'a> Encryptor<'a> {
                     seipd_v1_builder,
                     &encryption_keys,
                     &recipients_algorithm_selection,
-                    data_encoding,
+                    resolved_data_encoding,
                     rng,
                     &mut output,
                 )?;
@@ -386,7 +387,7 @@ impl<'a> Encryptor<'a> {
                     seipd_v2_builder,
                     &encryption_keys,
                     &recipients_algorithm_selection,
-                    data_encoding,
+                    resolved_data_encoding,
                     rng,
                     &mut output,
                 )?;
@@ -404,7 +405,7 @@ impl<'a> Encryptor<'a> {
         message_builder: MessageBuilder<R, E>,
         encryption_keys: &[PublicComponentKey<'_>],
         recipients_algorithm_selection: &RecipientsAlgorithms,
-        data_encoding: DataEncoding,
+        data_encoding: ResolvedDataEncoding,
         rng: RAND,
         output: W,
     ) -> Result<(), EncryptionError>
@@ -567,7 +568,7 @@ where
 fn message_to_writer<'a, RAND, W, R, E>(
     encryption_keys: &'a [PublicComponentKey<'a>],
     message_builder: MessageBuilder<R, E>,
-    data_encoding: DataEncoding,
+    data_encoding: ResolvedDataEncoding,
     rng: RAND,
     output: W,
 ) -> Result<(), EncryptionError>
@@ -578,7 +579,7 @@ where
     E: Encryption,
 {
     match data_encoding {
-        DataEncoding::Armored => {
+        ResolvedDataEncoding::Armored => {
             let all_v6 = encryption_keys
                 .iter()
                 .all(|key| key.public_key.version() == KeyVersion::V6);
@@ -593,7 +594,7 @@ where
                 )
                 .map_err(EncryptionError::DataEncryption)?;
         }
-        DataEncoding::Unarmored => message_builder
+        ResolvedDataEncoding::Unarmored => message_builder
             .to_writer(rng, output)
             .map_err(EncryptionError::DataEncryption)?,
     }

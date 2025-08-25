@@ -14,7 +14,7 @@ use zeroize::Zeroizing;
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    DataEncoding, EncryptionError, KeyOperationError, Profile,
+    DataEncoding, EncryptionError, KeyOperationError, Profile, ResolvedDataEncoding,
 };
 
 mod certifications;
@@ -72,11 +72,12 @@ impl PublicKey {
 
     /// Import an `OpenPGP` public key from a byte slice.
     pub fn import(key_data: &[u8], encoding: DataEncoding) -> Result<Self, KeyOperationError> {
-        let signed_public_key = match encoding {
-            DataEncoding::Armored => SignedPublicKey::from_armor_single(key_data)
+        let resolved_encoding = encoding.resolve_for_read(key_data);
+        let signed_public_key = match resolved_encoding {
+            ResolvedDataEncoding::Armored => SignedPublicKey::from_armor_single(key_data)
                 .map_err(KeyOperationError::Decode)
                 .map(|(signed_public, _)| signed_public)?,
-            DataEncoding::Unarmored => {
+            ResolvedDataEncoding::Unarmored => {
                 SignedPublicKey::from_bytes(key_data).map_err(KeyOperationError::Decode)?
             }
         };
@@ -88,15 +89,15 @@ impl PublicKey {
 
     /// Export the public key.
     pub fn export(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
-        match encoding {
-            DataEncoding::Armored => self
+        match encoding.resolve_for_write() {
+            ResolvedDataEncoding::Armored => self
                 .inner
                 .to_armored_bytes(ArmorOptions {
                     headers: None,
                     include_checksum: !(self.inner.version() == KeyVersion::V6),
                 })
                 .map_err(KeyOperationError::Encode),
-            DataEncoding::Unarmored => {
+            ResolvedDataEncoding::Unarmored => {
                 let mut buf = Vec::new();
                 self.inner
                     .to_writer(&mut buf)
@@ -191,11 +192,12 @@ impl LockedPrivateKey {
     ///
     /// Does not check if the key is locked or not.
     pub fn import(key_data: &[u8], encoding: DataEncoding) -> Result<Self, KeyOperationError> {
-        let secret = match encoding {
-            DataEncoding::Armored => SignedSecretKey::from_armor_single(key_data)
+        let resolved_encoding = encoding.resolve_for_read(key_data);
+        let secret = match resolved_encoding {
+            ResolvedDataEncoding::Armored => SignedSecretKey::from_armor_single(key_data)
                 .map_err(KeyOperationError::Decode)
                 .map(|(secret, _)| secret)?,
-            DataEncoding::Unarmored => {
+            ResolvedDataEncoding::Unarmored => {
                 SignedSecretKey::from_bytes(key_data).map_err(KeyOperationError::Decode)?
             }
         };
@@ -284,8 +286,8 @@ impl PrivateKey {
         encoding: DataEncoding,
     ) -> Result<Vec<u8>, KeyOperationError> {
         let locked_key = self.lock(profile, password)?;
-        match encoding {
-            DataEncoding::Armored => locked_key
+        match encoding.resolve_for_write() {
+            ResolvedDataEncoding::Armored => locked_key
                 .0
                 .secret
                 .to_armored_bytes(ArmorOptions {
@@ -293,7 +295,7 @@ impl PrivateKey {
                     include_checksum: !(self.secret.version() == KeyVersion::V6),
                 })
                 .map_err(KeyOperationError::Encode),
-            DataEncoding::Unarmored => {
+            ResolvedDataEncoding::Unarmored => {
                 let mut buf = Vec::new();
                 locked_key
                     .0
@@ -311,15 +313,15 @@ impl PrivateKey {
     /// Note that a key exported in unlocked format is not protected by a password.
     /// If unsure use [`Self::export`] instead.
     pub fn export_unlocked(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
-        match encoding {
-            DataEncoding::Armored => self
+        match encoding.resolve_for_write() {
+            ResolvedDataEncoding::Armored => self
                 .secret
                 .to_armored_bytes(ArmorOptions {
                     headers: None,
                     include_checksum: !(self.secret.version() == KeyVersion::V6),
                 })
                 .map_err(KeyOperationError::Encode),
-            DataEncoding::Unarmored => {
+            ResolvedDataEncoding::Unarmored => {
                 let mut buf = Vec::new();
                 self.secret
                     .to_writer(&mut buf)

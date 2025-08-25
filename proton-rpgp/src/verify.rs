@@ -11,8 +11,9 @@ use crate::{
     signature::{
         VerificationError, VerificationResult, VerificationResultCreator, VerifiedSignature,
     },
-    DataEncoding, MessageProcessingError, MessageVerificationExt, Profile, PublicKey, UnixTime,
-    VerificationContext, VerificationInput, VerifyMessageError, DEFAULT_PROFILE,
+    DataEncoding, MessageProcessingError, MessageVerificationExt, Profile, PublicKey,
+    ResolvedDataEncoding, UnixTime, VerificationContext, VerificationInput, VerifyMessageError,
+    DEFAULT_PROFILE,
 };
 
 /// Verifier type to verify `OpenPGP` signatures.
@@ -119,7 +120,8 @@ impl<'a> Verifier<'a> {
         data: impl AsRef<[u8]>,
         data_encoding: DataEncoding,
     ) -> Result<VerifiedData, VerifyMessageError> {
-        let message = armor::decode_to_message(data.as_ref(), data_encoding)?;
+        let resolved_data_encoding = data_encoding.resolve_for_read(data.as_ref());
+        let message = armor::decode_to_message(data.as_ref(), resolved_data_encoding)?;
 
         self.verify_message(message)
             .map_err(VerifyMessageError::MessageProcessing)
@@ -155,9 +157,13 @@ impl<'a> Verifier<'a> {
         // The buffer is only used if the signature is encoded in armor.
         let mut buffer = Vec::new();
 
+        let resolved_signature_encoding = signature_encoding.resolve_for_read(signature.as_ref());
         // Check encoding.
-        let parser =
-            handle_signature_decoding(&mut buffer, signature.as_ref(), signature_encoding)?;
+        let parser = handle_signature_decoding(
+            &mut buffer,
+            signature.as_ref(),
+            resolved_signature_encoding,
+        )?;
 
         // Verify signatures.
         let verified_signatures: Vec<_> = parser
@@ -309,11 +315,11 @@ pub struct VerifiedData {
 fn handle_signature_decoding<'a>(
     buffer: &'a mut Vec<u8>,
     signature: &'a [u8],
-    signature_encoding: DataEncoding,
+    signature_encoding: ResolvedDataEncoding,
 ) -> Result<PacketParser<&'a [u8]>, VerificationError> {
     match signature_encoding {
-        DataEncoding::Unarmored => Ok(PacketParser::new(signature)),
-        DataEncoding::Armored => {
+        ResolvedDataEncoding::Unarmored => Ok(PacketParser::new(signature)),
+        ResolvedDataEncoding::Armored => {
             armor::decode_to_buffer(signature, Some(BlockType::Signature), buffer)
                 .map_err(|err| VerificationError::RuntimeError(err.to_string()))?;
             Ok(PacketParser::new(buffer.as_slice()))

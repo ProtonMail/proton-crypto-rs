@@ -153,7 +153,8 @@ impl<'a> Decryptor<'a> {
         data: impl AsRef<[u8]>,
         data_encoding: DataEncoding,
     ) -> Result<VerifiedData, DecryptionError> {
-        let message = armor::decode_to_message(data.as_ref(), data_encoding)?;
+        let resolved_data_encoding = data_encoding.resolve_for_read(data.as_ref());
+        let message = armor::decode_to_message(data.as_ref(), resolved_data_encoding)?;
 
         if !message.is_encrypted() {
             return Err(DecryptionError::NoEncryption);
