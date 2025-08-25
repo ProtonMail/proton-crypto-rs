@@ -172,9 +172,7 @@ pub(crate) fn detect_encoding(input: impl AsRef<[u8]>) -> ResolvedDataEncoding {
         return ResolvedDataEncoding::Unarmored;
     }
 
-    if std::str::from_utf8(buffer)
-        .is_ok_and(|s| s.trim_start()[..CHECK_ARMOR_PREFIX.len()].starts_with(CHECK_ARMOR_PREFIX))
-    {
+    if std::str::from_utf8(buffer).is_ok_and(|s| s.trim_start().starts_with(CHECK_ARMOR_PREFIX)) {
         ResolvedDataEncoding::Armored
     } else {
         ResolvedDataEncoding::Unarmored
