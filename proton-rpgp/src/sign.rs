@@ -18,7 +18,7 @@ use pgp::{
 use rand::{CryptoRng, Rng};
 
 use crate::{
-    core::signature_subpackets,
+    core::message_signature_subpackets,
     preferences::{self, RecipientsAlgorithms},
     DataEncoding, KeySelectionError, PrivateComponentKey, PrivateKey, PrivateKeySelectionExt,
     Profile, ResolvedDataEncoding, SignError, SignatureContext, SignatureMode, SignatureUsage,
@@ -345,7 +345,7 @@ impl<'a> Signer<'a> {
 
         let mut rng = self.profile.rng();
         for (signing_key, hash_algorithm) in signing_keys.iter().zip(hash_algorithms) {
-            let (hashed, unhashed) = signature_subpackets(
+            let (hashed, unhashed) = message_signature_subpackets(
                 &signing_key.private_key,
                 self.date,
                 hash_algorithm,

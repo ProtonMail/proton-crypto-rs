@@ -126,7 +126,7 @@ impl<'a> PrivateComponentKey<'a> {
         signature_context: Option<&SignatureContext>,
         profile: &Profile,
     ) -> Result<Signature, SignError> {
-        let config = core::configure_signature(
+        let config = core::configure_message_signature(
             &self.private_key,
             at_date,
             signature_mode,

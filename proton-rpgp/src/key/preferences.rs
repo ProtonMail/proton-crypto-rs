@@ -194,6 +194,26 @@ fn select_hash_to_sign(
     }
 }
 
+pub(crate) fn select_hash_to_sign_key_signatures(
+    preferred_hash: HashAlgorithm,
+    public_params: &PublicParams,
+    profile: &Profile,
+) -> HashAlgorithm {
+    let mut candidates = profile.candidate_hash_algorithms().to_vec();
+    let acceptable_hashes = acceptable_sign_hash_algorithms(public_params, profile);
+    intersect(&mut candidates, acceptable_hashes);
+
+    if candidates.contains(&preferred_hash) {
+        return preferred_hash;
+    }
+
+    if let Some(selection) = candidates.first() {
+        *selection
+    } else {
+        acceptable_hashes[0]
+    }
+}
+
 fn intersect<T: Copy + PartialEq>(order_determining: &mut Vec<T>, to_intersect: &[T]) {
     order_determining.retain(|alg| to_intersect.contains(alg));
 }

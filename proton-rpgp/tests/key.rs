@@ -213,9 +213,11 @@ fn key_generation_default() {
         .generate()
         .expect("Failed to generate key");
 
-    let _exported = key
+    let exported = key
         .export_unlocked(DataEncoding::Armored)
         .expect("Failed to export key");
+
+    println!("{}", String::from_utf8(exported).unwrap());
 
     key.check_can_encrypt(&KEY_TEST_PROFILE, UnixTime::now().unwrap())
         .expect("Cannot encrypt");

@@ -62,6 +62,10 @@ impl Profile {
         self.settings.preferred_hash_algorithm
     }
 
+    pub fn key_hash_algorithm(&self) -> HashAlgorithm {
+        self.settings.preferred_hash_algorithm
+    }
+
     pub fn message_aead_cipher_suite(&self) -> Option<Ciphersuite> {
         self.settings.preferred_aead_ciphersuite
     }

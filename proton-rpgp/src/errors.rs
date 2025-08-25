@@ -208,7 +208,7 @@ pub enum KeyGenerationError {
     Generation(#[from] pgp::errors::Error),
 
     #[error("Failed to self-sign key: {0}")]
-    Signing(pgp::errors::Error),
+    Signing(#[from] KeySigningError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -353,6 +353,18 @@ pub enum SignError {
 
     #[error("{ERROR_PREFIX}: Invalid input encoding for text signature: {0}")]
     InvalidInputDataLineEnding(#[from] io::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum KeySigningError {
+    #[error("Failed to sign key details: {0}")]
+    SignKeyDetails(pgp::errors::Error),
+
+    #[error("Failed to sign sub key: {0}")]
+    SignSubkey(pgp::errors::Error),
+
+    #[error("Invalid signing key version")]
+    InvalidKeyVersion,
 }
 
 #[derive(Debug, thiserror::Error)]
