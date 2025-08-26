@@ -15,6 +15,9 @@ pub(crate) use text::*;
 mod context;
 pub use context::*;
 
+mod key;
+pub(crate) use key::*;
+
 pub(crate) mod core;
 
 pub(crate) trait SignatureExt {

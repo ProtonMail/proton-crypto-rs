@@ -207,22 +207,22 @@ fn key_sha256_fingerprints() {
 
 #[test]
 fn key_generation_default() {
+    let date = UnixTime::new(1_756_196_260);
     let key = KeyGenerator::default()
         .with_user_id("test", "test@test.com")
         .with_key_type(KeyGenerationType::ECC)
+        .at_date(date)
         .generate()
         .expect("Failed to generate key");
 
-    let exported = key
+    let _exported = key
         .export_unlocked(DataEncoding::Armored)
         .expect("Failed to export key");
 
-    println!("{}", String::from_utf8(exported).unwrap());
-
-    key.check_can_encrypt(&KEY_TEST_PROFILE, UnixTime::now().unwrap())
+    key.check_can_encrypt(&KEY_TEST_PROFILE, date)
         .expect("Cannot encrypt");
 
-    key.check_can_verify(&KEY_TEST_PROFILE, UnixTime::now().unwrap())
+    key.check_can_verify(&KEY_TEST_PROFILE, date)
         .expect("Cannot verify");
 
     assert_eq!(key.version(), 4);

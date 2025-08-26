@@ -1,14 +1,16 @@
 use pgp::{
-    composed::{KeyType, SecretKeyParamsBuilder},
+    composed::KeyType,
     crypto::{
         aead::AeadAlgorithm, ecc_curve::ECCCurve, hash::HashAlgorithm, sym::SymmetricKeyAlgorithm,
     },
+    packet::{Features, KeyFlags, UserId},
     types::{CompressionAlgorithm, KeyVersion},
 };
 use smallvec::SmallVec;
 
 use crate::{
-    PREFERRED_COMPRESSION_ALGORITHMS, PREFERRED_HASH_ALGORITHMS, PREFERRED_SYMMETRIC_KEY_ALGORITHMS,
+    KeyDetailsConfig, PREFERRED_COMPRESSION_ALGORITHMS, PREFERRED_HASH_ALGORITHMS,
+    PREFERRED_SYMMETRIC_KEY_ALGORITHMS,
 };
 
 /// The algorithm type to use for the key generation.
@@ -88,17 +90,26 @@ impl Default for KeyGenerationProfile {
 }
 
 impl KeyGenerationProfile {
-    pub(crate) fn apply_to_primary_builder(self, builder: &mut SecretKeyParamsBuilder) {
-        builder
-            .version(self.key_version)
-            .can_certify(true)
-            .can_sign(true)
-            .preferred_symmetric_algorithms(self.preferred_symmetric_algorithms)
-            .preferred_hash_algorithms(self.preferred_hash_algorithms)
-            .preferred_compression_algorithms(self.preferred_compression_algorithms)
-            .preferred_aead_algorithms(self.preferred_aead_ciphersuites)
-            .feature_seipd_v1(true)
-            .feature_seipd_v2(self.support_seipd_v2);
+    pub(crate) fn create_key_details_config(
+        self,
+        primary_user_id: Option<UserId>,
+        non_primary_user_ids: Vec<UserId>,
+        keyflags: KeyFlags,
+    ) -> KeyDetailsConfig {
+        let mut features = Features::new();
+        features.set_seipd_v1(true);
+        features.set_seipd_v2(self.support_seipd_v2);
+
+        KeyDetailsConfig {
+            primary_user_id,
+            non_primary_user_ids,
+            keyflags,
+            features,
+            preferred_symmetric_algorithms: self.preferred_symmetric_algorithms,
+            preferred_hash_algorithms: self.preferred_hash_algorithms,
+            preferred_compression_algorithms: self.preferred_compression_algorithms,
+            preferred_aead_algorithms: self.preferred_aead_ciphersuites,
+        }
     }
 }
 

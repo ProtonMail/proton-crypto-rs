@@ -198,6 +198,9 @@ pub enum KeyGenerationError {
     #[error("No user id provided")]
     NoUserId,
 
+    #[error("Invalid user id {0}: {1}")]
+    InvalidUserId(String, pgp::errors::Error),
+
     #[error("Failed to generate subkey: {0}")]
     SubkeyGeneration(#[from] pgp::composed::SubkeyParamsBuilderError),
 
@@ -208,7 +211,7 @@ pub enum KeyGenerationError {
     Generation(#[from] pgp::errors::Error),
 
     #[error("Failed to self-sign key: {0}")]
-    Signing(#[from] KeySigningError),
+    Signing(#[from] SignError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -353,18 +356,6 @@ pub enum SignError {
 
     #[error("{ERROR_PREFIX}: Invalid input encoding for text signature: {0}")]
     InvalidInputDataLineEnding(#[from] io::Error),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum KeySigningError {
-    #[error("Failed to sign key details: {0}")]
-    SignKeyDetails(pgp::errors::Error),
-
-    #[error("Failed to sign sub key: {0}")]
-    SignSubkey(pgp::errors::Error),
-
-    #[error("Invalid signing key version")]
-    InvalidKeyVersion,
 }
 
 #[derive(Debug, thiserror::Error)]

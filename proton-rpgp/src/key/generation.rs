@@ -1,23 +1,14 @@
 use std::fmt::Display;
 
 use pgp::{
-    composed::{
-        KeyDetails as ComposedKeyDetails, SecretKey, SecretKeyParamsBuilder, SignedKeyDetails,
-        SignedPublicSubKey, SignedSecretKey, SignedSecretSubKey, SubkeyParamsBuilder,
-    },
-    crypto::hash::HashAlgorithm,
-    packet::{
-        KeyFlags, PacketTrait, PublicSubkey as PacketPublicSubkey,
-        SecretSubkey as PacketSecretSubkey, Signature, SignatureType, Subpacket, SubpacketData,
-    },
-    ser::Serialize,
-    types::{KeyVersion, Password, PublicKeyTrait, SecretKeyTrait},
+    composed::{SignedSecretKey, SignedSecretSubKey},
+    packet::{self, KeyFlags, PubKeyInner, UserId},
+    types::{KeyVersion, PacketHeaderVersion},
 };
 use rand::{CryptoRng, Rng};
 
 use crate::{
-    core::{key_details_configure_signature, sub_key_configure_signature},
-    KeyGenerationError, KeyGenerationType, KeySigningError, PrivateKey, Profile, UnixTime,
+    KeyGenerationError, KeyGenerationType, PacketPublicSubkeyExt, PrivateKey, Profile, UnixTime,
     DEFAULT_PROFILE,
 };
 
@@ -26,6 +17,13 @@ use crate::{
 struct KeyUserId {
     name: String,
     email: String,
+}
+
+impl KeyUserId {
+    fn try_to_user_id(&self) -> Result<UserId, KeyGenerationError> {
+        UserId::from_str(PacketHeaderVersion::default(), self.to_string())
+            .map_err(|err| KeyGenerationError::InvalidUserId(self.to_string(), err))
+    }
 }
 
 impl Display for KeyUserId {
@@ -100,37 +98,59 @@ impl KeyGenerator {
     pub fn generate(self) -> Result<PrivateKey, KeyGenerationError> {
         let mut rng = self.profile.rng();
         let key_generation_options = self.algorithm.key_generation_profile();
+        let preferred_hash = self.profile.key_hash_algorithm();
+        let (primary_user_id, non_primary_user_ids) = convert_user_ids(&self.user_ids)?;
 
-        let subkey = SubkeyParamsBuilder::default()
-            .version(key_generation_options.key_version)
-            .key_type(self.algorithm.encryption_key_type())
-            .can_encrypt(true)
-            .build()?;
-
-        let mut key_params = SecretKeyParamsBuilder::default();
-        key_generation_options.apply_to_primary_builder(&mut key_params);
-
-        if let Some(primary_user_id) = self.user_ids.first() {
-            key_params.primary_user_id(primary_user_id.to_string());
+        if primary_user_id.is_none() && key_generation_options.key_version == KeyVersion::V4 {
+            return Err(KeyGenerationError::NoUserId);
         }
+        // Primary key
+        let primary_flags = primary_key_flags();
+        let key_version = key_generation_options.key_version;
+        let key_details_config = key_generation_options.create_key_details_config(
+            primary_user_id,
+            non_primary_user_ids,
+            primary_flags,
+        );
 
-        key_params
-            .key_type(self.algorithm.primary_key_type())
-            .user_ids(
-                self.user_ids
-                    .iter()
-                    .skip(1)
-                    .map(ToString::to_string)
-                    .collect(),
-            )
-            .subkey(subkey);
+        let (primary_secret_key, primary_pub_key) =
+            generate_primary_key(self.algorithm, key_version, self.date, &mut rng)?;
 
-        let secret_key_params = key_params.build()?;
-        let secret_key = secret_key_params.generate(&mut rng)?;
+        // Encryption subkey
+        let subkey_flags = encryption_subkey_flags();
+        let (subkey_secret, subkey_public) =
+            generate_encryption_subkey(self.algorithm, key_version, self.date, &mut rng)?;
 
-        let hash_algorithm = self.profile.key_hash_algorithm();
-        let signed_secret_key =
-            secret_key.custom_sign(&mut rng, self.date, hash_algorithm, &self.profile)?;
+        // Create self-certifications.
+        let subkey_binding_signature = subkey_public.custom_sign(
+            &primary_secret_key,
+            &primary_pub_key,
+            self.date,
+            preferred_hash,
+            subkey_flags,
+            None,
+            &mut rng,
+            &self.profile,
+        )?;
+
+        let singed_subkey_secret =
+            SignedSecretSubKey::new(subkey_secret, vec![subkey_binding_signature]);
+
+        let signed_key_details = key_details_config.sign(
+            rng,
+            &primary_secret_key,
+            self.date,
+            preferred_hash,
+            &primary_pub_key,
+            &self.profile,
+        )?;
+
+        let signed_secret_key = SignedSecretKey::new(
+            primary_secret_key,
+            signed_key_details,
+            Vec::new(),
+            vec![singed_subkey_secret],
+        );
 
         Ok(PrivateKey::new(signed_secret_key))
     }
@@ -142,287 +162,215 @@ impl Default for KeyGenerator {
     }
 }
 
-trait KeyDetailsExt {
-    fn custom_sign<R, K, P>(
-        self,
-        rng: R,
-        key: &K,
-        at_date: UnixTime,
-        selected_hash: HashAlgorithm,
-        pub_key: &P,
-        profile: &Profile,
-    ) -> Result<SignedKeyDetails, KeySigningError>
-    where
-        R: CryptoRng + Rng,
-        K: SecretKeyTrait,
-        P: PublicKeyTrait + Serialize;
+fn generate_primary_key(
+    algorithm: KeyGenerationType,
+    key_version: KeyVersion,
+    date: UnixTime,
+    rng: impl Rng + CryptoRng,
+) -> Result<(packet::SecretKey, packet::PublicKey), KeyGenerationError> {
+    let (primary_public_params, primary_secret_params) =
+        algorithm.primary_key_type().generate(rng)?;
+    let pub_key = PubKeyInner::new(
+        key_version,
+        algorithm.primary_key_type().to_alg(),
+        date.into(),
+        None,
+        primary_public_params,
+    )?;
+    let primary_pub_key = packet::PublicKey::from_inner(pub_key)?;
+    let primary_key = packet::SecretKey::new(primary_pub_key.clone(), primary_secret_params)?;
+    Ok((primary_key, primary_pub_key))
 }
 
-impl KeyDetailsExt for ComposedKeyDetails {
-    fn custom_sign<R, K, P>(
-        self,
-        mut rng: R,
-        key: &K,
-        at_date: UnixTime,
-        preferred_hash: HashAlgorithm,
-        pub_key: &P,
-        profile: &Profile,
-    ) -> Result<SignedKeyDetails, KeySigningError>
-    where
-        R: CryptoRng + Rng,
-        K: SecretKeyTrait,
-        P: PublicKeyTrait + Serialize,
-    {
-        let direct_signatures = match key.version() {
-            KeyVersion::V6 => {
-                let config = key_details_configure_signature(
-                    key,
-                    pub_key,
-                    at_date,
-                    preferred_hash,
-                    SignatureType::CertPositive,
-                    &self,
-                    false,
-                    profile,
-                    &mut rng,
-                )?;
-                let direct_key_signature = config
-                    .sign_key(key, &Password::empty(), pub_key)
-                    .map_err(KeySigningError::SignKeyDetails)?;
+fn generate_encryption_subkey(
+    algorithm: KeyGenerationType,
+    key_version: KeyVersion,
+    date: UnixTime,
+    rng: impl Rng + CryptoRng,
+) -> Result<(packet::SecretSubkey, packet::PublicSubkey), KeyGenerationError> {
+    let (subkey_public_params, subkey_secret_params) =
+        algorithm.encryption_key_type().generate(rng)?;
+    let pub_key = PubKeyInner::new(
+        key_version,
+        algorithm.encryption_key_type().to_alg(),
+        date.into(),
+        None,
+        subkey_public_params,
+    )?;
+    let subkey_public = packet::PublicSubkey::from_inner(pub_key)?;
+    let subkey_secret = packet::SecretSubkey::new(subkey_public.clone(), subkey_secret_params)?;
+    Ok((subkey_secret, subkey_public))
+}
 
-                vec![direct_key_signature]
-            }
-            _ => Vec::new(),
-        };
+fn primary_key_flags() -> KeyFlags {
+    let mut flags = KeyFlags::default();
+    flags.set_sign(true);
+    flags.set_certify(true);
+    flags
+}
 
-        let mut users = Vec::with_capacity(self.non_primary_user_ids.len() + 1);
-        if let Some(primary_user_id) = &self.primary_user_id {
-            let config = key_details_configure_signature(
-                key,
-                pub_key,
-                at_date,
-                preferred_hash,
-                SignatureType::CertPositive,
-                &self,
-                true,
-                profile,
-                &mut rng,
-            )?;
+fn encryption_subkey_flags() -> KeyFlags {
+    let mut flags = KeyFlags::default();
+    flags.set_encrypt_comms(true);
+    flags.set_encrypt_storage(true);
+    flags
+}
 
-            let sig = config
-                .sign_certification(
-                    key,
-                    pub_key,
-                    &Password::empty(),
-                    primary_user_id.tag(),
-                    &primary_user_id,
-                )
-                .map_err(KeySigningError::SignKeyDetails)?;
+fn convert_user_ids(
+    user_ids: &[KeyUserId],
+) -> Result<(Option<UserId>, Vec<UserId>), KeyGenerationError> {
+    let user_ids_converted = user_ids
+        .iter()
+        .map(KeyUserId::try_to_user_id)
+        .collect::<Result<Vec<_>, KeyGenerationError>>()?;
+    let primary = user_ids_converted.first().cloned();
+    let non_primary = user_ids_converted.iter().skip(1).cloned().collect();
+    Ok((primary, non_primary))
+}
 
-            users.push(primary_user_id.clone().into_signed(sig));
-        }
+#[cfg(test)]
+mod tests {
+    use pgp::{
+        crypto::hash::HashAlgorithm,
+        packet::{Packet, PacketParser, Signature, SignatureType, SignatureVersion},
+        types::PublicKeyTrait,
+    };
 
-        users.extend(
-            self.non_primary_user_ids
-                .iter()
-                .map(|id| {
-                    let config = key_details_configure_signature(
-                        key,
-                        pub_key,
-                        at_date,
-                        preferred_hash,
-                        SignatureType::CertPositive,
-                        &self,
-                        false,
-                        profile,
-                        &mut rng,
-                    )?;
+    use crate::{AccessKeyInfo, DataEncoding, SignatureExt};
 
-                    let sig = config
-                        .sign_certification(key, pub_key, &Password::empty(), id.tag(), &id)
-                        .map_err(KeySigningError::SignKeyDetails)?;
+    use super::*;
 
-                    Ok(id.clone().into_signed(sig))
-                })
-                .collect::<Result<Vec<_>, KeySigningError>>()?,
+    #[test]
+    fn test_key_generation_details_v4() {
+        let date = UnixTime::new(1_756_196_260);
+        let key = KeyGenerator::default()
+            .with_user_id("test", "test@test.test")
+            .with_key_type(KeyGenerationType::ECC)
+            .at_date(date)
+            .generate()
+            .unwrap();
+
+        assert_eq!(key.version(), 4);
+        assert_eq!(UnixTime::from(key.public.inner.created_at()), date);
+        assert_eq!(key.secret.expires_at(), None);
+
+        let exported = key
+            .export_unlocked(DataEncoding::Unarmored)
+            .expect("Failed to export key");
+
+        let key_info_signature = load_key_info_signature(&exported);
+        assert_eq!(key_info_signature.version(), SignatureVersion::V4);
+        assert_eq!(key_info_signature.hash_alg(), Some(HashAlgorithm::Sha512));
+        assert_eq!(
+            key_info_signature.issuer_fingerprint().first().copied(),
+            Some(&key.fingerprint())
+        );
+        assert_eq!(
+            key_info_signature.issuer().first().copied(),
+            Some(&key.key_id())
+        );
+        assert_eq!(key_info_signature.unix_created_at().unwrap(), date);
+        assert!(key_info_signature.key_flags().certify() && key_info_signature.key_flags().sign());
+        assert!(
+            key_info_signature.features().unwrap().seipd_v1()
+                && !key_info_signature.features().unwrap().seipd_v2()
         );
 
-        Ok(SignedKeyDetails {
-            revocation_signatures: Vec::default(),
-            direct_signatures,
-            users,
-            user_attributes: Vec::default(),
-        })
+        let user_id = load_user_id(&exported).unwrap();
+        assert_eq!(user_id.as_str().unwrap(), "test <test@test.test>");
+
+        let subkey_signature = load_sub_key_signature(&exported);
+        assert_eq!(subkey_signature.version(), SignatureVersion::V4);
+        assert_eq!(subkey_signature.hash_alg(), Some(HashAlgorithm::Sha512));
+        assert_eq!(subkey_signature.unix_created_at().unwrap(), date);
+        assert_eq!(
+            subkey_signature.issuer_fingerprint().first().copied(),
+            Some(&key.fingerprint())
+        );
+        assert!(
+            subkey_signature.key_flags().encrypt_comms()
+                && subkey_signature.key_flags().encrypt_storage()
+        );
     }
-}
 
-trait PacketPublicSubkeyExt {
-    #[allow(clippy::too_many_arguments)]
-    fn custom_sign<R: CryptoRng + Rng, K, P>(
-        &self,
-        rng: R,
-        primary_sec_key: &K,
-        primary_pub_key: &P,
-        at_date: UnixTime,
-        selected_hash: HashAlgorithm,
-        keyflags: KeyFlags,
-        embedded: Option<Signature>,
-        profile: &Profile,
-    ) -> Result<Signature, KeySigningError>
-    where
-        K: SecretKeyTrait,
-        P: PublicKeyTrait + Serialize;
-}
+    #[test]
+    fn test_key_generation_details_v6() {
+        let date = UnixTime::new(1_756_196_260);
+        let key = KeyGenerator::default()
+            .with_key_type(KeyGenerationType::PQC)
+            .at_date(date)
+            .generate()
+            .unwrap();
 
-impl PacketPublicSubkeyExt for PacketPublicSubkey {
-    fn custom_sign<R: CryptoRng + Rng, K, P>(
-        &self,
-        mut rng: R,
-        primary_sec_key: &K,
-        primary_pub_key: &P,
-        at_date: UnixTime,
-        selected_hash: HashAlgorithm,
-        keyflags: KeyFlags,
-        embedded: Option<Signature>,
-        profile: &Profile,
-    ) -> Result<Signature, KeySigningError>
-    where
-        K: SecretKeyTrait,
-        P: PublicKeyTrait + Serialize,
-    {
-        let mut config = sub_key_configure_signature(
-            primary_sec_key,
-            primary_pub_key,
-            at_date,
-            selected_hash,
-            SignatureType::SubkeyBinding,
-            keyflags,
-            profile,
-            &mut rng,
-        )?;
+        assert_eq!(key.version(), 6);
+        assert_eq!(UnixTime::from(key.public.inner.created_at()), date);
+        assert_eq!(key.secret.expires_at(), None);
 
-        if let Some(embedded) = embedded {
-            config.hashed_subpackets.push(
-                Subpacket::regular(SubpacketData::EmbeddedSignature(Box::new(embedded)))
-                    .map_err(KeySigningError::SignSubkey)?,
-            );
+        let exported = key
+            .export_unlocked(DataEncoding::Unarmored)
+            .expect("Failed to export key");
+
+        let key_info_signature = load_key_info_signature(&exported);
+        assert_eq!(key_info_signature.version(), SignatureVersion::V6);
+        assert_eq!(key_info_signature.hash_alg(), Some(HashAlgorithm::Sha512));
+        assert_eq!(
+            key_info_signature.issuer_fingerprint().first().copied(),
+            Some(&key.fingerprint())
+        );
+        assert_eq!(key_info_signature.unix_created_at().unwrap(), date);
+        assert!(key_info_signature.key_flags().certify() && key_info_signature.key_flags().sign());
+        assert!(
+            key_info_signature.features().unwrap().seipd_v1()
+                && !key_info_signature.features().unwrap().seipd_v2()
+        );
+
+        assert!(load_user_id(&exported).is_none());
+
+        let subkey_signature = load_sub_key_signature(&exported);
+        assert_eq!(subkey_signature.version(), SignatureVersion::V6);
+        assert_eq!(subkey_signature.hash_alg(), Some(HashAlgorithm::Sha512));
+        assert_eq!(subkey_signature.unix_created_at().unwrap(), date);
+        assert_eq!(
+            subkey_signature.issuer_fingerprint().first().copied(),
+            Some(&key.fingerprint())
+        );
+        assert!(
+            subkey_signature.key_flags().encrypt_comms()
+                && subkey_signature.key_flags().encrypt_storage()
+        );
+    }
+
+    fn load_key_info_signature(signature: &[u8]) -> Signature {
+        let parser = PacketParser::new(signature);
+        for packet in parser.flatten() {
+            if let Packet::Signature(signature) = packet {
+                if let Some(SignatureType::CertPositive) = signature.typ() {
+                    return signature;
+                }
+            }
         }
-
-        config
-            .sign_subkey_binding(primary_sec_key, primary_pub_key, &Password::empty(), &self)
-            .map_err(KeySigningError::SignSubkey)
+        panic!("Expected a signature packet");
     }
-}
 
-impl PacketPublicSubkeyExt for PacketSecretSubkey {
-    fn custom_sign<R: CryptoRng + Rng, K, P>(
-        &self,
-        rng: R,
-        primary_sec_key: &K,
-        primary_pub_key: &P,
-        at_date: UnixTime,
-        selected_hash: HashAlgorithm,
-        keyflags: KeyFlags,
-        embedded: Option<Signature>,
-        profile: &Profile,
-    ) -> Result<Signature, KeySigningError>
-    where
-        K: SecretKeyTrait,
-        P: PublicKeyTrait + Serialize,
-    {
-        self.public_key().custom_sign(
-            rng,
-            primary_sec_key,
-            primary_pub_key,
-            at_date,
-            selected_hash,
-            keyflags,
-            embedded,
-            profile,
-        )
+    fn load_sub_key_signature(signature: &[u8]) -> Signature {
+        let parser = PacketParser::new(signature);
+        for packet in parser.flatten() {
+            if let Packet::Signature(signature) = packet {
+                if let Some(SignatureType::SubkeyBinding) = signature.typ() {
+                    return signature;
+                }
+            }
+        }
+        panic!("Expected a signature packet");
     }
-}
 
-trait SecretKeyExt {
-    fn custom_sign<R>(
-        self,
-        rng: R,
-        at_date: UnixTime,
-        selected_hash: HashAlgorithm,
-        profile: &Profile,
-    ) -> Result<SignedSecretKey, KeySigningError>
-    where
-        R: CryptoRng + Rng;
-}
-
-impl SecretKeyExt for SecretKey {
-    fn custom_sign<R>(
-        self,
-        mut rng: R,
-        at_date: UnixTime,
-        selected_hash: HashAlgorithm,
-        profile: &Profile,
-    ) -> Result<SignedSecretKey, KeySigningError>
-    where
-        R: CryptoRng + Rng,
-    {
-        let primary_key = self.primary_key;
-        let details = self.details.custom_sign(
-            &mut rng,
-            &primary_key,
-            at_date,
-            selected_hash,
-            primary_key.public_key(),
-            profile,
-        )?;
-        let public_subkeys = self
-            .public_subkeys
-            .into_iter()
-            .map(|k| {
-                let sig = k.key.custom_sign(
-                    &mut rng,
-                    &primary_key,
-                    primary_key.public_key(),
-                    at_date,
-                    selected_hash,
-                    k.keyflags,
-                    k.embedded,
-                    profile,
-                )?;
-
-                Ok(SignedPublicSubKey {
-                    key: k.key,
-                    signatures: vec![sig],
-                })
-            })
-            .collect::<Result<Vec<_>, KeySigningError>>()?;
-        let secret_subkeys = self
-            .secret_subkeys
-            .into_iter()
-            .map(|k| {
-                let sig = k.key.custom_sign(
-                    &mut rng,
-                    &primary_key,
-                    primary_key.public_key(),
-                    at_date,
-                    selected_hash,
-                    k.keyflags,
-                    k.embedded,
-                    profile,
-                )?;
-
-                Ok(SignedSecretSubKey {
-                    key: k.key,
-                    signatures: vec![sig],
-                })
-            })
-            .collect::<Result<Vec<_>, KeySigningError>>()?;
-
-        Ok(SignedSecretKey {
-            primary_key,
-            details,
-            public_subkeys,
-            secret_subkeys,
-        })
+    fn load_user_id(signature: &[u8]) -> Option<UserId> {
+        let parser = PacketParser::new(signature);
+        for packet in parser.flatten() {
+            if let Packet::UserId(user_id) = packet {
+                return Some(user_id);
+            }
+        }
+        None
     }
 }

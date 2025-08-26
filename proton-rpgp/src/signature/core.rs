@@ -1,15 +1,14 @@
 use pgp::{
     bytes::Bytes,
-    composed::KeyDetails as ComposedKeyDetails,
     crypto::hash::HashAlgorithm,
     packet::{KeyFlags, Notation, SignatureConfig, SignatureType, Subpacket, SubpacketData},
-    types::{KeyDetails, KeyVersion, PublicKeyTrait, SecretKeyTrait},
+    types::{KeyVersion, PublicKeyTrait, SecretKeyTrait},
 };
 use rand::{CryptoRng, Rng};
 
 use crate::{
     preferences::select_hash_to_sign_key_signatures, types::UnixTime, AnySecretKey,
-    KeySigningError, Profile, SignError, SignatureContext, SignatureMode,
+    KeyDetailsConfig, Profile, SignError, SignatureContext, SignatureMode,
 };
 
 const SALT_NOTATION_NAME: &[u8] = b"salt@notations.openpgpjs.org";
@@ -26,22 +25,8 @@ pub fn configure_message_signature<R: Rng + CryptoRng>(
     mut rng: R,
 ) -> Result<SignatureConfig, SignError> {
     // Create a signature config based on the key version and hash algorithm.
-    let mut config = match private_key.version() {
-        KeyVersion::V4 => SignatureConfig::v4(
-            signature_mode.into(),
-            private_key.algorithm(),
-            hash_algorithm,
-        ),
-
-        KeyVersion::V6 => SignatureConfig::v6(
-            &mut rng,
-            signature_mode.into(),
-            private_key.algorithm(),
-            hash_algorithm,
-        )
-        .map_err(SignError::Sign)?,
-        _ => return Err(SignError::InvalidKeyVersion),
-    };
+    let mut config =
+        signature_config_from_key(private_key, signature_mode.into(), hash_algorithm, &mut rng)?;
     let (hashed_subpackets, unhashed_subpackets) = message_signature_subpackets(
         private_key,
         at_date,
@@ -63,32 +48,16 @@ pub fn message_signature_subpackets<R: Rng + CryptoRng>(
 ) -> Result<(Vec<Subpacket>, Vec<Subpacket>), SignError> {
     let mut hashed_subpackets = Vec::with_capacity(4);
 
-    // Add the signature creation time subpacket.
-    hashed_subpackets.push(
-        Subpacket::critical(SubpacketData::SignatureCreationTime(at_date.into()))
-            .map_err(SignError::Sign)?,
-    );
+    push_signature_creation_time_subpacket(&mut hashed_subpackets, at_date)?;
 
-    if private_key.version() < KeyVersion::V6 {
-        // Add a regular Issuer (Key-Id) subpacket.
-        hashed_subpackets.push(
-            Subpacket::regular(SubpacketData::Issuer(private_key.key_id()))
-                .map_err(SignError::Sign)?,
-        );
-        // Add a salt notation subpacket.
-        hashed_subpackets.push(salt_notation(hash_algorithm, &mut rng).map_err(SignError::Sign)?);
-        // Add an Issuer Fingerprint subpacket.
-        hashed_subpackets.push(
-            Subpacket::regular(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
-                .map_err(SignError::Sign)?,
-        );
-    } else {
-        // Add a critical Issuer Fingerprint subpacket.
-        hashed_subpackets.push(
-            Subpacket::critical(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
-                .map_err(SignError::Sign)?,
-        );
-    }
+    push_v4_issuer_and_salt(
+        &mut hashed_subpackets,
+        private_key,
+        hash_algorithm,
+        &mut rng,
+    )?;
+
+    push_issuer_fingerprint_subpacket(&mut hashed_subpackets, private_key)?;
 
     // Add the signature context if any.
     if let Some(signature_context) = signature_context {
@@ -110,12 +79,12 @@ pub fn key_details_configure_signature<K, R, P>(
     public_key: &P,
     at_date: UnixTime,
     preferred_hash: HashAlgorithm,
-    typ: SignatureType,
-    key_details: &ComposedKeyDetails,
+    signature_mode: SignatureType,
+    key_details: &KeyDetailsConfig,
     primary_user_id: bool,
     profile: &Profile,
     mut rng: R,
-) -> Result<SignatureConfig, KeySigningError>
+) -> Result<SignatureConfig, SignError>
 where
     P: PublicKeyTrait,
     K: SecretKeyTrait,
@@ -123,15 +92,8 @@ where
 {
     let hash_algorithm =
         select_hash_to_sign_key_signatures(preferred_hash, public_key.public_params(), profile);
-    let mut config = match private_key.version() {
-        KeyVersion::V4 => SignatureConfig::v4(typ, private_key.algorithm(), hash_algorithm),
-        KeyVersion::V6 => {
-            SignatureConfig::v6(&mut rng, typ, private_key.algorithm(), hash_algorithm)
-                .map_err(KeySigningError::SignKeyDetails)?
-        }
-        _ => return Err(KeySigningError::InvalidKeyVersion),
-    };
-
+    let mut config =
+        signature_config_from_key(private_key, signature_mode, hash_algorithm, &mut rng)?;
     config.hashed_subpackets = key_details_signature_subpackets(
         private_key,
         at_date,
@@ -147,87 +109,69 @@ pub fn key_details_signature_subpackets<K, R>(
     private_key: &K,
     at_date: UnixTime,
     hash_algorithm: HashAlgorithm,
-    key_details: &ComposedKeyDetails,
+    key_details: &KeyDetailsConfig,
     primary_user_id: bool,
     mut rng: R,
-) -> Result<Vec<Subpacket>, KeySigningError>
+) -> Result<Vec<Subpacket>, SignError>
 where
     K: SecretKeyTrait,
     R: Rng + CryptoRng,
 {
     let mut hashed_subpackets = Vec::with_capacity(11);
 
-    hashed_subpackets.push(
-        Subpacket::critical(SubpacketData::SignatureCreationTime(at_date.into()))
-            .map_err(KeySigningError::SignKeyDetails)?,
-    );
+    push_signature_creation_time_subpacket(&mut hashed_subpackets, at_date)?;
 
     hashed_subpackets.push(
         Subpacket::regular(SubpacketData::PreferredSymmetricAlgorithms(
             key_details.preferred_symmetric_algorithms.clone(),
         ))
-        .map_err(KeySigningError::SignKeyDetails)?,
+        .map_err(SignError::Sign)?,
     );
 
-    if private_key.version() < KeyVersion::V6 {
-        hashed_subpackets.push(
-            Subpacket::regular(SubpacketData::Issuer(private_key.key_id()))
-                .map_err(KeySigningError::SignKeyDetails)?,
-        );
-        hashed_subpackets.push(
-            salt_notation(hash_algorithm, &mut rng).map_err(KeySigningError::SignKeyDetails)?,
-        );
-    }
+    push_v4_issuer_and_salt(
+        &mut hashed_subpackets,
+        private_key,
+        hash_algorithm,
+        &mut rng,
+    )?;
 
     hashed_subpackets.push(
         Subpacket::regular(SubpacketData::PreferredHashAlgorithms(
             key_details.preferred_hash_algorithms.clone(),
         ))
-        .map_err(KeySigningError::SignKeyDetails)?,
+        .map_err(SignError::Sign)?,
     );
 
     hashed_subpackets.push(
         Subpacket::regular(SubpacketData::PreferredCompressionAlgorithms(
             key_details.preferred_compression_algorithms.clone(),
         ))
-        .map_err(KeySigningError::SignKeyDetails)?,
+        .map_err(SignError::Sign)?,
     );
 
     if primary_user_id {
-        hashed_subpackets.push(
-            Subpacket::regular(SubpacketData::IsPrimary(true))
-                .map_err(KeySigningError::SignKeyDetails)?,
-        );
+        hashed_subpackets
+            .push(Subpacket::regular(SubpacketData::IsPrimary(true)).map_err(SignError::Sign)?);
     }
 
     hashed_subpackets.push(
-        Subpacket::regular(SubpacketData::KeyFlags(key_details.keyflags.clone()))
-            .map_err(KeySigningError::SignKeyDetails)?,
+        Subpacket::critical(SubpacketData::KeyFlags(key_details.keyflags.clone()))
+            .map_err(SignError::Sign)?,
     );
 
     hashed_subpackets.push(
         Subpacket::regular(SubpacketData::Features(key_details.features.clone()))
-            .map_err(KeySigningError::SignKeyDetails)?,
+            .map_err(SignError::Sign)?,
     );
 
-    if private_key.version() < KeyVersion::V6 {
-        hashed_subpackets.push(
-            Subpacket::regular(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
-                .map_err(KeySigningError::SignKeyDetails)?,
-        );
-    } else {
-        hashed_subpackets.push(
-            Subpacket::critical(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
-                .map_err(KeySigningError::SignKeyDetails)?,
-        );
-    }
+    push_issuer_fingerprint_subpacket(&mut hashed_subpackets, private_key)?;
 
     if !key_details.preferred_aead_algorithms.is_empty() {
         hashed_subpackets.push(
             Subpacket::regular(SubpacketData::PreferredAeadAlgorithms(
                 key_details.preferred_aead_algorithms.clone(),
             ))
-            .map_err(KeySigningError::SignKeyDetails)?,
+            .map_err(SignError::Sign)?,
         );
     }
 
@@ -236,33 +180,35 @@ where
 
 #[allow(clippy::too_many_arguments)]
 pub fn sub_key_configure_signature<K, R, P>(
-    private_key: &K,
-    public_key: &P,
+    primary_secret_key: &K,
+    primary_public_key: &P,
     at_date: UnixTime,
     preferred_hash: HashAlgorithm,
-    typ: SignatureType,
+    signature_mode: SignatureType,
     keyflags: KeyFlags,
     profile: &Profile,
     mut rng: R,
-) -> Result<SignatureConfig, KeySigningError>
+) -> Result<SignatureConfig, SignError>
 where
     P: PublicKeyTrait,
     K: SecretKeyTrait,
     R: Rng + CryptoRng,
 {
-    let hash_algorithm =
-        select_hash_to_sign_key_signatures(preferred_hash, public_key.public_params(), profile);
-    let mut config = match private_key.version() {
-        KeyVersion::V4 => SignatureConfig::v4(typ, private_key.algorithm(), hash_algorithm),
-        KeyVersion::V6 => {
-            SignatureConfig::v6(&mut rng, typ, private_key.algorithm(), hash_algorithm)
-                .map_err(KeySigningError::SignKeyDetails)?
-        }
-        _ => return Err(KeySigningError::InvalidKeyVersion),
-    };
+    let hash_algorithm = select_hash_to_sign_key_signatures(
+        preferred_hash,
+        primary_public_key.public_params(),
+        profile,
+    );
+    let mut config =
+        signature_config_from_key(primary_secret_key, signature_mode, hash_algorithm, &mut rng)?;
 
-    config.hashed_subpackets =
-        subkey_signature_subpackets(private_key, at_date, hash_algorithm, keyflags, &mut rng)?;
+    config.hashed_subpackets = subkey_signature_subpackets(
+        primary_secret_key,
+        at_date,
+        hash_algorithm,
+        keyflags,
+        &mut rng,
+    )?;
     Ok(config)
 }
 
@@ -272,44 +218,26 @@ pub fn subkey_signature_subpackets<K, R>(
     hash_algorithm: HashAlgorithm,
     keyflags: KeyFlags,
     mut rng: R,
-) -> Result<Vec<Subpacket>, KeySigningError>
+) -> Result<Vec<Subpacket>, SignError>
 where
     K: SecretKeyTrait,
     R: Rng + CryptoRng,
 {
     let mut hashed_subpackets = Vec::with_capacity(5);
 
-    hashed_subpackets.push(
-        Subpacket::critical(SubpacketData::SignatureCreationTime(at_date.into()))
-            .map_err(KeySigningError::SignKeyDetails)?,
-    );
+    push_signature_creation_time_subpacket(&mut hashed_subpackets, at_date)?;
 
-    if private_key.version() < KeyVersion::V6 {
-        hashed_subpackets.push(
-            Subpacket::regular(SubpacketData::Issuer(private_key.key_id()))
-                .map_err(KeySigningError::SignKeyDetails)?,
-        );
-        hashed_subpackets.push(
-            salt_notation(hash_algorithm, &mut rng).map_err(KeySigningError::SignKeyDetails)?,
-        );
-    }
+    push_v4_issuer_and_salt(
+        &mut hashed_subpackets,
+        private_key,
+        hash_algorithm,
+        &mut rng,
+    )?;
 
-    hashed_subpackets.push(
-        Subpacket::regular(SubpacketData::KeyFlags(keyflags))
-            .map_err(KeySigningError::SignKeyDetails)?,
-    );
+    hashed_subpackets
+        .push(Subpacket::critical(SubpacketData::KeyFlags(keyflags)).map_err(SignError::Sign)?);
 
-    if private_key.version() < KeyVersion::V6 {
-        hashed_subpackets.push(
-            Subpacket::regular(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
-                .map_err(KeySigningError::SignKeyDetails)?,
-        );
-    } else {
-        hashed_subpackets.push(
-            Subpacket::critical(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
-                .map_err(KeySigningError::SignKeyDetails)?,
-        );
-    }
+    push_issuer_fingerprint_subpacket(&mut hashed_subpackets, private_key)?;
 
     Ok(hashed_subpackets)
 }
@@ -335,4 +263,77 @@ fn salt_notation<R: Rng + CryptoRng>(
         value: Bytes::from(salt),
         readable: false,
     }))
+}
+
+fn push_signature_creation_time_subpacket(
+    hashed_subpackets: &mut Vec<Subpacket>,
+    at_date: UnixTime,
+) -> Result<(), SignError> {
+    hashed_subpackets.push(
+        Subpacket::critical(SubpacketData::SignatureCreationTime(at_date.into()))
+            .map_err(SignError::Sign)?,
+    );
+    Ok(())
+}
+
+fn push_v4_issuer_and_salt<K, R>(
+    hashed_subpackets: &mut Vec<Subpacket>,
+    private_key: &K,
+    hash_algorithm: HashAlgorithm,
+    rng: &mut R,
+) -> Result<(), SignError>
+where
+    K: SecretKeyTrait,
+    R: Rng + CryptoRng,
+{
+    if private_key.version() < KeyVersion::V6 {
+        for subpacket in [
+            Subpacket::regular(SubpacketData::Issuer(private_key.key_id())),
+            salt_notation(hash_algorithm, rng),
+        ] {
+            hashed_subpackets.push(subpacket.map_err(SignError::Sign)?);
+        }
+    }
+    Ok(())
+}
+
+fn push_issuer_fingerprint_subpacket<K>(
+    hashed_subpackets: &mut Vec<Subpacket>,
+    private_key: &K,
+) -> Result<(), SignError>
+where
+    K: SecretKeyTrait,
+{
+    if private_key.version() < KeyVersion::V6 {
+        hashed_subpackets.push(
+            Subpacket::regular(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
+                .map_err(SignError::Sign)?,
+        );
+    } else {
+        hashed_subpackets.push(
+            Subpacket::critical(SubpacketData::IssuerFingerprint(private_key.fingerprint()))
+                .map_err(SignError::Sign)?,
+        );
+    }
+    Ok(())
+}
+
+fn signature_config_from_key(
+    private_key: &impl SecretKeyTrait,
+    signature_mode: SignatureType,
+    hash_algorithm: HashAlgorithm,
+    rng: impl Rng + CryptoRng,
+) -> Result<SignatureConfig, SignError> {
+    match private_key.version() {
+        KeyVersion::V4 => Ok(SignatureConfig::v4(
+            signature_mode,
+            private_key.algorithm(),
+            hash_algorithm,
+        )),
+        KeyVersion::V6 => {
+            SignatureConfig::v6(rng, signature_mode, private_key.algorithm(), hash_algorithm)
+                .map_err(SignError::Sign)
+        }
+        _ => Err(SignError::InvalidKeyVersion),
+    }
 }
