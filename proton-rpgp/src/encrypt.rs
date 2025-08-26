@@ -143,7 +143,7 @@ impl<'a> Encryptor<'a> {
         self.detached_signature_op = if encrypt {
             SignDetachedOperation::Encrypted
         } else {
-            SignDetachedOperation::Plain
+            SignDetachedOperation::Unencrypted
         };
         self
     }
@@ -482,14 +482,14 @@ impl<'a> Encryptor<'a> {
         data: &[u8],
     ) -> Result<Option<ExternalDetachedSignature<'static>>, EncryptionError> {
         match self.detached_signature_op {
-            SignDetachedOperation::No => Ok(None),
-            SignDetachedOperation::Plain | SignDetachedOperation::Encrypted => {
+            SignDetachedOperation::None => Ok(None),
+            SignDetachedOperation::Unencrypted | SignDetachedOperation::Encrypted => {
                 let mut replaced_signer = Signer::new(self.signer.profile.clone());
                 replaced_signer.data_mode = self.signer.data_mode;
                 let signer = mem::replace(&mut self.signer, replaced_signer);
                 let signature = signer.sign_detached(data, DataEncoding::Unarmored)?;
-                if self.detached_signature_op == SignDetachedOperation::Plain {
-                    Ok(Some(ExternalDetachedSignature::new_plain(
+                if self.detached_signature_op == SignDetachedOperation::Unencrypted {
+                    Ok(Some(ExternalDetachedSignature::new_unencrypted(
                         signature,
                         DataEncoding::Unarmored,
                     )))
@@ -757,7 +757,8 @@ fn key_packets_to_bytes(
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum SignDetachedOperation {
     #[default]
-    No,
-    Plain,
+    None,
+    // Insecure when signing low-entropy data.
+    Unencrypted,
     Encrypted,
 }

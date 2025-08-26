@@ -346,10 +346,8 @@ pub enum ExternalDetachedSignature<'a> {
 }
 
 impl<'a> ExternalDetachedSignature<'a> {
-    /// Creates a new plain detached signature.
-    ///
-    /// The signature is not encrypted.
-    pub fn new_plain(
+    /// Creates a new unencrypted detached signature.
+    pub fn new_unencrypted(
         detached_signature: impl Into<Cow<'a, [u8]>>,
         signature_data_encoding: DataEncoding,
     ) -> Self {
