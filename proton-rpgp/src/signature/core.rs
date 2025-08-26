@@ -82,6 +82,7 @@ pub fn key_details_configure_signature<K, R, P>(
     signature_mode: SignatureType,
     key_details: &KeyDetailsConfig,
     primary_user_id: bool,
+    include_details: bool,
     profile: &Profile,
     mut rng: R,
 ) -> Result<SignatureConfig, SignError>
@@ -100,6 +101,7 @@ where
         hash_algorithm,
         key_details,
         primary_user_id,
+        include_details,
         &mut rng,
     )?;
     Ok(config)
@@ -111,6 +113,7 @@ pub fn key_details_signature_subpackets<K, R>(
     hash_algorithm: HashAlgorithm,
     key_details: &KeyDetailsConfig,
     primary_user_id: bool,
+    include_details: bool,
     mut rng: R,
 ) -> Result<Vec<Subpacket>, SignError>
 where
@@ -121,12 +124,14 @@ where
 
     push_signature_creation_time_subpacket(&mut hashed_subpackets, at_date)?;
 
-    hashed_subpackets.push(
-        Subpacket::regular(SubpacketData::PreferredSymmetricAlgorithms(
-            key_details.preferred_symmetric_algorithms.clone(),
-        ))
-        .map_err(SignError::Sign)?,
-    );
+    if include_details {
+        hashed_subpackets.push(
+            Subpacket::regular(SubpacketData::PreferredSymmetricAlgorithms(
+                key_details.preferred_symmetric_algorithms.clone(),
+            ))
+            .map_err(SignError::Sign)?,
+        );
+    }
 
     push_v4_issuer_and_salt(
         &mut hashed_subpackets,
@@ -135,38 +140,42 @@ where
         &mut rng,
     )?;
 
-    hashed_subpackets.push(
-        Subpacket::regular(SubpacketData::PreferredHashAlgorithms(
-            key_details.preferred_hash_algorithms.clone(),
-        ))
-        .map_err(SignError::Sign)?,
-    );
+    if include_details {
+        hashed_subpackets.push(
+            Subpacket::regular(SubpacketData::PreferredHashAlgorithms(
+                key_details.preferred_hash_algorithms.clone(),
+            ))
+            .map_err(SignError::Sign)?,
+        );
 
-    hashed_subpackets.push(
-        Subpacket::regular(SubpacketData::PreferredCompressionAlgorithms(
-            key_details.preferred_compression_algorithms.clone(),
-        ))
-        .map_err(SignError::Sign)?,
-    );
+        hashed_subpackets.push(
+            Subpacket::regular(SubpacketData::PreferredCompressionAlgorithms(
+                key_details.preferred_compression_algorithms.clone(),
+            ))
+            .map_err(SignError::Sign)?,
+        );
+    }
 
     if primary_user_id {
         hashed_subpackets
             .push(Subpacket::regular(SubpacketData::IsPrimary(true)).map_err(SignError::Sign)?);
     }
 
-    hashed_subpackets.push(
-        Subpacket::critical(SubpacketData::KeyFlags(key_details.keyflags.clone()))
-            .map_err(SignError::Sign)?,
-    );
+    if include_details {
+        hashed_subpackets.push(
+            Subpacket::critical(SubpacketData::KeyFlags(key_details.keyflags.clone()))
+                .map_err(SignError::Sign)?,
+        );
 
-    hashed_subpackets.push(
-        Subpacket::regular(SubpacketData::Features(key_details.features.clone()))
-            .map_err(SignError::Sign)?,
-    );
+        hashed_subpackets.push(
+            Subpacket::regular(SubpacketData::Features(key_details.features.clone()))
+                .map_err(SignError::Sign)?,
+        );
+    }
 
     push_issuer_fingerprint_subpacket(&mut hashed_subpackets, private_key)?;
 
-    if !key_details.preferred_aead_algorithms.is_empty() {
+    if include_details && !key_details.preferred_aead_algorithms.is_empty() {
         hashed_subpackets.push(
             Subpacket::regular(SubpacketData::PreferredAeadAlgorithms(
                 key_details.preferred_aead_algorithms.clone(),

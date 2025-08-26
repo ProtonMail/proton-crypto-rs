@@ -258,7 +258,7 @@ mod tests {
             .export_unlocked(DataEncoding::Unarmored)
             .expect("Failed to export key");
 
-        let key_info_signature = load_key_info_signature(&exported);
+        let key_info_signature = load_user_id_signature(&exported);
         assert_eq!(key_info_signature.version(), SignatureVersion::V4);
         assert_eq!(key_info_signature.hash_alg(), Some(HashAlgorithm::Sha512));
         assert_eq!(
@@ -297,6 +297,7 @@ mod tests {
     fn test_key_generation_details_v6() {
         let date = UnixTime::new(1_756_196_260);
         let key = KeyGenerator::default()
+            .with_user_id("test", "test@test.test")
             .with_key_type(KeyGenerationType::PQC)
             .at_date(date)
             .generate()
@@ -310,7 +311,7 @@ mod tests {
             .export_unlocked(DataEncoding::Unarmored)
             .expect("Failed to export key");
 
-        let key_info_signature = load_key_info_signature(&exported);
+        let key_info_signature = load_direct_key_info_signature(&exported);
         assert_eq!(key_info_signature.version(), SignatureVersion::V6);
         assert_eq!(key_info_signature.hash_alg(), Some(HashAlgorithm::Sha512));
         assert_eq!(
@@ -324,7 +325,8 @@ mod tests {
                 && !key_info_signature.features().unwrap().seipd_v2()
         );
 
-        assert!(load_user_id(&exported).is_none());
+        let user_id = load_user_id(&exported).unwrap();
+        assert_eq!(user_id.as_str().unwrap(), "test <test@test.test>");
 
         let subkey_signature = load_sub_key_signature(&exported);
         assert_eq!(subkey_signature.version(), SignatureVersion::V6);
@@ -338,13 +340,36 @@ mod tests {
             subkey_signature.key_flags().encrypt_comms()
                 && subkey_signature.key_flags().encrypt_storage()
         );
+
+        let user_id_signature = load_user_id_signature(&exported);
+        assert_eq!(user_id_signature.version(), SignatureVersion::V6);
+        assert_eq!(user_id_signature.hash_alg(), Some(HashAlgorithm::Sha512));
+        assert_eq!(
+            user_id_signature.issuer_fingerprint().first().copied(),
+            Some(&key.fingerprint())
+        );
+        assert_eq!(user_id_signature.unix_created_at().unwrap(), date);
+        assert!(user_id_signature.features().is_none());
+        assert!(user_id_signature.preferred_symmetric_algs().is_empty());
     }
 
-    fn load_key_info_signature(signature: &[u8]) -> Signature {
+    fn load_user_id_signature(signature: &[u8]) -> Signature {
         let parser = PacketParser::new(signature);
         for packet in parser.flatten() {
             if let Packet::Signature(signature) = packet {
                 if let Some(SignatureType::CertPositive) = signature.typ() {
+                    return signature;
+                }
+            }
+        }
+        panic!("Expected a signature packet");
+    }
+
+    fn load_direct_key_info_signature(signature: &[u8]) -> Signature {
+        let parser = PacketParser::new(signature);
+        for packet in parser.flatten() {
+            if let Packet::Signature(signature) = packet {
+                if let Some(SignatureType::Key) = signature.typ() {
                     return signature;
                 }
             }

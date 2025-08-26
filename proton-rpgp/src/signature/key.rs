@@ -49,9 +49,10 @@ impl KeyDetailsConfig {
                 pub_key,
                 at_date,
                 preferred_hash,
-                SignatureType::CertPositive,
+                SignatureType::Key,
                 &self,
                 false,
+                true,
                 profile,
                 &mut rng,
             )?;
@@ -73,6 +74,7 @@ impl KeyDetailsConfig {
                 SignatureType::CertPositive,
                 &self,
                 true,
+                key.version() < KeyVersion::V6,
                 profile,
                 &mut rng,
             )?;
@@ -100,6 +102,7 @@ impl KeyDetailsConfig {
                 SignatureType::CertPositive,
                 &self,
                 false,
+                key.version() < KeyVersion::V6,
                 profile,
                 &mut rng,
             )?;
