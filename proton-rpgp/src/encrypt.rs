@@ -20,7 +20,7 @@ use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
     Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError, ExternalDetachedSignature,
     KeySelectionError, PrivateKey, Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt,
-    SessionKey, SignatureContext, Signer, UnixTime, DEFAULT_PROFILE,
+    ResolvedDataEncoding, SessionKey, SignatureContext, Signer, UnixTime, DEFAULT_PROFILE,
 };
 
 mod message;

@@ -157,16 +157,9 @@ impl<'a> Verifier<'a> {
         signature: impl AsRef<[u8]>,
         signature_encoding: DataEncoding,
     ) -> VerificationResult {
-        // The buffer is only used if the signature is encoded in armor.
-        let mut buffer = Vec::new();
-
         let resolved_signature_encoding = signature_encoding.resolve_for_read(signature.as_ref());
         // Check encoding.
-        let parser = handle_signature_decoding(
-            &mut buffer,
-            signature.as_ref(),
-            resolved_signature_encoding,
-        )?;
+        let parser = handle_signature_decoding(signature.as_ref(), resolved_signature_encoding)?;
 
         // Verify signatures.
         let verified_signatures: Vec<_> = parser
@@ -316,14 +309,13 @@ pub struct VerifiedData {
 }
 
 fn handle_signature_decoding<'a>(
-    buffer: &'a mut Vec<u8>,
     signature: &'a [u8],
     signature_encoding: ResolvedDataEncoding,
-) -> Result<PacketParser<&'a [u8]>, VerificationError> {
+) -> Result<PacketParser<Box<dyn BufRead + 'a>>, VerificationError> {
     match signature_encoding {
-        ResolvedDataEncoding::Unarmored => Ok(PacketParser::new(signature)),
+        ResolvedDataEncoding::Unarmored => Ok(PacketParser::new(Box::new(signature))),
         ResolvedDataEncoding::Armored => {
-            armor::decode_to_buffer(signature, Some(BlockType::Signature), buffer)
+            let reader = armor::decode_to_reader(signature, Some(BlockType::Signature))
                 .map_err(|err| VerificationError::RuntimeError(err.to_string()))?;
             Ok(PacketParser::new(Box::new(BufReader::new(reader))))
         }

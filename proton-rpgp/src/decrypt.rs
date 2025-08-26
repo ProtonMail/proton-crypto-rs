@@ -250,12 +250,12 @@ impl<'a> Decryptor<'a> {
         let verification_result = match signature {
             ExternalDetachedSignature::Unencrypted(signature, signature_data_encoding) => self
                 .verifier
-                .verify_detached(data, signature, signature_data_encoding),
+                .verify_detached(data, signature, signature_data_encoding.into()),
             ExternalDetachedSignature::Encrypted(signature, signature_data_encoding) => {
                 let profile = self.verifier.profile.clone();
                 let verifier = mem::replace(&mut self.verifier, Verifier::new(profile));
                 let decrypted_siganture =
-                    self.decrypt(signature.as_ref(), signature_data_encoding)?;
+                    self.decrypt(signature.as_ref(), signature_data_encoding.into())?;
                 verifier.verify_detached(data, &decrypted_siganture.data, DataEncoding::Unarmored)
             }
         };
