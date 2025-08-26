@@ -104,7 +104,7 @@ impl KeyGenerator {
         if primary_user_id.is_none() && key_generation_options.key_version == KeyVersion::V4 {
             return Err(KeyGenerationError::NoUserId);
         }
-        // Primary key
+        // Generate the primary key for signing.
         let primary_flags = primary_key_flags();
         let key_version = key_generation_options.key_version;
         let key_details_config = key_generation_options.create_key_details_config(
@@ -116,13 +116,22 @@ impl KeyGenerator {
         let (primary_secret_key, primary_pub_key) =
             generate_primary_key(self.algorithm, key_version, self.date, &mut rng)?;
 
-        // Encryption subkey
+        // Generate a single subkey for encryption.
         let subkey_flags = encryption_subkey_flags();
         let (subkey_secret, subkey_public) =
             generate_encryption_subkey(self.algorithm, key_version, self.date, &mut rng)?;
 
-        // Create self-certifications.
-        let subkey_binding_signature = subkey_public.custom_sign(
+        // Create all self-certifications.
+        let signed_key_details = key_details_config.sign_with(
+            &primary_secret_key,
+            &primary_pub_key,
+            self.date,
+            preferred_hash,
+            &mut rng,
+            &self.profile,
+        )?;
+
+        let subkey_binding_signature = subkey_public.sign_with(
             &primary_secret_key,
             &primary_pub_key,
             self.date,
@@ -133,23 +142,14 @@ impl KeyGenerator {
             &self.profile,
         )?;
 
-        let singed_subkey_secret =
+        let signed_subkey_secret =
             SignedSecretSubKey::new(subkey_secret, vec![subkey_binding_signature]);
-
-        let signed_key_details = key_details_config.sign(
-            rng,
-            &primary_secret_key,
-            self.date,
-            preferred_hash,
-            &primary_pub_key,
-            &self.profile,
-        )?;
 
         let signed_secret_key = SignedSecretKey::new(
             primary_secret_key,
             signed_key_details,
             Vec::new(),
-            vec![singed_subkey_secret],
+            vec![signed_subkey_secret],
         );
 
         Ok(PrivateKey::new(signed_secret_key))
@@ -178,8 +178,9 @@ fn generate_primary_key(
         primary_public_params,
     )?;
     let primary_pub_key = packet::PublicKey::from_inner(pub_key)?;
-    let primary_key = packet::SecretKey::new(primary_pub_key.clone(), primary_secret_params)?;
-    Ok((primary_key, primary_pub_key))
+    let primary_secret_key =
+        packet::SecretKey::new(primary_pub_key.clone(), primary_secret_params)?;
+    Ok((primary_secret_key, primary_pub_key))
 }
 
 fn generate_encryption_subkey(
@@ -219,12 +220,15 @@ fn encryption_subkey_flags() -> KeyFlags {
 fn convert_user_ids(
     user_ids: &[KeyUserId],
 ) -> Result<(Option<UserId>, Vec<UserId>), KeyGenerationError> {
-    let user_ids_converted = user_ids
+    let primary = user_ids
+        .first()
+        .map(KeyUserId::try_to_user_id)
+        .transpose()?;
+    let non_primary = user_ids
         .iter()
+        .skip(1)
         .map(KeyUserId::try_to_user_id)
         .collect::<Result<Vec<_>, KeyGenerationError>>()?;
-    let primary = user_ids_converted.first().cloned();
-    let non_primary = user_ids_converted.iter().skip(1).cloned().collect();
     Ok((primary, non_primary))
 }
 

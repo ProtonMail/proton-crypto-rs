@@ -17,6 +17,9 @@ use crate::{
 };
 
 /// The key detail data to be signed for a key.
+///
+/// The key details are either stored in the direct key signature
+/// or in a self-certification of the primary User-Id.
 pub(crate) struct KeyDetailsConfig {
     pub(crate) primary_user_id: Option<UserId>,
     pub(crate) non_primary_user_ids: Vec<UserId>,
@@ -29,13 +32,13 @@ pub(crate) struct KeyDetailsConfig {
 }
 
 impl KeyDetailsConfig {
-    pub(crate) fn sign<R, K, P>(
+    pub(crate) fn sign_with<R, K, P>(
         self,
-        mut rng: R,
-        key: &K,
+        primary_secret_key: &K,
+        primary_pub_key: &P,
         at_date: UnixTime,
         preferred_hash: HashAlgorithm,
-        pub_key: &P,
+        mut rng: R,
         profile: &Profile,
     ) -> Result<SignedKeyDetails, SignError>
     where
@@ -43,10 +46,10 @@ impl KeyDetailsConfig {
         K: SecretKeyTrait,
         P: PublicKeyTrait + Serialize,
     {
-        let direct_signatures = if key.version() == KeyVersion::V6 {
+        let direct_signatures = if primary_secret_key.version() == KeyVersion::V6 {
             let config = key_details_configure_signature(
-                key,
-                pub_key,
+                primary_secret_key,
+                primary_pub_key,
                 at_date,
                 preferred_hash,
                 SignatureType::Key,
@@ -57,7 +60,7 @@ impl KeyDetailsConfig {
                 &mut rng,
             )?;
             let direct_key_signature = config
-                .sign_key(key, &Password::empty(), pub_key)
+                .sign_key(primary_secret_key, &Password::empty(), primary_pub_key)
                 .map_err(SignError::Sign)?;
             vec![direct_key_signature]
         } else {
@@ -67,22 +70,22 @@ impl KeyDetailsConfig {
         let mut users = Vec::with_capacity(1 + self.non_primary_user_ids.len());
         if let Some(primary_user_id) = &self.primary_user_id {
             let config = key_details_configure_signature(
-                key,
-                pub_key,
+                primary_secret_key,
+                primary_pub_key,
                 at_date,
                 preferred_hash,
                 SignatureType::CertPositive,
                 &self,
                 true,
-                key.version() < KeyVersion::V6,
+                primary_secret_key.version() < KeyVersion::V6,
                 profile,
                 &mut rng,
             )?;
 
             let sig = config
                 .sign_certification(
-                    key,
-                    pub_key,
+                    primary_secret_key,
+                    primary_pub_key,
                     &Password::empty(),
                     primary_user_id.tag(),
                     primary_user_id,
@@ -95,20 +98,26 @@ impl KeyDetailsConfig {
         // Certify all non-primary user IDs.
         for id in &self.non_primary_user_ids {
             let config = key_details_configure_signature(
-                key,
-                pub_key,
+                primary_secret_key,
+                primary_pub_key,
                 at_date,
                 preferred_hash,
                 SignatureType::CertPositive,
                 &self,
                 false,
-                key.version() < KeyVersion::V6,
+                primary_secret_key.version() < KeyVersion::V6,
                 profile,
                 &mut rng,
             )?;
 
             let sig = config
-                .sign_certification(key, pub_key, &Password::empty(), id.tag(), id)
+                .sign_certification(
+                    primary_secret_key,
+                    primary_pub_key,
+                    &Password::empty(),
+                    id.tag(),
+                    id,
+                )
                 .map_err(SignError::Sign)?;
 
             users.push(id.clone().into_signed(sig));
@@ -125,7 +134,7 @@ impl KeyDetailsConfig {
 
 pub(crate) trait PacketPublicSubkeyExt {
     #[allow(clippy::too_many_arguments)]
-    fn custom_sign<R, K, P>(
+    fn sign_with<R, K, P>(
         &self,
         primary_sec_key: &K,
         primary_pub_key: &P,
@@ -143,7 +152,7 @@ pub(crate) trait PacketPublicSubkeyExt {
 }
 
 impl PacketPublicSubkeyExt for packet::PublicSubkey {
-    fn custom_sign<R, K, P>(
+    fn sign_with<R, K, P>(
         &self,
         primary_sec_key: &K,
         primary_pub_key: &P,
