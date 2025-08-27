@@ -283,7 +283,7 @@ mod tests {
         let user_id = load_user_id(&exported).unwrap();
         assert_eq!(user_id.as_str().unwrap(), "test <test@test.test>");
 
-        let subkey_signature = load_sub_key_signature(&exported);
+        let subkey_signature = load_subkey_signature(&exported);
         assert_eq!(subkey_signature.version(), SignatureVersion::V4);
         assert_eq!(subkey_signature.hash_alg(), Some(HashAlgorithm::Sha512));
         assert_eq!(subkey_signature.unix_created_at().unwrap(), date);
@@ -332,7 +332,7 @@ mod tests {
         let user_id = load_user_id(&exported).unwrap();
         assert_eq!(user_id.as_str().unwrap(), "test <test@test.test>");
 
-        let subkey_signature = load_sub_key_signature(&exported);
+        let subkey_signature = load_subkey_signature(&exported);
         assert_eq!(subkey_signature.version(), SignatureVersion::V6);
         assert_eq!(subkey_signature.hash_alg(), Some(HashAlgorithm::Sha512));
         assert_eq!(subkey_signature.unix_created_at().unwrap(), date);
@@ -381,7 +381,7 @@ mod tests {
         panic!("Expected a signature packet");
     }
 
-    fn load_sub_key_signature(signature: &[u8]) -> Signature {
+    fn load_subkey_signature(signature: &[u8]) -> Signature {
         let parser = PacketParser::new(signature);
         for packet in parser.flatten() {
             if let Packet::Signature(signature) = packet {
