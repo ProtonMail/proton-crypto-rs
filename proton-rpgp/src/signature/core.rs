@@ -74,7 +74,7 @@ pub fn message_signature_subpackets<R: Rng + CryptoRng>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn key_details_configure_signature<K, R, P>(
+pub fn configure_key_details_signature<K, R, P>(
     private_key: &K,
     public_key: &P,
     at_date: UnixTime,
@@ -188,7 +188,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn sub_key_configure_signature<K, R, P>(
+pub fn configure_subkey_signature<K, R, P>(
     primary_secret_key: &K,
     primary_public_key: &P,
     at_date: UnixTime,

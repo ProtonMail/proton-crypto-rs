@@ -12,7 +12,7 @@ use rand::{CryptoRng, Rng};
 use smallvec::SmallVec;
 
 use crate::{
-    core::{key_details_configure_signature, sub_key_configure_signature},
+    core::{configure_key_details_signature, configure_subkey_signature},
     Profile, SignError, UnixTime,
 };
 
@@ -47,7 +47,7 @@ impl KeyDetailsConfig {
         P: PublicKeyTrait + Serialize,
     {
         let direct_signatures = if primary_secret_key.version() == KeyVersion::V6 {
-            let config = key_details_configure_signature(
+            let config = configure_key_details_signature(
                 primary_secret_key,
                 primary_pub_key,
                 at_date,
@@ -69,7 +69,7 @@ impl KeyDetailsConfig {
 
         let mut users = Vec::with_capacity(1 + self.non_primary_user_ids.len());
         if let Some(primary_user_id) = &self.primary_user_id {
-            let config = key_details_configure_signature(
+            let config = configure_key_details_signature(
                 primary_secret_key,
                 primary_pub_key,
                 at_date,
@@ -97,7 +97,7 @@ impl KeyDetailsConfig {
 
         // Certify all non-primary user IDs.
         for id in &self.non_primary_user_ids {
-            let config = key_details_configure_signature(
+            let config = configure_key_details_signature(
                 primary_secret_key,
                 primary_pub_key,
                 at_date,
@@ -168,7 +168,7 @@ impl PacketPublicSubkeyExt for packet::PublicSubkey {
         P: PublicKeyTrait + Serialize,
         R: CryptoRng + Rng,
     {
-        let mut config = sub_key_configure_signature(
+        let mut config = configure_subkey_signature(
             primary_sec_key,
             primary_pub_key,
             at_date,
