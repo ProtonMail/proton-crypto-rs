@@ -8,7 +8,7 @@ use crate::{
     check_signature_details, types::UnixTime, AsPublicKeyRef, GenericKeyIdentifierList, KeyInfo,
     MessageProcessingError, MessageSignatureError, Profile, PublicComponentKey,
     PublicKeySelectionExt, SignatureContextError, SignatureError, SignatureExt, SignatureUsage,
-    VerificationContext, ERROR_PREFIX,
+    VerificationContext, LIB_ERROR_PREFIX,
 };
 
 /// The result of verifying signature in an `OpenPGP` message.
@@ -58,21 +58,21 @@ impl VerificationInformation {
 /// Errors that can occur when verifying a signature.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum VerificationError {
-    #[error("{ERROR_PREFIX}: No signature found")]
+    #[error("{LIB_ERROR_PREFIX}: No signature found")]
     NotSigned,
 
-    #[error("{ERROR_PREFIX}: No valid verification keys found for signature {0}: {1}")]
+    #[error("{LIB_ERROR_PREFIX}: No valid verification keys found for signature {0}: {1}")]
     NoVerifier(GenericKeyIdentifierList, String),
 
-    #[error("{ERROR_PREFIX}: Signature verification failed: {1}")]
+    #[error("{LIB_ERROR_PREFIX}: Signature verification failed: {1}")]
     Failed(Box<VerificationInformation>, String),
 
     /// Signature context did not match verification context.
-    #[error("{ERROR_PREFIX}: Signature context does not match the verification context: {1}")]
+    #[error("{LIB_ERROR_PREFIX}: Signature context does not match the verification context: {1}")]
     BadContext(Box<VerificationInformation>, String),
 
     /// Unknown error occurred.
-    #[error("{ERROR_PREFIX}: Runtime error: {0}")]
+    #[error("{LIB_ERROR_PREFIX}: Runtime error: {0}")]
     RuntimeError(String),
 }
 

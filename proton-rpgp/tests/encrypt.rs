@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use pgp::crypto::{aead::AeadAlgorithm, hash::HashAlgorithm, sym::SymmetricKeyAlgorithm};
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, EncryptedMessage, Encryptor,
+    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, EncryptedMessage, Encryptor, Error,
     PrivateKey, Profile, ProfileSettingsBuilder, SessionKey, StringToKeyOption, VerificationError,
 };
 
@@ -290,7 +290,7 @@ pub fn encrypt_message_v4_decrypt_wrong_key() {
 
     assert!(matches!(
         failed_decryption,
-        Err(DecryptionError::SessionKeyDecryption(_))
+        Err(Error::Decrypt(DecryptionError::SessionKeyDecryption(_)))
     ));
 }
 

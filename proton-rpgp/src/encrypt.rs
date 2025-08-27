@@ -20,7 +20,8 @@ use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
     Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError, ExternalDetachedSignature,
     KeySelectionError, PrivateKey, Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt,
-    ResolvedDataEncoding, SessionKey, SignatureContext, Signer, UnixTime, DEFAULT_PROFILE,
+    ResolvedDataEncoding, SessionKey, SignError, SignatureContext, Signer, UnixTime,
+    DEFAULT_PROFILE,
 };
 
 mod message;
@@ -188,7 +189,7 @@ impl<'a> Encryptor<'a> {
     ///     .encrypt(b"Hello world!")
     ///     .expect("Failed to encrypt");
     /// ```
-    pub fn encrypt(mut self, data: &'a [u8]) -> Result<EncryptedMessage, EncryptionError> {
+    pub fn encrypt(mut self, data: &'a [u8]) -> crate::Result<EncryptedMessage> {
         let detached_signature = self.handle_detached_signature_operation(data)?;
 
         let mut message = self
@@ -217,7 +218,7 @@ impl<'a> Encryptor<'a> {
     ///     .encrypt_session_key(&session_key)
     ///     .expect("Failed to encrypt");
     /// ```
-    pub fn encrypt_session_key(self, session_key: &SessionKey) -> Result<Vec<u8>, EncryptionError> {
+    pub fn encrypt_session_key(self, session_key: &SessionKey) -> crate::Result<Vec<u8>> {
         let encryption_keys = self.select_encryption_keys()?;
 
         let recipients_algo = RecipientsAlgorithms::select(
@@ -252,10 +253,10 @@ impl<'a> Encryptor<'a> {
         )?;
 
         if pkesks.is_empty() && skesks.is_empty() {
-            return Err(EncryptionError::MissingEncryptionTools);
+            return Err(EncryptionError::MissingEncryptionTools.into());
         }
 
-        key_packets_to_bytes(&pkesks, &skesks)
+        key_packets_to_bytes(&pkesks, &skesks).map_err(Into::into)
     }
 
     /// Encrypts and optionally signs the given data and returns a serialized `OpenPGP` message.
@@ -282,9 +283,10 @@ impl<'a> Encryptor<'a> {
         self,
         data: &'a [u8],
         data_encoding: DataEncoding,
-    ) -> Result<Vec<u8>, EncryptionError> {
+    ) -> crate::Result<Vec<u8>> {
         self.write_and_signcrypt(data, data_encoding, false)
             .map(|(data, _)| data)
+            .map_err(Into::into)
     }
 
     /// Generates a session key that is used for the encryption.
@@ -304,7 +306,7 @@ impl<'a> Encryptor<'a> {
     ///     .generate_session_key()
     ///     .expect("Failed generate session key");
     /// ```
-    pub fn generate_session_key(self) -> Result<SessionKey, EncryptionError> {
+    pub fn generate_session_key(self) -> crate::Result<SessionKey> {
         self.check_encryption_tools()?;
         let encryption_keys = self.select_encryption_keys()?;
 
@@ -487,7 +489,9 @@ impl<'a> Encryptor<'a> {
                 let mut replaced_signer = Signer::new(self.signer.profile.clone());
                 replaced_signer.data_mode = self.signer.data_mode;
                 let signer = mem::replace(&mut self.signer, replaced_signer);
-                let signature = signer.sign_detached(data, DataEncoding::Unarmored)?;
+                let signature = signer
+                    .sign_detached(data, DataEncoding::Unarmored)
+                    .map_err(SignError::from)?;
                 if self.detached_signature_op == SignDetachedOperation::Unencrypted {
                     Ok(Some(ExternalDetachedSignature::new_unencrypted(
                         signature,
@@ -496,8 +500,9 @@ impl<'a> Encryptor<'a> {
                 } else {
                     let mut encryptor = self.clone();
                     encryptor.signer.data_mode = DataMode::Binary;
-                    let encrypted_signature =
-                        encryptor.encrypt_raw(&signature, DataEncoding::Unarmored)?;
+                    let encrypted_signature = encryptor
+                        .encrypt_raw(&signature, DataEncoding::Unarmored)
+                        .map_err(EncryptionError::from)?;
                     Ok(Some(ExternalDetachedSignature::new_encrypted(
                         encrypted_signature,
                         DataEncoding::Unarmored,

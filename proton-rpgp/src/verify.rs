@@ -122,12 +122,16 @@ impl<'a> Verifier<'a> {
         self,
         data: impl AsRef<[u8]>,
         data_encoding: DataEncoding,
-    ) -> Result<VerifiedData, VerifyMessageError> {
+    ) -> crate::Result<VerifiedData> {
         let resolved_data_encoding = data_encoding.resolve_for_read(data.as_ref());
-        let message = armor::decode_to_message(data.as_ref(), resolved_data_encoding)?;
+        let message = armor::decode_to_message(data.as_ref(), resolved_data_encoding)
+            .map_err(VerifyMessageError::MessageProcessing)?;
 
-        self.verify_message(message)
-            .map_err(VerifyMessageError::MessageProcessing)
+        let verified_data = self
+            .verify_message(message)
+            .map_err(VerifyMessageError::MessageProcessing)?;
+
+        Ok(verified_data)
     }
 
     /// Verifies a detached signature against the data.
@@ -216,7 +220,7 @@ impl<'a> Verifier<'a> {
     pub fn verify_cleartext(
         self,
         cleartext_message: impl AsRef<[u8]>,
-    ) -> Result<VerifiedData, VerifyMessageError> {
+    ) -> crate::Result<VerifiedData> {
         let (parsed_message, _) =
             CleartextSignedMessage::from_armor(cleartext_message.as_ref().trim_ascii_end())
                 .map_err(|err| {
@@ -243,7 +247,8 @@ impl<'a> Verifier<'a> {
             .collect();
 
         let output_sanitized = check_and_sanitize_text(parsed_message.signed_text().as_bytes())
-            .map_err(MessageProcessingError::TextSanitization)?;
+            .map_err(MessageProcessingError::TextSanitization)
+            .map_err(VerifyMessageError::MessageProcessing)?;
 
         let verification_result = VerificationResultCreator::with_signatures(verified_signatures);
         Ok(VerifiedData {

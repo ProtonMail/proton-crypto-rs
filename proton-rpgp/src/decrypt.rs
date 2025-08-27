@@ -171,12 +171,13 @@ impl<'a> Decryptor<'a> {
         mut self,
         data: impl AsRef<[u8]>,
         data_encoding: DataEncoding,
-    ) -> Result<VerifiedData, DecryptionError> {
+    ) -> crate::Result<VerifiedData> {
         let resolved_data_encoding = data_encoding.resolve_for_read(data.as_ref());
-        let message = armor::decode_to_message(data.as_ref(), resolved_data_encoding)?;
+        let message = armor::decode_to_message(data.as_ref(), resolved_data_encoding)
+            .map_err(DecryptionError::MessageProcessing)?;
 
         if !message.is_encrypted() {
-            return Err(DecryptionError::NoEncryption);
+            return Err(DecryptionError::NoEncryption.into());
         }
 
         let message = message.decrypt_with_decryptor(&self)?;
@@ -193,16 +194,14 @@ impl<'a> Decryptor<'a> {
             self.verifier
                 .verify_message(message)
                 .map_err(DecryptionError::MessageProcessing)
+                .map_err(Into::into)
         }
     }
 
     /// Decrypts the session key from the given key packets.
     ///
     /// The key packets are encoded as raw bytes.
-    pub fn decrypt_session_key(
-        self,
-        key_packets: impl AsRef<[u8]>,
-    ) -> Result<SessionKey, DecryptionError> {
+    pub fn decrypt_session_key(self, key_packets: impl AsRef<[u8]>) -> crate::Result<SessionKey> {
         let packet_parser = PacketParser::new(key_packets.as_ref());
 
         let mut errors = Vec::new();
@@ -234,7 +233,7 @@ impl<'a> Decryptor<'a> {
             errors.push(DecryptionError::NoKeyPackets);
         }
 
-        Err(DecryptionError::SessionKeyDecryption(errors.into()))
+        Err(DecryptionError::SessionKeyDecryption(errors.into()).into())
     }
 
     pub(crate) fn profile(&self) -> &Profile {

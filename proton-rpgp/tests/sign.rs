@@ -1,5 +1,5 @@
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, PrivateKey, SignError, SignatureContext, Signer, UnixTime,
+    AsPublicKeyRef, DataEncoding, Error, PrivateKey, SignError, SignatureContext, Signer, UnixTime,
     VerificationContext, VerificationError, Verifier,
 };
 
@@ -127,7 +127,10 @@ pub fn sign_create_text_signature_with_non_utf8_data_should_fail() {
         .at_date(date)
         .sign_detached(input_data, DataEncoding::Armored);
 
-    assert!(matches!(result, Err(SignError::InvalidInputData(_))));
+    assert!(matches!(
+        result,
+        Err(Error::Sign(SignError::InvalidInputData(_)))
+    ));
 
     // Binary mode should not fail.
     let result = Signer::default()

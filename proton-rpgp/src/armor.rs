@@ -19,7 +19,7 @@ const INCLUDE_CHECKSUM: bool = true;
 /// ...
 /// -----END PGP PUBLIC KEY BLOCK-----
 /// ```
-pub fn armor_public_key(public_key: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorError> {
+pub fn armor_public_key(public_key: impl AsRef<[u8]>) -> crate::Result<Vec<u8>> {
     let mut armored = Vec::with_capacity(public_key.as_ref().len());
     encode_to_buffer(
         &BinaryArmorSource {
@@ -41,7 +41,7 @@ pub fn armor_public_key(public_key: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorEr
 /// ...
 /// -----END PGP PRIVATE KEY BLOCK-----
 /// ```
-pub fn armor_private_key(private_key: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorError> {
+pub fn armor_private_key(private_key: impl AsRef<[u8]>) -> crate::Result<Vec<u8>> {
     let mut armored = Vec::with_capacity(private_key.as_ref().len());
     encode_to_buffer(
         &BinaryArmorSource {
@@ -63,7 +63,7 @@ pub fn armor_private_key(private_key: impl AsRef<[u8]>) -> Result<Vec<u8>, Armor
 /// ...
 /// -----END PGP SIGNATURE-----
 /// ```
-pub fn armor_signature(signature: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorError> {
+pub fn armor_signature(signature: impl AsRef<[u8]>) -> crate::Result<Vec<u8>> {
     let mut armored = Vec::with_capacity(signature.as_ref().len());
     encode_to_buffer(
         &BinaryArmorSource {
@@ -85,7 +85,7 @@ pub fn armor_signature(signature: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorErro
 /// ...
 /// -----END PGP MESSAGE-----
 /// ```
-pub fn armor_message(message: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorError> {
+pub fn armor_message(message: impl AsRef<[u8]>) -> crate::Result<Vec<u8>> {
     let mut armored = Vec::with_capacity(message.as_ref().len());
     encode_to_buffer(
         &BinaryArmorSource {
@@ -107,7 +107,7 @@ pub fn armor_message(message: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorError> {
 /// ...
 /// -----END PGP <TYPE>-----
 /// ```
-pub fn unarmor(armored: impl AsRef<[u8]>) -> Result<Vec<u8>, ArmorError> {
+pub fn unarmor(armored: impl AsRef<[u8]>) -> crate::Result<Vec<u8>> {
     let mut output = Vec::with_capacity(armored.as_ref().len());
     decode_to_buffer(armored.as_ref(), None, &mut output)?;
     Ok(output)

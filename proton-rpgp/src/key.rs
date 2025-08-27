@@ -71,7 +71,7 @@ impl PublicKey {
     }
 
     /// Import an `OpenPGP` public key from a byte slice.
-    pub fn import(key_data: &[u8], encoding: DataEncoding) -> Result<Self, KeyOperationError> {
+    pub fn import(key_data: &[u8], encoding: DataEncoding) -> crate::Result<Self> {
         let resolved_encoding = encoding.resolve_for_read(key_data);
         let signed_public_key = match resolved_encoding {
             ResolvedDataEncoding::Armored => SignedPublicKey::from_armor_single(key_data)
@@ -88,15 +88,18 @@ impl PublicKey {
     }
 
     /// Export the public key.
-    pub fn export(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
+    pub fn export(&self, encoding: DataEncoding) -> crate::Result<Vec<u8>> {
         match encoding.resolve_for_write() {
-            ResolvedDataEncoding::Armored => self
-                .inner
-                .to_armored_bytes(ArmorOptions {
-                    headers: None,
-                    include_checksum: !(self.inner.version() == KeyVersion::V6),
-                })
-                .map_err(KeyOperationError::Encode),
+            ResolvedDataEncoding::Armored => {
+                let armored_bytes = self
+                    .inner
+                    .to_armored_bytes(ArmorOptions {
+                        headers: None,
+                        include_checksum: !(self.inner.version() == KeyVersion::V6),
+                    })
+                    .map_err(KeyOperationError::Encode)?;
+                Ok(armored_bytes)
+            }
             ResolvedDataEncoding::Unarmored => {
                 let mut buf = Vec::new();
                 self.inner
@@ -172,7 +175,7 @@ impl LockedPrivateKey {
     }
 
     /// Unlock the secret key with a key password.
-    pub fn unlock(&self, password: &[u8]) -> Result<PrivateKey, KeyOperationError> {
+    pub fn unlock(&self, password: &[u8]) -> crate::Result<PrivateKey> {
         let local_password = Password::from(password);
         let mut secret_copy = self.0.secret.clone();
         secret_copy
@@ -191,7 +194,7 @@ impl LockedPrivateKey {
     /// Import a locked `OpenPGP` secret key from a byte slice.
     ///
     /// Does not check if the key is locked or not.
-    pub fn import(key_data: &[u8], encoding: DataEncoding) -> Result<Self, KeyOperationError> {
+    pub fn import(key_data: &[u8], encoding: DataEncoding) -> crate::Result<Self> {
         let resolved_encoding = encoding.resolve_for_read(key_data);
         let secret = match resolved_encoding {
             ResolvedDataEncoding::Armored => SignedSecretKey::from_armor_single(key_data)
@@ -205,7 +208,7 @@ impl LockedPrivateKey {
     }
 
     /// Export the locked key.
-    pub fn export(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
+    pub fn export(&self, encoding: DataEncoding) -> crate::Result<Vec<u8>> {
         // The key is already locked.
         self.0.export_unlocked(encoding)
     }
@@ -256,7 +259,7 @@ impl PrivateKey {
         key_data: &[u8],
         password: &[u8],
         encoding: DataEncoding,
-    ) -> Result<PrivateKey, KeyOperationError> {
+    ) -> crate::Result<PrivateKey> {
         let locked = LockedPrivateKey::import(key_data, encoding)?;
         if !locked.is_locked() {
             return Ok(locked.0);
@@ -267,13 +270,10 @@ impl PrivateKey {
     /// Import an unlocked `OpenPGP` secret key from a byte slice.
     ///
     /// Returns an [`KeyOperationError::Locked`] if the imported key is locked.
-    pub fn import_unlocked(
-        key_data: &[u8],
-        encoding: DataEncoding,
-    ) -> Result<PrivateKey, KeyOperationError> {
+    pub fn import_unlocked(key_data: &[u8], encoding: DataEncoding) -> crate::Result<PrivateKey> {
         let locked = LockedPrivateKey::import(key_data, encoding)?;
         if locked.is_locked() {
-            return Err(KeyOperationError::Locked);
+            return Err(KeyOperationError::Locked.into());
         }
         locked.unlock("".as_bytes())
     }
@@ -284,17 +284,20 @@ impl PrivateKey {
         profile: &Profile,
         password: &[u8],
         encoding: DataEncoding,
-    ) -> Result<Vec<u8>, KeyOperationError> {
+    ) -> crate::Result<Vec<u8>> {
         let locked_key = self.lock(profile, password)?;
         match encoding.resolve_for_write() {
-            ResolvedDataEncoding::Armored => locked_key
-                .0
-                .secret
-                .to_armored_bytes(ArmorOptions {
-                    headers: None,
-                    include_checksum: !(self.secret.version() == KeyVersion::V6),
-                })
-                .map_err(KeyOperationError::Encode),
+            ResolvedDataEncoding::Armored => {
+                let armored_bytes = locked_key
+                    .0
+                    .secret
+                    .to_armored_bytes(ArmorOptions {
+                        headers: None,
+                        include_checksum: !(self.secret.version() == KeyVersion::V6),
+                    })
+                    .map_err(KeyOperationError::Encode)?;
+                Ok(armored_bytes)
+            }
             ResolvedDataEncoding::Unarmored => {
                 let mut buf = Vec::new();
                 locked_key
@@ -312,15 +315,18 @@ impl PrivateKey {
     /// # Security
     /// Note that a key exported in unlocked format is not protected by a password.
     /// If unsure use [`Self::export`] instead.
-    pub fn export_unlocked(&self, encoding: DataEncoding) -> Result<Vec<u8>, KeyOperationError> {
+    pub fn export_unlocked(&self, encoding: DataEncoding) -> crate::Result<Vec<u8>> {
         match encoding.resolve_for_write() {
-            ResolvedDataEncoding::Armored => self
-                .secret
-                .to_armored_bytes(ArmorOptions {
-                    headers: None,
-                    include_checksum: !(self.secret.version() == KeyVersion::V6),
-                })
-                .map_err(KeyOperationError::Encode),
+            ResolvedDataEncoding::Armored => {
+                let armored_bytes = self
+                    .secret
+                    .to_armored_bytes(ArmorOptions {
+                        headers: None,
+                        include_checksum: !(self.secret.version() == KeyVersion::V6),
+                    })
+                    .map_err(KeyOperationError::Encode)?;
+                Ok(armored_bytes)
+            }
             ResolvedDataEncoding::Unarmored => {
                 let mut buf = Vec::new();
                 self.secret
@@ -332,11 +338,7 @@ impl PrivateKey {
     }
 
     /// Lock the secret key with a password.
-    pub fn lock(
-        &self,
-        profile: &Profile,
-        password: &[u8],
-    ) -> Result<LockedPrivateKey, KeyOperationError> {
+    pub fn lock(&self, profile: &Profile, password: &[u8]) -> crate::Result<LockedPrivateKey> {
         let mut secret_copy = self.secret.clone();
         let password = Password::from(password);
         secret_copy
@@ -355,7 +357,6 @@ impl PrivateKey {
 
 pub type SessionKeyBytes = Zeroizing<Vec<u8>>;
 
-/// TODO.
 #[derive(Debug, Clone)]
 pub struct SessionKey {
     pub(crate) inner: PlainSessionKey,

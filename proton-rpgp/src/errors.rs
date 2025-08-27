@@ -14,14 +14,36 @@ use crate::{
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub(crate) const ERROR_PREFIX: &str = "proton-rpgp";
+pub(crate) const LIB_ERROR_PREFIX: &str = "Proton-rPGP";
 
-/// TODO(CRYPTO-293): Unify error handling with a single error for the library
-/// and unify error messages.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Failed to use a key: {0}")]
-    Keys(String),
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    KeyModify(#[from] KeyOperationError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    KeyGeneration(#[from] KeyGenerationError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    KeyCheck(#[from] KeySelectionError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    Sign(#[from] SignError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    Decrypt(#[from] DecryptionError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    Encrypt(#[from] EncryptionError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    Verify(#[from] VerifyMessageError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    Armor(#[from] ArmorError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    Message(#[from] EncryptedMessageError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -29,7 +51,7 @@ pub enum KeyCertificationSelectionError {
     #[error("No valid self-certification found, error per self-signature: {0}")]
     NoSelfCertification(ErrorList<SignatureError>),
 
-    #[error("No valid user-id certification found, error per user-id: {0}")]
+    #[error("No valid user-id with self-certification found, error per user-id: {0}")]
     NoIdentity(ErrorList<KeyCertificationSelectionError>),
 
     #[error("Invalid self-certification signature: {0}")]
@@ -96,13 +118,13 @@ pub enum SignatureContextError {
     #[error("Signature context is required but is not provided: {0}")]
     MissingContext(VerificationContext),
 
-    #[error("Signature context {0} does not match the verification context: {0}")]
+    #[error("Signature context {0} does not match the verification context: {1}")]
     WrongContext(String, VerificationContext),
 
     #[error("Signature has multiple context notations: {0:?}")]
     MultipleContexts(Vec<String>),
 
-    #[error("Signature contains a critical context \"{0}\", but no matching verification context was provided")]
+    #[error("Signature contains a critical context {0}, but no matching verification context was provided")]
     CriticialContext(String),
 }
 
@@ -120,19 +142,19 @@ pub enum MessageSignatureError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum KeyOperationError {
-    #[error("{ERROR_PREFIX}: Failed to lock private OpenPGP key with key id {0}: {1}")]
+    #[error("Failed to lock private OpenPGP key with key id {0}: {1}")]
     Lock(KeyId, pgp::errors::Error),
 
-    #[error("{ERROR_PREFIX}: Failed to unlock private OpenPGP key with key id {0}: {1}")]
+    #[error("Failed to unlock private OpenPGP key with key id {0}: {1}")]
     Unlock(KeyId, pgp::errors::Error),
 
-    #[error("{ERROR_PREFIX}: Failed to encode OpenPGP key: {0}")]
+    #[error("Failed to encode OpenPGP key: {0}")]
     Encode(pgp::errors::Error),
 
-    #[error("{ERROR_PREFIX}: Failed to decode OpenPGP key: {0}")]
+    #[error("Failed to decode OpenPGP key: {0}")]
     Decode(pgp::errors::Error),
 
-    #[error("{ERROR_PREFIX}: Key is locked")]
+    #[error("Key is locked")]
     Locked,
 }
 
@@ -245,6 +267,9 @@ pub enum EncryptionError {
 
     #[error("Failed to armor detached signature: {0}")]
     DetachedSignature(#[from] ArmorError),
+
+    #[error("Unexpected error")]
+    Unexpected,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -287,6 +312,9 @@ pub enum DecryptionError {
 
     #[error("No valid key packets found")]
     NoKeyPackets,
+
+    #[error("Unexpected error")]
+    Unexpected,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -333,29 +361,32 @@ pub enum PkeskDecryptionError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SignError {
-    #[error("{ERROR_PREFIX}: Failed to set data mode: {0}")]
+    #[error("Failed to set data mode: {0}")]
     DataMode(pgp::errors::Error),
 
-    #[error("{ERROR_PREFIX}: Failed to serialize signatures: {0}")]
+    #[error("Failed to serialize signatures: {0}")]
     Serialize(pgp::errors::Error),
 
-    #[error("{ERROR_PREFIX}: Failed to select signing key: {0}")]
+    #[error("Failed to select signing key: {0}")]
     KeySelection(#[from] KeySelectionError),
 
-    #[error("{ERROR_PREFIX}: Invalid signing key version")]
+    #[error("Invalid signing key version")]
     InvalidKeyVersion,
 
-    #[error("{ERROR_PREFIX}: {0}")]
+    #[error("{0}")]
     HashAlgorithm(#[from] SignHashSelectionError),
 
-    #[error("{ERROR_PREFIX}: Failed to sign data: {0}")]
+    #[error("Failed to sign data: {0}")]
     Sign(pgp::errors::Error),
 
-    #[error("{ERROR_PREFIX}: Invalid input encoding for text signature: {0}")]
+    #[error("Invalid input encoding for text signature: {0}")]
     InvalidInputData(#[from] std::str::Utf8Error),
 
-    #[error("{ERROR_PREFIX}: Invalid input encoding for text signature: {0}")]
+    #[error("Invalid input encoding for text signature: {0}")]
     InvalidInputDataLineEnding(#[from] io::Error),
+
+    #[error("Unexpected error")]
+    Unexpected,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -392,7 +423,7 @@ pub enum ArmorError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum PgpMessageError {
+pub enum EncryptedMessageError {
     #[error("Failed to split encrypted message into key and data packets: {0}")]
     ParseSplit(pgp::errors::Error),
 
@@ -432,5 +463,32 @@ impl<E: std::error::Error> std::error::Error for ErrorList<E> {}
 impl<E: std::error::Error> From<Vec<E>> for ErrorList<E> {
     fn from(errors: Vec<E>) -> Self {
         Self(errors)
+    }
+}
+
+impl From<Error> for EncryptionError {
+    fn from(value: Error) -> Self {
+        match value {
+            Error::Encrypt(err) => err,
+            _ => EncryptionError::Unexpected,
+        }
+    }
+}
+
+impl From<Error> for DecryptionError {
+    fn from(value: Error) -> Self {
+        match value {
+            Error::Decrypt(err) => err,
+            _ => DecryptionError::Unexpected,
+        }
+    }
+}
+
+impl From<Error> for SignError {
+    fn from(value: Error) -> Self {
+        match value {
+            Error::Sign(err) => err,
+            _ => SignError::Unexpected,
+        }
     }
 }

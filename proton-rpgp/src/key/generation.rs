@@ -95,14 +95,14 @@ impl KeyGenerator {
     ///     .generate()
     ///     .unwrap();
     /// ```
-    pub fn generate(self) -> Result<PrivateKey, KeyGenerationError> {
+    pub fn generate(self) -> crate::Result<PrivateKey> {
         let mut rng = self.profile.rng();
         let key_generation_options = self.algorithm.key_generation_profile();
         let preferred_hash = self.profile.key_hash_algorithm();
         let (primary_user_id, non_primary_user_ids) = convert_user_ids(&self.user_ids)?;
 
         if primary_user_id.is_none() && key_generation_options.key_version == KeyVersion::V4 {
-            return Err(KeyGenerationError::NoUserId);
+            return Err(KeyGenerationError::NoUserId.into());
         }
         // Generate the primary key for signing.
         let primary_flags = primary_key_flags();

@@ -13,7 +13,7 @@ use pgp::{
     types::{Fingerprint, KeyId},
 };
 
-use crate::{ArmorError, PgpMessageError, SessionKey};
+use crate::{ArmorError, EncryptedMessageError, SessionKey};
 
 /// Encrypted message type which allows to query information about the encrypted message.
 pub struct EncryptedMessage {
@@ -37,7 +37,7 @@ impl EncryptedMessage {
     }
 
     /// Creates an `EncryptedMessage` from an armored `OpenPGP` message.
-    pub fn from_armor(armor: &[u8]) -> Result<Self, PgpMessageError> {
+    pub fn from_armor(armor: &[u8]) -> crate::Result<Self> {
         let mut encrypted_data = Vec::with_capacity(armor.len());
         armor::decode_to_buffer(armor, Some(BlockType::Message), &mut encrypted_data)?;
         // We quickly check the the message is splitable into key packets and data packets.
@@ -46,7 +46,7 @@ impl EncryptedMessage {
     }
 
     /// Creates an `EncryptedMessage` from a binary `OpenPGP` message.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, PgpMessageError> {
+    pub fn from_bytes(bytes: &[u8]) -> crate::Result<Self> {
         // We quickly check the the message is splitable into key packets and data packets.
         split_pgp_message(bytes)?;
         Ok(Self::new(bytes.to_vec(), None))
@@ -58,13 +58,17 @@ impl EncryptedMessage {
     }
 
     /// Provides a slice of the key packets.
-    pub fn as_key_packets(&self) -> Result<&[u8], PgpMessageError> {
-        split_pgp_message(&self.encrypted_data).map(|(key_packets, _)| key_packets)
+    pub fn as_key_packets(&self) -> crate::Result<&[u8]> {
+        split_pgp_message(&self.encrypted_data)
+            .map(|(key_packets, _)| key_packets)
+            .map_err(Into::into)
     }
 
     /// Provides a slice of the data packet.
-    pub fn as_data_packet(&self) -> Result<&[u8], PgpMessageError> {
-        split_pgp_message(&self.encrypted_data).map(|(_, data_packet)| data_packet)
+    pub fn as_data_packet(&self) -> crate::Result<&[u8]> {
+        split_pgp_message(&self.encrypted_data)
+            .map(|(_, data_packet)| data_packet)
+            .map_err(Into::into)
     }
 
     /// Returns the `OpenPGP KeyIds` of the keys the data was encrypted to.
@@ -96,7 +100,7 @@ impl EncryptedMessage {
     }
 
     /// Returns the armored message.
-    pub fn armor(&self) -> Result<Vec<u8>, PgpMessageError> {
+    pub fn armor(&self) -> crate::Result<Vec<u8>> {
         let mut output = Vec::with_capacity(self.encrypted_data.len());
         pgp_armor::write(self, BlockType::Message, &mut output, None, true)
             .map_err(ArmorError::Encode)?;
@@ -147,7 +151,7 @@ impl From<Vec<u8>> for EncryptedMessage {
 /// Assumes the message has the form:
 /// `| key packets | data packet |`
 /// All packets after data packet are ignored.
-fn split_pgp_message(encrypted_message: &[u8]) -> Result<(&[u8], &[u8]), PgpMessageError> {
+fn split_pgp_message(encrypted_message: &[u8]) -> Result<(&[u8], &[u8]), EncryptedMessageError> {
     let bytes_read = Rc::new(RefCell::new(0));
     let reader = ExternalCountingReader::new(encrypted_message, bytes_read.clone());
     let mut split_point = 0;
@@ -160,8 +164,8 @@ fn split_pgp_message(encrypted_message: &[u8]) -> Result<(&[u8], &[u8]), PgpMess
             Ok(Packet::SymEncryptedProtectedData(_)) => {
                 break;
             }
-            Err(e) => return Err(PgpMessageError::ParseSplit(e)),
-            _ => return Err(PgpMessageError::NonExpectedPacketSplit),
+            Err(e) => return Err(EncryptedMessageError::ParseSplit(e)),
+            _ => return Err(EncryptedMessageError::NonExpectedPacketSplit),
         }
     }
 

@@ -116,12 +116,14 @@ impl<'a> Signer<'a> {
         self,
         data: impl AsRef<[u8]>,
         message_encoding: DataEncoding,
-    ) -> Result<Vec<u8>, SignError> {
+    ) -> crate::Result<Vec<u8>> {
         let mut utf8_buffer = String::new();
         let message_data_ref = self.handle_data_mode(data.as_ref(), &mut utf8_buffer)?;
         let mut message_builder = MessageBuilder::from_reader("", message_data_ref);
 
-        let signing_keys = self.select_signing_keys()?;
+        let signing_keys = self
+            .select_signing_keys()
+            .map_err(SignError::KeySelection)?;
 
         // Compression is determined by the profile.
         if self.profile.message_compression() != CompressionAlgorithm::Uncompressed {
@@ -162,10 +164,12 @@ impl<'a> Signer<'a> {
         self,
         data: impl AsRef<[u8]>,
         signature_encoding: DataEncoding,
-    ) -> Result<Vec<u8>, SignError> {
+    ) -> crate::Result<Vec<u8>> {
         self.check_input_data(data.as_ref())?;
 
-        let signing_keys = self.select_signing_keys()?;
+        let signing_keys = self
+            .select_signing_keys()
+            .map_err(SignError::KeySelection)?;
 
         // Determine which hash algorithm to use for each key.
         let hash_algorithms = preferences::select_hash_algorithm_from_keys(
@@ -193,10 +197,12 @@ impl<'a> Signer<'a> {
             })
             .collect();
 
-        handle_signature_encoding(
+        let signature_bytes = handle_signature_encoding(
             signatures?.as_slice(),
             signature_encoding.resolve_for_write(),
-        )
+        )?;
+
+        Ok(signature_bytes)
     }
 
     /// Creates a cleartext signed message.
@@ -226,10 +232,12 @@ impl<'a> Signer<'a> {
     ///     .sign_cleartext(input_data.as_bytes())
     ///     .expect("Failed to sign");
     /// ```
-    pub fn sign_cleartext(self, data: impl AsRef<[u8]>) -> Result<Vec<u8>, SignError> {
+    pub fn sign_cleartext(self, data: impl AsRef<[u8]>) -> crate::Result<Vec<u8>> {
         let str_data = std::str::from_utf8(data.as_ref()).map_err(SignError::InvalidInputData)?;
 
-        let signing_keys = self.select_signing_keys()?;
+        let signing_keys = self
+            .select_signing_keys()
+            .map_err(SignError::KeySelection)?;
         // Determine which hash algorithm to use for each key.
         let hash_algorithms = preferences::select_hash_algorithm_from_keys(
             self.profile.message_hash_algorithm(),
@@ -268,12 +276,14 @@ impl<'a> Signer<'a> {
             .iter()
             .all(|key| key.private_key.version() == KeyVersion::V6);
 
-        cleartext_message
+        let cleartext_bytes = cleartext_message
             .to_armored_bytes(ArmorOptions {
                 headers: None,
                 include_checksum: !all_v6,
             })
-            .map_err(SignError::Serialize)
+            .map_err(SignError::Serialize)?;
+
+        Ok(cleartext_bytes)
     }
 
     pub(crate) fn check_input_data(&self, data: &[u8]) -> Result<(), SignError> {

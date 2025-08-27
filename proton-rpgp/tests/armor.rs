@@ -1,6 +1,6 @@
 use proton_rpgp::{
     armor::{armor_message, armor_private_key, armor_public_key, armor_signature, unarmor},
-    ArmorError,
+    ArmorError, Error,
 };
 
 const TEST_PUBLIC_KEY: &[u8] = b"dummy public key bytes";
@@ -61,5 +61,8 @@ fn test_armor_message_and_unarmor() {
 fn test_unarmor_invalid_input() {
     let invalid = b"not an armored message";
     let result = unarmor(invalid);
-    assert!(matches!(result, Err(ArmorError::DecodeHeader)));
+    assert!(matches!(
+        result,
+        Err(Error::Armor(ArmorError::DecodeHeader))
+    ));
 }

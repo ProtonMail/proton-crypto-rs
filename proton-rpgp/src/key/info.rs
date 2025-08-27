@@ -6,8 +6,8 @@ use sha2::Sha256;
 
 use crate::{
     check_key_not_expired, AsPublicKeyRef, CertificationSelectionExt, FingerprintSha256,
-    GenericKeyIdentifier, KeySelectionError, Profile, PublicComponentKey, PublicKeySelectionExt,
-    SignatureUsage, UnixTime,
+    GenericKeyIdentifier, Profile, PublicComponentKey, PublicKeySelectionExt, SignatureUsage,
+    UnixTime,
 };
 
 /// A trait for types that can provide information about an `OpenPGP` key.
@@ -35,13 +35,12 @@ pub trait AccessKeyInfo {
     /// Checks if the key can encrypt at the given unixtime.
     ///
     /// Returns an error if no valid encryption key can be found.
-    fn check_can_encrypt(&self, profile: &Profile, date: UnixTime)
-        -> Result<(), KeySelectionError>;
+    fn check_can_encrypt(&self, profile: &Profile, date: UnixTime) -> crate::Result<()>;
 
     /// Checks if any of the keys can be used for verification at the given date.
     ///
     /// Returns an error if no valid verification keys can be found.
-    fn check_can_verify(&self, profile: &Profile, date: UnixTime) -> Result<(), KeySelectionError>;
+    fn check_can_verify(&self, profile: &Profile, date: UnixTime) -> crate::Result<()>;
 
     /// Checks if the primary key is expired at the given date.
     ///
@@ -124,25 +123,23 @@ impl<T: AsPublicKeyRef> AccessKeyInfo for T {
     /// Checks if the key can encrypt at the given unixtime.
     ///
     /// Returns an error if no valid encryption key can be found.
-    fn check_can_encrypt(
-        &self,
-        profile: &Profile,
-        date: UnixTime,
-    ) -> Result<(), KeySelectionError> {
+    fn check_can_encrypt(&self, profile: &Profile, date: UnixTime) -> crate::Result<()> {
         self.as_public_key()
             .as_signed_public_key()
             .encryption_key(date, profile)
             .map(|_| ())
+            .map_err(Into::into)
     }
 
     /// Checks if any of the keys can be used for verification at the given date.
     ///
     /// Returns an error if no valid verification keys can be found.
-    fn check_can_verify(&self, profile: &Profile, date: UnixTime) -> Result<(), KeySelectionError> {
+    fn check_can_verify(&self, profile: &Profile, date: UnixTime) -> crate::Result<()> {
         self.as_public_key()
             .as_signed_public_key()
             .verification_keys(date, Vec::default(), SignatureUsage::Sign, profile)
             .map(|_| ())
+            .map_err(Into::into)
     }
 
     /// Checks if the primary key is expired at the given date.

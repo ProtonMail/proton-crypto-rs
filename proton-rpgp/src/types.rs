@@ -11,7 +11,7 @@ use pgp::{
     types::{Fingerprint, KeyId, Password},
 };
 
-use crate::{armor, ArmorError, FingerprintError};
+use crate::{armor, FingerprintError};
 
 /// Possible encodings of an `OpenPGP` message.
 ///
@@ -370,7 +370,7 @@ impl<'a> ExternalDetachedSignature<'a> {
         Self::Encrypted(detached_signature, resolved_data_encoding)
     }
 
-    pub fn armored(&self) -> Result<Vec<u8>, ArmorError> {
+    pub fn armored(&self) -> crate::Result<Vec<u8>> {
         match self {
             Self::Unencrypted(signature, signature_data_encoding) => {
                 match signature_data_encoding {
@@ -385,7 +385,7 @@ impl<'a> ExternalDetachedSignature<'a> {
         }
     }
 
-    pub fn unarmored(&self) -> Result<Vec<u8>, ArmorError> {
+    pub fn unarmored(&self) -> crate::Result<Vec<u8>> {
         match self {
             Self::Unencrypted(signature, signature_data_encoding)
             | Self::Encrypted(signature, signature_data_encoding) => {

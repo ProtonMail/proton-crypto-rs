@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, ExternalDetachedSignature,
+    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, Error, ExternalDetachedSignature,
     PrivateKey, UnixTime, VerificationContext, VerificationError,
 };
 
@@ -64,7 +64,7 @@ pub fn decrypt_encrypted_message_wrong_key() {
         .decrypt(INPUT_DATA, DataEncoding::Armored);
 
     match decryption_result {
-        Err(DecryptionError::SessionKeyDecryption(err)) => {
+        Err(Error::Decrypt(DecryptionError::SessionKeyDecryption(err))) => {
             let first_error = err.0.first().unwrap();
             assert!(matches!(
                 first_error,

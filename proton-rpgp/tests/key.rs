@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use pgp::crypto::{hash::HashAlgorithm, sym::SymmetricKeyAlgorithm};
 use proton_rpgp::{
-    AccessKeyInfo, DataEncoding, KeyGenerationType, KeyGenerator, KeyOperationError,
+    AccessKeyInfo, DataEncoding, Error, KeyGenerationType, KeyGenerator, KeyOperationError,
     LockedPrivateKey, PrivateKey, Profile, ProfileSettingsBuilder, PublicKey, SessionKey,
     StringToKeyOption, UnixTime,
 };
@@ -40,7 +40,10 @@ fn key_import_and_unlock_private_key_fail() {
         .expect("Failed to import key");
 
     let unlocked = key.unlock(b"wrong_password");
-    assert!(matches!(unlocked, Err(KeyOperationError::Unlock(_, _))));
+    assert!(matches!(
+        unlocked,
+        Err(Error::KeyModify(KeyOperationError::Unlock(_, _)))
+    ));
 }
 
 #[test]
@@ -117,7 +120,10 @@ fn key_export_import_unlocked_key() {
 
     let failure_result =
         PrivateKey::import_unlocked(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armored);
-    assert!(matches!(failure_result, Err(KeyOperationError::Locked)));
+    assert!(matches!(
+        failure_result,
+        Err(Error::KeyModify(KeyOperationError::Locked))
+    ));
 }
 
 #[test]
