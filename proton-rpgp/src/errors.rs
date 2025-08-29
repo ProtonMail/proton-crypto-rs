@@ -268,8 +268,8 @@ pub enum EncryptionError {
     #[error("Failed to armor detached signature: {0}")]
     DetachedSignature(#[from] ArmorError),
 
-    #[error("Unexpected error")]
-    Unexpected,
+    #[error("Unexpected error: {0}")]
+    Unexpected(Box<Error>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -313,8 +313,8 @@ pub enum DecryptionError {
     #[error("No valid key packets found")]
     NoKeyPackets,
 
-    #[error("Unexpected error")]
-    Unexpected,
+    #[error("Unexpected error: {0}")]
+    Unexpected(Box<Error>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -385,8 +385,8 @@ pub enum SigningError {
     #[error("Invalid input encoding for text signature: {0}")]
     InvalidInputDataLineEnding(#[from] io::Error),
 
-    #[error("Unexpected error")]
-    Unexpected,
+    #[error("Unexpected error: {0}")]
+    Unexpected(Box<Error>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -470,7 +470,7 @@ impl From<Error> for EncryptionError {
     fn from(value: Error) -> Self {
         match value {
             Error::Encryption(err) => err,
-            _ => EncryptionError::Unexpected,
+            _ => EncryptionError::Unexpected(Box::new(value)),
         }
     }
 }
@@ -479,7 +479,7 @@ impl From<Error> for DecryptionError {
     fn from(value: Error) -> Self {
         match value {
             Error::Decryption(err) => err,
-            _ => DecryptionError::Unexpected,
+            _ => DecryptionError::Unexpected(Box::new(value)),
         }
     }
 }
@@ -488,7 +488,7 @@ impl From<Error> for SigningError {
     fn from(value: Error) -> Self {
         match value {
             Error::Signing(err) => err,
-            _ => SigningError::Unexpected,
+            _ => SigningError::Unexpected(Box::new(value)),
         }
     }
 }
