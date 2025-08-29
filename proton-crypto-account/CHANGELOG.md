@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.12.1] - 2025-08-29
+
+### Changed
+
+- A PQC user only signs with the legacy primary key instead of both primary keys for now.
+
 ## [0.12.0] - 2025-07-02
 
 ### Changed
