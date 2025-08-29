@@ -12,7 +12,7 @@ const DEVICE_KEY_ALGORITHM: KeyGeneratorAlgorithm = KeyGeneratorAlgorithm::ECC;
 
 /// Represents a device-local `OpenPGP` key.
 ///
-/// This key is not synchronized with the backend and remains stored only on the device.  
+/// This key is not synchronized with the backend and remains stored only on the device.
 /// It can be used, for example, to encrypt and decrypt push notifications.
 #[derive(Debug, Clone)]
 pub struct PGPDeviceKey<Priv: PrivateKey, Pub: PublicKey> {
@@ -111,7 +111,7 @@ impl<Priv: PrivateKey, Pub: PublicKey> PGPDeviceKey<Priv, Pub> {
 
     /// Serializes the device key for secure storage, such as for a key store.
     ///
-    /// SECURITY WARNING: The serialized key is not encrypted. Treat it as sensitive data  
+    /// SECURITY WARNING: The serialized key is not encrypted. Treat it as sensitive data
     /// and avoid storing it in unprotected environments.
     pub fn serialize_to_secure_storage<Provider>(
         &self,

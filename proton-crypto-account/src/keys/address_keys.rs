@@ -113,7 +113,7 @@ impl<Provider: PGPProviderSync> UnlockedAddressKeys<Provider> {
     ///   this function will return a primary v6 key with v4 compatibility.
     /// - If there is only a primary v4 address key, the v4 address key is returned.
     ///
-    /// In the v6 case, data has to be signed with both primary keys for backwards compatibility.
+    /// In the v6 case, data has to be signed with the legacy primary key for backwards compatibility.
     /// The returned type offers a helper to retrieve the keys for encryption [`PrimaryUnlockedAddressKey::for_encryption`]
     /// and signing [`PrimaryUnlockedAddressKey::for_signing`], which takes care of this logic.
     ///
@@ -202,6 +202,12 @@ impl<Priv: PrivateKey, Pub: PublicKey> PrimaryUnlockedAddressKey<Priv, Pub> {
 
     /// Return a reference to the primary keys for signing.
     pub fn for_signing(&self) -> &[Priv] {
+        // Only sign with one key for backwards compatibility for now.
+        &self.sign[..1]
+    }
+
+    /// Return a reference to the primary keys for signing the SKL.
+    pub(crate) fn for_signing_skl(&self) -> &[Priv] {
         &self.sign
     }
 

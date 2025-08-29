@@ -100,7 +100,7 @@ impl SKLData {
             pgp_provider.new_signing_context(KT_SKL_VERIFICATION_CONTEXT_VALUE.to_owned(), false);
         let signature = pgp_provider
             .new_signer()
-            .with_signing_keys(primary_key.for_signing())
+            .with_signing_keys(primary_key.for_signing_skl())
             .with_signing_context(&signing_context)
             .with_utf8()
             .sign_detached(encoded_data.as_bytes(), DataEncoding::Armor)
