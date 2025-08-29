@@ -13,7 +13,7 @@ use smallvec::SmallVec;
 
 use crate::{
     core::{configure_key_details_signature, configure_subkey_signature},
-    Profile, SignError, UnixTime,
+    Profile, SigningError, UnixTime,
 };
 
 /// The key detail data to be signed for a key.
@@ -40,7 +40,7 @@ impl KeyDetailsConfig {
         preferred_hash: HashAlgorithm,
         mut rng: R,
         profile: &Profile,
-    ) -> Result<SignedKeyDetails, SignError>
+    ) -> Result<SignedKeyDetails, SigningError>
     where
         R: CryptoRng + Rng,
         K: SecretKeyTrait,
@@ -61,7 +61,7 @@ impl KeyDetailsConfig {
             )?;
             let direct_key_signature = config
                 .sign_key(primary_secret_key, &Password::empty(), primary_pub_key)
-                .map_err(SignError::Sign)?;
+                .map_err(SigningError::Sign)?;
             vec![direct_key_signature]
         } else {
             Vec::new()
@@ -90,7 +90,7 @@ impl KeyDetailsConfig {
                     primary_user_id.tag(),
                     primary_user_id,
                 )
-                .map_err(SignError::Sign)?;
+                .map_err(SigningError::Sign)?;
 
             users.push(primary_user_id.clone().into_signed(sig));
         }
@@ -118,7 +118,7 @@ impl KeyDetailsConfig {
                     id.tag(),
                     id,
                 )
-                .map_err(SignError::Sign)?;
+                .map_err(SigningError::Sign)?;
 
             users.push(id.clone().into_signed(sig));
         }
@@ -144,7 +144,7 @@ pub(crate) trait PacketPublicSubkeyExt {
         embedded: Option<Signature>,
         rng: R,
         profile: &Profile,
-    ) -> Result<Signature, SignError>
+    ) -> Result<Signature, SigningError>
     where
         K: SecretKeyTrait,
         P: PublicKeyTrait + Serialize,
@@ -162,7 +162,7 @@ impl PacketPublicSubkeyExt for packet::PublicSubkey {
         embedded: Option<Signature>,
         mut rng: R,
         profile: &Profile,
-    ) -> Result<Signature, SignError>
+    ) -> Result<Signature, SigningError>
     where
         K: SecretKeyTrait,
         P: PublicKeyTrait + Serialize,
@@ -182,12 +182,12 @@ impl PacketPublicSubkeyExt for packet::PublicSubkey {
         if let Some(embedded) = embedded {
             config.hashed_subpackets.push(
                 Subpacket::regular(SubpacketData::EmbeddedSignature(Box::new(embedded)))
-                    .map_err(SignError::Sign)?,
+                    .map_err(SigningError::Sign)?,
             );
         }
 
         config
             .sign_subkey_binding(primary_sec_key, primary_pub_key, &Password::empty(), &self)
-            .map_err(SignError::Sign)
+            .map_err(SigningError::Sign)
     }
 }

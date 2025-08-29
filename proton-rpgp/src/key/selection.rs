@@ -10,7 +10,7 @@ use pgp::{
 
 use crate::{
     types::UnixTime, AnyPublicKey, AnySecretKey, CertificationSelectionExt, GenericKeyIdentifier,
-    KeyCertificationSelectionError, KeyRequirementError, KeySelectionError, PrivateComponentKey,
+    KeyCertificationSelectionError, KeyRequirementError, KeyValidationError, PrivateComponentKey,
     Profile, PublicComponentKey, PublicKeyExt, SignatureExt,
 };
 
@@ -120,13 +120,13 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         &self,
         date: UnixTime,
         profile: &Profile,
-    ) -> Result<PublicComponentKey<'_>, KeySelectionError> {
+    ) -> Result<PublicComponentKey<'_>, KeyValidationError> {
         // Check if the primary key is valid.
         let primary_self_certification = self.check_primary_key(date, profile)?;
 
         let primary_key = self.primary_key();
         check_key_requirements(primary_key, profile)
-            .map_err(|err| KeySelectionError::PrimaryRequirement(primary_key.key_id(), err))?;
+            .map_err(|err| KeyValidationError::PrimaryRequirement(primary_key.key_id(), err))?;
 
         // Select the best subkey that is a valid encryption key.
         let mut subkey_errors = Vec::new();
@@ -140,7 +140,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
                 match sub_key.check_validity(primary_key, date, profile) {
                     Ok(self_certification) => self_certification,
                     Err(err) => {
-                        subkey_errors.push(KeySelectionError::KeySelfCertification(err));
+                        subkey_errors.push(KeyValidationError::KeySelfCertification(err));
                         continue;
                     }
                 };
@@ -149,13 +149,13 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
             if let Err(err) =
                 check_valid_encryption_key(sub_key, sub_key_self_certification, profile)
             {
-                subkey_errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
+                subkey_errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
             // Check key requirements enforced by the profile.
             if let Err(err) = check_key_requirements(&sub_key.key, profile) {
-                subkey_errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
+                subkey_errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
@@ -184,11 +184,11 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         if let Err(err) =
             check_valid_encryption_key(primary_key, primary_self_certification, profile)
         {
-            subkey_errors.push(KeySelectionError::PrimaryRequirement(
+            subkey_errors.push(KeyValidationError::PrimaryRequirement(
                 primary_key.key_id(),
                 err,
             ));
-            return Err(KeySelectionError::NoEncryptionKey(
+            return Err(KeyValidationError::NoEncryptionKey(
                 primary_key.key_id(),
                 subkey_errors.into(),
             ));
@@ -211,7 +211,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         key_ids: Vec<GenericKeyIdentifier>,
         usage: SignatureUsage,
         profile: &Profile,
-    ) -> Result<Vec<PublicComponentKey<'_>>, KeySelectionError> {
+    ) -> Result<Vec<PublicComponentKey<'_>>, KeyValidationError> {
         let mut verification_keys = Vec::new();
         let mut errors = Vec::new();
 
@@ -220,11 +220,11 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
 
         let primary_key = self.primary_key();
         check_key_requirements(primary_key, profile)
-            .map_err(|err| KeySelectionError::PrimaryRequirement(primary_key.key_id(), err))?;
+            .map_err(|err| KeyValidationError::PrimaryRequirement(primary_key.key_id(), err))?;
 
         let primary_identifier = primary_key.generic_identifier();
         if !key_ids.is_empty() && !key_ids.iter().any(|key_id| key_id == &primary_identifier) {
-            errors.push(KeySelectionError::NoMatchList(
+            errors.push(KeyValidationError::NoMatchList(
                 primary_key.generic_identifier(),
                 key_ids.clone().into(),
             ));
@@ -238,7 +238,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
                     ));
                 }
                 Err(err) => {
-                    errors.push(KeySelectionError::PrimaryRequirement(
+                    errors.push(KeyValidationError::PrimaryRequirement(
                         primary_key.key_id(),
                         err,
                     ));
@@ -250,7 +250,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
             // Filter by key id if present.
             let generic_identifier = sub_key.key.generic_identifier();
             if !key_ids.is_empty() && !key_ids.iter().any(|key_id| key_id == &generic_identifier) {
-                errors.push(KeySelectionError::NoMatchList(
+                errors.push(KeyValidationError::NoMatchList(
                     generic_identifier,
                     key_ids.clone().into(),
                 ));
@@ -262,7 +262,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
                 match sub_key.check_validity(primary_key, date, profile) {
                     Ok(self_certification) => self_certification,
                     Err(err) => {
-                        errors.push(KeySelectionError::KeySelfCertification(err));
+                        errors.push(KeyValidationError::KeySelfCertification(err));
                         continue;
                     }
                 };
@@ -271,13 +271,13 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
             if let Err(err) =
                 check_signing_key_flags(&sub_key.key, sub_key_self_certification, profile, usage)
             {
-                errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
             // Check key requirements enforced by the profile.
             if let Err(err) = check_key_requirements(&sub_key.key, profile) {
-                errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
             verification_keys.push(PublicComponentKey::new(
@@ -288,7 +288,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         }
 
         if verification_keys.is_empty() {
-            return Err(KeySelectionError::NoVerificationKeys(
+            return Err(KeyValidationError::NoVerificationKeys(
                 primary_key.key_id(),
                 errors.into(),
             ));
@@ -315,13 +315,13 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         key_id: Option<KeyId>,
         usage: SignatureUsage,
         profile: &Profile,
-    ) -> Result<PrivateComponentKey<'_>, KeySelectionError> {
+    ) -> Result<PrivateComponentKey<'_>, KeyValidationError> {
         // Check if the primary key is valid.
         let primary_self_certification = self.check_primary_key(date, profile)?;
 
         let primary_key = self.primary_key();
         check_key_requirements(primary_key, profile)
-            .map_err(|err| KeySelectionError::PrimaryRequirement(primary_key.key_id(), err))?;
+            .map_err(|err| KeyValidationError::PrimaryRequirement(primary_key.key_id(), err))?;
 
         let mut signing_key = None;
         let mut max_time = None;
@@ -330,7 +330,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
             // Filter by key id if present.
             if let Some(key_id) = key_id {
                 if sub_key.key_id() != key_id {
-                    errors.push(KeySelectionError::NoMatch(sub_key.key_id(), key_id));
+                    errors.push(KeyValidationError::NoMatch(sub_key.key_id(), key_id));
                     continue;
                 }
             }
@@ -340,7 +340,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 match sub_key.check_validity(primary_key, date, profile) {
                     Ok(self_certification) => self_certification,
                     Err(err) => {
-                        errors.push(KeySelectionError::KeySelfCertification(err));
+                        errors.push(KeyValidationError::KeySelfCertification(err));
                         continue;
                     }
                 };
@@ -352,13 +352,13 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 profile,
                 usage,
             ) {
-                errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
             // Check key requirements enforced by the profile.
             if let Err(err) = check_key_requirements(sub_key.key.public_key(), profile) {
-                errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
@@ -383,8 +383,8 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         // Check if the primary key is a valid signing key.
         if let Some(key_id) = key_id {
             if primary_key.key_id() != key_id {
-                errors.push(KeySelectionError::NoMatch(primary_key.key_id(), key_id));
-                return Err(KeySelectionError::NoSigningKey(
+                errors.push(KeyValidationError::NoMatch(primary_key.key_id(), key_id));
+                return Err(KeyValidationError::NoSigningKey(
                     primary_key.key_id(),
                     errors.into(),
                 ));
@@ -394,11 +394,11 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         if let Err(err) =
             check_signing_key_flags(primary_key, primary_self_certification, profile, usage)
         {
-            errors.push(KeySelectionError::PrimaryRequirement(
+            errors.push(KeyValidationError::PrimaryRequirement(
                 primary_key.key_id(),
                 err,
             ));
-            return Err(KeySelectionError::NoSigningKey(
+            return Err(KeyValidationError::NoSigningKey(
                 primary_key.key_id(),
                 errors.into(),
             ));
@@ -420,7 +420,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         date: UnixTime,
         key_id: Option<GenericKeyIdentifier>,
         profile: &Profile,
-    ) -> Result<Vec<PrivateComponentKey<'_>>, KeySelectionError> {
+    ) -> Result<Vec<PrivateComponentKey<'_>>, KeyValidationError> {
         let primary_key = self.primary_key();
         let primary_self_certification = self.primary_self_signature(date, profile)?;
 
@@ -431,7 +431,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
             // Filter by key-id if present.
             if let Some(key_id) = &key_id {
                 if &sub_key.key.generic_identifier() != key_id {
-                    errors.push(KeySelectionError::NoMatchDecryption(
+                    errors.push(KeyValidationError::NoMatchDecryption(
                         sub_key.key_id(),
                         key_id.clone(),
                     ));
@@ -444,7 +444,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 match sub_key.latest_valid_self_certification(primary_key, date, profile) {
                     Ok(subkey_self_certification) => subkey_self_certification,
                     Err(err) => {
-                        errors.push(KeySelectionError::KeySelfCertification(err));
+                        errors.push(KeyValidationError::KeySelfCertification(err));
                         continue;
                     }
                 };
@@ -455,7 +455,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 subkey_self_certification,
                 profile,
             ) {
-                errors.push(KeySelectionError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
@@ -470,7 +470,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         if let Err(err) =
             check_valid_encryption_key(primary_key, primary_self_certification, profile)
         {
-            errors.push(KeySelectionError::PrimaryRequirement(
+            errors.push(KeyValidationError::PrimaryRequirement(
                 primary_key.key_id(),
                 err,
             ));
@@ -483,7 +483,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         }
 
         if decryption_keys.is_empty() {
-            return Err(KeySelectionError::NoDecryptionKeys(
+            return Err(KeyValidationError::NoDecryptionKeys(
                 primary_key.key_id(),
                 errors.into(),
             ));

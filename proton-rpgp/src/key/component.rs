@@ -12,7 +12,7 @@ use pgp::{
 
 use crate::{
     core, signature::check_message_signature_details, MessageSignatureError, PkeskDecryptionError,
-    Profile, SignError, SignatureContext, SignatureError, SignatureMode, UnixTime,
+    Profile, SignatureContext, SignatureError, SignatureMode, SigningError, UnixTime,
     VerificationContext,
 };
 
@@ -125,7 +125,7 @@ impl<'a> PrivateComponentKey<'a> {
         hash_algorithm: HashAlgorithm,
         signature_context: Option<&SignatureContext>,
         profile: &Profile,
-    ) -> Result<Signature, SignError> {
+    ) -> Result<Signature, SigningError> {
         let config = core::configure_message_signature(
             &self.private_key,
             at_date,
@@ -137,7 +137,7 @@ impl<'a> PrivateComponentKey<'a> {
 
         config
             .sign(&self.private_key, &Password::default(), data.as_ref())
-            .map_err(SignError::Sign)
+            .map_err(SigningError::Sign)
     }
 }
 

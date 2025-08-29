@@ -19,31 +19,31 @@ pub(crate) const LIB_ERROR_PREFIX: &str = "Proton-rPGP";
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{LIB_ERROR_PREFIX}: {0}")]
-    KeyModify(#[from] KeyOperationError),
+    KeyOperation(#[from] KeyOperationError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
     KeyGeneration(#[from] KeyGenerationError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
-    KeyCheck(#[from] KeySelectionError),
+    KeyValidation(#[from] KeyValidationError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
-    Sign(#[from] SignError),
+    Signing(#[from] SigningError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
-    Decrypt(#[from] DecryptionError),
+    Decryption(#[from] DecryptionError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
-    Encrypt(#[from] EncryptionError),
+    Encryption(#[from] EncryptionError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
-    Verify(#[from] VerifyMessageError),
+    Verification(#[from] MessageVerificationError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
     Armor(#[from] ArmorError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
-    Message(#[from] EncryptedMessageError),
+    EncryptedMessage(#[from] EncryptedMessageError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -134,7 +134,7 @@ pub enum MessageSignatureError {
     Failed(#[from] SignatureError),
 
     #[error("No key found to verify signature: {0}")]
-    NoMatchingKey(ErrorList<KeySelectionError>),
+    NoMatchingKey(ErrorList<KeyValidationError>),
 
     #[error(transparent)]
     Context(SignatureContextError),
@@ -159,7 +159,7 @@ pub enum KeyOperationError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum KeySelectionError {
+pub enum KeyValidationError {
     #[error(transparent)]
     KeySelfCertification(#[from] KeyCertificationSelectionError),
 
@@ -179,16 +179,16 @@ pub enum KeySelectionError {
     NoMatchList(GenericKeyIdentifier, GenericKeyIdentifierList),
 
     #[error("No valid encryption key found in key with primary key-id {0}: {1}")]
-    NoEncryptionKey(KeyId, ErrorList<KeySelectionError>),
+    NoEncryptionKey(KeyId, ErrorList<KeyValidationError>),
 
     #[error("No valid verification keys found in key with primary key-id {0}: {1}")]
-    NoVerificationKeys(KeyId, ErrorList<KeySelectionError>),
+    NoVerificationKeys(KeyId, ErrorList<KeyValidationError>),
 
     #[error("No valid decryption keys found in key with primary key-id {0}: {1}")]
-    NoDecryptionKeys(KeyId, ErrorList<KeySelectionError>),
+    NoDecryptionKeys(KeyId, ErrorList<KeyValidationError>),
 
     #[error("No valid signing key found in key with primary key-id {0}: {1}")]
-    NoSigningKey(KeyId, ErrorList<KeySelectionError>),
+    NoSigningKey(KeyId, ErrorList<KeyValidationError>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -233,16 +233,16 @@ pub enum KeyGenerationError {
     Generation(#[from] pgp::errors::Error),
 
     #[error("Failed to self-sign key: {0}")]
-    Signing(#[from] SignError),
+    Signing(#[from] SigningError),
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum EncryptionError {
     #[error("Failed to select encryption key: {0}")]
-    EncryptionKeySelection(#[from] KeySelectionError),
+    EncryptionKeySelection(#[from] KeyValidationError),
 
     #[error("Failed to select signing key in encryption: {0}")]
-    SigningKeySelection(KeySelectionError),
+    SigningKeySelection(KeyValidationError),
 
     #[error("Failed to encrypt session key with a public key: {0}")]
     PkeskEncryption(pgp::errors::Error),
@@ -257,7 +257,7 @@ pub enum EncryptionError {
     DataEncryption(pgp::errors::Error),
 
     #[error("Failed to sign data before encryption: {0}")]
-    Signing(#[from] SignError),
+    Signing(#[from] SigningError),
 
     #[error("Not supported: {0}")]
     NotSupported(String),
@@ -308,7 +308,7 @@ pub enum DecryptionError {
     InvalidSessionKey(#[from] pgp::errors::Error),
 
     #[error("Failed to select verified decryption keys for id {0}: {1}")]
-    KeySelection(Box<GenericKeyIdentifier>, KeySelectionError),
+    KeySelection(Box<GenericKeyIdentifier>, KeyValidationError),
 
     #[error("No valid key packets found")]
     NoKeyPackets,
@@ -318,7 +318,7 @@ pub enum DecryptionError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum VerifyMessageError {
+pub enum MessageVerificationError {
     #[error("Failed to verify message: {0}")]
     MessageProcessing(#[from] MessageProcessingError),
 }
@@ -360,7 +360,7 @@ pub enum PkeskDecryptionError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum SignError {
+pub enum SigningError {
     #[error("Failed to set data mode: {0}")]
     DataMode(pgp::errors::Error),
 
@@ -368,7 +368,7 @@ pub enum SignError {
     Serialize(pgp::errors::Error),
 
     #[error("Failed to select signing key: {0}")]
-    KeySelection(#[from] KeySelectionError),
+    KeySelection(#[from] KeyValidationError),
 
     #[error("Invalid signing key version")]
     InvalidKeyVersion,
@@ -469,7 +469,7 @@ impl<E: std::error::Error> From<Vec<E>> for ErrorList<E> {
 impl From<Error> for EncryptionError {
     fn from(value: Error) -> Self {
         match value {
-            Error::Encrypt(err) => err,
+            Error::Encryption(err) => err,
             _ => EncryptionError::Unexpected,
         }
     }
@@ -478,17 +478,17 @@ impl From<Error> for EncryptionError {
 impl From<Error> for DecryptionError {
     fn from(value: Error) -> Self {
         match value {
-            Error::Decrypt(err) => err,
+            Error::Decryption(err) => err,
             _ => DecryptionError::Unexpected,
         }
     }
 }
 
-impl From<Error> for SignError {
+impl From<Error> for SigningError {
     fn from(value: Error) -> Self {
         match value {
-            Error::Sign(err) => err,
-            _ => SignError::Unexpected,
+            Error::Signing(err) => err,
+            _ => SigningError::Unexpected,
         }
     }
 }

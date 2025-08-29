@@ -64,7 +64,7 @@ pub fn decrypt_encrypted_message_wrong_key() {
         .decrypt(INPUT_DATA, DataEncoding::Armored);
 
     match decryption_result {
-        Err(Error::Decrypt(DecryptionError::SessionKeyDecryption(err))) => {
+        Err(Error::Decryption(DecryptionError::SessionKeyDecryption(err))) => {
             let first_error = err.0.first().unwrap();
             assert!(matches!(
                 first_error,

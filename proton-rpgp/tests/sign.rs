@@ -1,6 +1,6 @@
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, Error, PrivateKey, SignError, SignatureContext, Signer, UnixTime,
-    VerificationContext, VerificationError, Verifier,
+    AsPublicKeyRef, DataEncoding, Error, PrivateKey, SignatureContext, Signer, SigningError,
+    UnixTime, VerificationContext, VerificationError, Verifier,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -129,7 +129,7 @@ pub fn sign_create_text_signature_with_non_utf8_data_should_fail() {
 
     assert!(matches!(
         result,
-        Err(Error::Sign(SignError::InvalidInputData(_)))
+        Err(Error::Signing(SigningError::InvalidInputData(_)))
     ));
 
     // Binary mode should not fail.

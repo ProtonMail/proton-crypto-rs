@@ -19,8 +19,8 @@ use rand::{CryptoRng, Rng};
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
     Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError, ExternalDetachedSignature,
-    KeySelectionError, PrivateKey, Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt,
-    ResolvedDataEncoding, SessionKey, SignError, SignatureContext, Signer, UnixTime,
+    KeyValidationError, PrivateKey, Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt,
+    ResolvedDataEncoding, SessionKey, SignatureContext, Signer, SigningError, UnixTime,
     DEFAULT_PROFILE,
 };
 
@@ -460,7 +460,7 @@ impl<'a> Encryptor<'a> {
     }
 
     /// Helper function to select the encryption keys to use for the encryption.
-    fn select_encryption_keys(&self) -> Result<Vec<PublicComponentKey<'_>>, KeySelectionError> {
+    fn select_encryption_keys(&self) -> Result<Vec<PublicComponentKey<'_>>, KeyValidationError> {
         self.encryption_keys
             .iter()
             .map(|key| key.inner.encryption_key(self.signer.date, self.profile()))
@@ -491,7 +491,7 @@ impl<'a> Encryptor<'a> {
                 let signer = mem::replace(&mut self.signer, replaced_signer);
                 let signature = signer
                     .sign_detached(data, DataEncoding::Unarmored)
-                    .map_err(SignError::from)?;
+                    .map_err(SigningError::from)?;
                 if self.detached_signature_op == SignDetachedOperation::Unencrypted {
                     Ok(Some(ExternalDetachedSignature::new_unencrypted(
                         signature,

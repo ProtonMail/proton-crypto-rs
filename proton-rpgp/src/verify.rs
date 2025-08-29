@@ -14,8 +14,8 @@ use crate::{
     signature::{
         VerificationError, VerificationResult, VerificationResultCreator, VerifiedSignature,
     },
-    DataEncoding, MessageProcessingError, MessageVerificationExt, Profile, PublicKey,
-    ResolvedDataEncoding, UnixTime, VerificationContext, VerificationInput, VerifyMessageError,
+    DataEncoding, MessageProcessingError, MessageVerificationError, MessageVerificationExt,
+    Profile, PublicKey, ResolvedDataEncoding, UnixTime, VerificationContext, VerificationInput,
     DEFAULT_PROFILE,
 };
 
@@ -125,11 +125,11 @@ impl<'a> Verifier<'a> {
     ) -> crate::Result<VerifiedData> {
         let resolved_data_encoding = data_encoding.resolve_for_read(data.as_ref());
         let message = armor::decode_to_message(data.as_ref(), resolved_data_encoding)
-            .map_err(VerifyMessageError::MessageProcessing)?;
+            .map_err(MessageVerificationError::MessageProcessing)?;
 
         let verified_data = self
             .verify_message(message)
-            .map_err(VerifyMessageError::MessageProcessing)?;
+            .map_err(MessageVerificationError::MessageProcessing)?;
 
         Ok(verified_data)
     }
@@ -224,9 +224,9 @@ impl<'a> Verifier<'a> {
         let (parsed_message, _) =
             CleartextSignedMessage::from_armor(cleartext_message.as_ref().trim_ascii_end())
                 .map_err(|err| {
-                    VerifyMessageError::MessageProcessing(MessageProcessingError::MessageParsing(
-                        err,
-                    ))
+                    MessageVerificationError::MessageProcessing(
+                        MessageProcessingError::MessageParsing(err),
+                    )
                 })?;
 
         let signed_data = parsed_message.signed_text();
@@ -248,7 +248,7 @@ impl<'a> Verifier<'a> {
 
         let output_sanitized = check_and_sanitize_text(parsed_message.signed_text().as_bytes())
             .map_err(MessageProcessingError::TextSanitization)
-            .map_err(VerifyMessageError::MessageProcessing)?;
+            .map_err(MessageVerificationError::MessageProcessing)?;
 
         let verification_result = VerificationResultCreator::with_signatures(verified_signatures);
         Ok(VerifiedData {

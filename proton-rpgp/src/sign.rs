@@ -20,8 +20,8 @@ use rand::{CryptoRng, Rng};
 use crate::{
     core::message_signature_subpackets,
     preferences::{self, RecipientsAlgorithms},
-    DataEncoding, KeySelectionError, PrivateComponentKey, PrivateKey, PrivateKeySelectionExt,
-    Profile, ResolvedDataEncoding, SignError, SignatureContext, SignatureMode, SignatureUsage,
+    DataEncoding, KeyValidationError, PrivateComponentKey, PrivateKey, PrivateKeySelectionExt,
+    Profile, ResolvedDataEncoding, SignatureContext, SignatureMode, SignatureUsage, SigningError,
     UnixTime, DEFAULT_PROFILE,
 };
 
@@ -123,7 +123,7 @@ impl<'a> Signer<'a> {
 
         let signing_keys = self
             .select_signing_keys()
-            .map_err(SignError::KeySelection)?;
+            .map_err(SigningError::KeySelection)?;
 
         // Compression is determined by the profile.
         if self.profile.message_compression() != CompressionAlgorithm::Uncompressed {
@@ -169,7 +169,7 @@ impl<'a> Signer<'a> {
 
         let signing_keys = self
             .select_signing_keys()
-            .map_err(SignError::KeySelection)?;
+            .map_err(SigningError::KeySelection)?;
 
         // Determine which hash algorithm to use for each key.
         let hash_algorithms = preferences::select_hash_algorithm_from_keys(
@@ -180,7 +180,7 @@ impl<'a> Signer<'a> {
         );
 
         // Create a signature for each key.
-        let signatures: Result<Vec<_>, SignError> = signing_keys
+        let signatures: Result<Vec<_>, SigningError> = signing_keys
             .iter()
             .zip(hash_algorithms)
             .map(|(signing_key, hash_algorithm)| {
@@ -233,11 +233,12 @@ impl<'a> Signer<'a> {
     ///     .expect("Failed to sign");
     /// ```
     pub fn sign_cleartext(self, data: impl AsRef<[u8]>) -> crate::Result<Vec<u8>> {
-        let str_data = std::str::from_utf8(data.as_ref()).map_err(SignError::InvalidInputData)?;
+        let str_data =
+            std::str::from_utf8(data.as_ref()).map_err(SigningError::InvalidInputData)?;
 
         let signing_keys = self
             .select_signing_keys()
-            .map_err(SignError::KeySelection)?;
+            .map_err(SigningError::KeySelection)?;
         // Determine which hash algorithm to use for each key.
         let hash_algorithms = preferences::select_hash_algorithm_from_keys(
             self.profile.message_hash_algorithm(),
@@ -270,7 +271,7 @@ impl<'a> Signer<'a> {
         };
 
         let cleartext_message = CleartextSignedMessage::new_many(str_data, create_signatures)
-            .map_err(SignError::Sign)?;
+            .map_err(SigningError::Sign)?;
 
         let all_v6 = signing_keys
             .iter()
@@ -281,16 +282,16 @@ impl<'a> Signer<'a> {
                 headers: None,
                 include_checksum: !all_v6,
             })
-            .map_err(SignError::Serialize)?;
+            .map_err(SigningError::Serialize)?;
 
         Ok(cleartext_bytes)
     }
 
-    pub(crate) fn check_input_data(&self, data: &[u8]) -> Result<(), SignError> {
+    pub(crate) fn check_input_data(&self, data: &[u8]) -> Result<(), SigningError> {
         match self.signature_type {
             SignatureMode::Text => std::str::from_utf8(data)
                 .map(|_| ())
-                .map_err(SignError::InvalidInputData),
+                .map_err(SigningError::InvalidInputData),
             SignatureMode::Binary => Ok(()),
         }
     }
@@ -299,7 +300,7 @@ impl<'a> Signer<'a> {
         &self,
         data: &'b [u8],
         buffer: &'b mut String,
-    ) -> Result<&'b [u8], SignError> {
+    ) -> Result<&'b [u8], SigningError> {
         match self.data_mode {
             DataMode::Utf8 => {
                 let mut reader = NormalizedReader::new(data, LineBreak::Crlf);
@@ -312,7 +313,7 @@ impl<'a> Signer<'a> {
 
     pub(crate) fn select_signing_keys(
         &self,
-    ) -> Result<Vec<PrivateComponentKey<'_>>, KeySelectionError> {
+    ) -> Result<Vec<PrivateComponentKey<'_>>, KeyValidationError> {
         self.signing_keys
             .iter()
             .map(|key| {
@@ -328,7 +329,7 @@ impl<'a> Signer<'a> {
         mut message_builder: MessageBuilder<'a, R, E>,
         signing_keys: &'a [PrivateComponentKey<'a>],
         recipient_preferences_opt: Option<&RecipientsAlgorithms>,
-    ) -> Result<MessageBuilder<'a, R, E>, SignError> {
+    ) -> Result<MessageBuilder<'a, R, E>, SigningError> {
         let hash_algorithms = if let Some(recipient_preferences) = recipient_preferences_opt {
             recipient_preferences.select_hash_algorithm(
                 self.profile.message_hash_algorithm(),
@@ -351,7 +352,7 @@ impl<'a> Signer<'a> {
 
         message_builder
             .data_mode(self.data_mode)
-            .map_err(SignError::DataMode)?;
+            .map_err(SigningError::DataMode)?;
 
         let mut rng = self.profile.rng();
         for (signing_key, hash_algorithm) in signing_keys.iter().zip(hash_algorithms) {
@@ -387,7 +388,7 @@ impl Default for Signer<'_> {
 fn handle_signature_encoding(
     signatures: &[DetachedSignature],
     signature_encoding: ResolvedDataEncoding,
-) -> Result<Vec<u8>, SignError> {
+) -> Result<Vec<u8>, SigningError> {
     match signature_encoding {
         ResolvedDataEncoding::Armored => {
             let all_v6 = signatures
@@ -401,14 +402,14 @@ fn handle_signature_encoding(
                 None,
                 !all_v6,
             )
-            .map_err(SignError::Serialize)?;
+            .map_err(SigningError::Serialize)?;
             Ok(buffer)
         }
         ResolvedDataEncoding::Unarmored => {
             let mut buffer = Vec::with_capacity(signatures.write_len());
             signatures
                 .to_writer(&mut buffer)
-                .map_err(SignError::Serialize)?;
+                .map_err(SigningError::Serialize)?;
             Ok(buffer)
         }
     }
@@ -420,7 +421,7 @@ fn to_writer<'a, RAND, W, R, E>(
     data_encoding: ResolvedDataEncoding,
     rng: RAND,
     output: W,
-) -> Result<(), SignError>
+) -> Result<(), SigningError>
 where
     RAND: Rng + CryptoRng,
     W: io::Write,
@@ -441,11 +442,11 @@ where
                     },
                     output,
                 )
-                .map_err(SignError::Serialize)?;
+                .map_err(SigningError::Serialize)?;
         }
         ResolvedDataEncoding::Unarmored => message_builder
             .to_writer(rng, output)
-            .map_err(SignError::Serialize)?,
+            .map_err(SigningError::Serialize)?,
     }
     Ok(())
 }

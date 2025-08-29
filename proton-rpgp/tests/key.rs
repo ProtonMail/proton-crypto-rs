@@ -42,7 +42,7 @@ fn key_import_and_unlock_private_key_fail() {
     let unlocked = key.unlock(b"wrong_password");
     assert!(matches!(
         unlocked,
-        Err(Error::KeyModify(KeyOperationError::Unlock(_, _)))
+        Err(Error::KeyOperation(KeyOperationError::Unlock(_, _)))
     ));
 }
 
@@ -122,7 +122,7 @@ fn key_export_import_unlocked_key() {
         PrivateKey::import_unlocked(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armored);
     assert!(matches!(
         failure_result,
-        Err(Error::KeyModify(KeyOperationError::Locked))
+        Err(Error::KeyOperation(KeyOperationError::Locked))
     ));
 }
 

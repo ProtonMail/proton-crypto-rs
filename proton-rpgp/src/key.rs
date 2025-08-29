@@ -503,7 +503,7 @@ mod tests {
     use pgp::types::KeyDetails;
 
     use crate::{
-        types::UnixTime, DataEncoding, KeyCertificationSelectionError, KeySelectionError,
+        types::UnixTime, DataEncoding, KeyCertificationSelectionError, KeyValidationError,
         PrivateKey, PrivateKeySelectionExt, Profile, PublicKey, SignatureUsage,
     };
 
@@ -633,11 +633,11 @@ mod tests {
             .encryption_key(expired, &profile);
 
         match selection_result {
-            Err(KeySelectionError::NoEncryptionKey(_, selection_errors)) => {
+            Err(KeyValidationError::NoEncryptionKey(_, selection_errors)) => {
                 let selection_error = selection_errors.0.first().expect("No subkey error");
                 assert!(matches!(
                     selection_error,
-                    KeySelectionError::KeySelfCertification(
+                    KeyValidationError::KeySelfCertification(
                         KeyCertificationSelectionError::NoSelfCertification(_)
                     )
                 ));
@@ -660,7 +660,7 @@ mod tests {
             .encryption_key(date, &profile);
 
         match selection_result {
-            Err(KeySelectionError::KeySelfCertification(
+            Err(KeyValidationError::KeySelfCertification(
                 KeyCertificationSelectionError::NoIdentity(selection_errors),
             )) => {
                 let selection_error = selection_errors.0.first().expect("No subkey error");

@@ -290,7 +290,7 @@ pub fn encrypt_message_v4_decrypt_wrong_key() {
 
     assert!(matches!(
         failed_decryption,
-        Err(Error::Decrypt(DecryptionError::SessionKeyDecryption(_)))
+        Err(Error::Decryption(DecryptionError::SessionKeyDecryption(_)))
     ));
 }
 
