@@ -3,7 +3,9 @@
 pub type Error = CryptoError;
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[cfg(feature = "gopgp")]
 mod go;
+
 mod rust;
 
 pub mod crypto;
@@ -18,15 +20,6 @@ use std::{
     io,
     sync::OnceLock,
     time::SystemTime,
-};
-
-use crypto::{
-    AccessKeyInfo, AsPublicKeyRef, DataEncoding, Decryptor, DecryptorAsync, DecryptorSync,
-    Encryptor, EncryptorAsync, EncryptorSync, EncryptorWriter, OpenPGPFingerprint, OpenPGPKeyID,
-    PGPMessage, PGPProvider, PGPProviderAsync, PGPProviderSync, PrivateKey, PublicKey,
-    SHA256Fingerprint, SessionKey, SessionKeyAlgorithm, Signer, SignerAsync, SignerSync,
-    SigningContext, UnixTimestamp, VerificationContext, VerificationError, VerificationResult,
-    VerifiedData, VerifiedDataReader, Verifier, VerifierAsync, VerifierSync,
 };
 
 /// An generic error thrown by the crypto APIs.
@@ -61,7 +54,7 @@ impl From<io::Error> for CryptoError {
 
 /// Simple string crypto error that converts to a [`CryptoError`].
 #[derive(Debug, Clone)]
-pub struct CryptoInfoError(String);
+pub struct CryptoInfoError(pub(crate) String);
 
 impl Display for CryptoInfoError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -136,14 +129,30 @@ impl CryptoClockProvider for LocalTimeProvider {
 
 /// Factory function to create a synchronous `PGPProvider`.
 pub fn new_pgp_provider() -> impl PGPProviderSync {
-    go::GoPGPProvider(crypto_clock())
+    #[cfg(feature = "gopgp")]
+    return new_go_pgp_provider();
+    #[cfg(not(any(feature = "gopgp")))]
+    compile_error!("At least one of 'rustpgp' or 'gopgp' features must be enabled.");
 }
 
 /// Factory function to create a asynchronous `PGPProvider`.
 pub fn new_pgp_provider_async() -> impl PGPProviderAsync {
-    go::GoPGPProvider(crypto_clock())
+    #[cfg(feature = "gopgp")]
+    return new_go_pgp_provider_async();
+
+    #[cfg(not(any(feature = "gopgp")))]
+    compile_error!("At least one of 'rustpgp' or 'gopgp' features must be enabled.");
 }
 
+#[cfg(feature = "gopgp")]
+pub fn new_go_pgp_provider() -> impl PGPProviderSync {
+    go::pgp::GoPGPProvider(crypto_clock())
+}
+
+#[cfg(feature = "gopgp")]
+pub fn new_go_pgp_provider_async() -> impl PGPProviderAsync {
+    go::pgp::GoPGPProvider(crypto_clock())
+}
 /// Factory function to create an `SRPProvider`.
 pub fn new_srp_provider() -> impl SRPProvider {
     RustSRP::new(new_pgp_provider())
@@ -187,8 +196,14 @@ macro_rules! lowercase_string_id {
             }
         }
 
-        impl<T: Into<String>> From<T> for $name {
-            fn from(v: T) -> Self {
+        impl From<String> for $name {
+            fn from(v: String) -> Self {
+                Self::new(v.into())
+            }
+        }
+
+        impl From<&str> for $name {
+            fn from(v: &str) -> Self {
                 Self::new(v.into())
             }
         }
@@ -202,3 +217,5 @@ macro_rules! lowercase_string_id {
 }
 
 pub(crate) use lowercase_string_id;
+
+use crate::crypto::{PGPProviderAsync, PGPProviderSync, UnixTimestamp};

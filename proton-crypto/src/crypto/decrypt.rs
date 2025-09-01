@@ -1,6 +1,6 @@
 use std::{future::Future, io};
 
-use crate::{
+use super::{
     AsPublicKeyRef, DataEncoding, PrivateKey, PublicKey, UnixTimestamp, VerificationContext,
     VerifiedData, VerifiedDataReader,
 };

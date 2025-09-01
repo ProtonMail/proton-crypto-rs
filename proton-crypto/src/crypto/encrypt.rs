@@ -1,6 +1,6 @@
 use std::{future::Future, io};
 
-use crate::{
+use super::{
     AsPublicKeyRef, DataEncoding, OpenPGPKeyID, PrivateKey, PublicKey, SigningContext,
     UnixTimestamp,
 };
@@ -35,7 +35,7 @@ where
 }
 
 /// Raw detached signature either armored or in bytes.
-type RawDetachedSignature = Vec<u8>;
+pub type RawDetachedSignature = Vec<u8>;
 
 /// Writer for writing encrypted data and a detached signature.
 pub trait EncryptorDetachedSignatureWriter<'a, T: io::Write + 'a>: io::Write
@@ -169,10 +169,10 @@ pub trait Encryptor<'a> {
 }
 
 /// Raw encrypted message either armored or in bytes.
-type RawEncryptedMessage = Vec<u8>;
+pub type RawEncryptedMessage = Vec<u8>;
 
 /// Raw pgp keys packets as bytes.
-type PGPKeyPackets = Vec<u8>;
+pub type PGPKeyPackets = Vec<u8>;
 
 /// `EncryptorSync` provides synchronous `OpenPGP` encryption operations.
 pub trait EncryptorSync<'a>: Encryptor<'a> {

@@ -4,10 +4,11 @@ use super::{
     GoPrivateKey, GoPublicKey, GoSessionKey, GoVerificationContext, GoVerifiedData,
     GoVerifiedDataReader,
 };
-use crate::{
-    crypto::DetachedSignatureVariant, AsPublicKeyRef, Decryptor, DecryptorAsync, DecryptorSync,
-    UnixTimestamp,
+use crate::crypto::{
+    AsPublicKeyRef, DataEncoding, Decryptor, DecryptorAsync, DecryptorSync,
+    DetachedSignatureVariant,
 };
+use crate::UnixTimestamp;
 
 pub struct GoDecryptor<'a>(pub(super) gopenpgp_sys::Decryptor<'a>);
 
@@ -115,7 +116,7 @@ impl<'a> DecryptorSync<'a> for GoDecryptor<'a> {
     fn decrypt(
         self,
         data: impl AsRef<[u8]>,
-        data_encoding: crate::DataEncoding,
+        data_encoding: DataEncoding,
     ) -> crate::Result<Self::VerifiedData> {
         decrypt(self.0, data, data_encoding)
     }
@@ -127,7 +128,7 @@ impl<'a> DecryptorSync<'a> for GoDecryptor<'a> {
     fn decrypt_stream<T: io::Read + 'a>(
         self,
         data: T,
-        data_encoding: crate::DataEncoding,
+        data_encoding: DataEncoding,
     ) -> crate::Result<Self::VerifiedDataReader<'a, T>> {
         decrypt_stream(self.0, data, data_encoding)
     }
@@ -137,7 +138,7 @@ impl<'a> DecryptorAsync<'a> for GoDecryptor<'a> {
     async fn decrypt_async(
         self,
         data: impl AsRef<[u8]>,
-        data_encoding: crate::DataEncoding,
+        data_encoding: DataEncoding,
     ) -> crate::Result<GoVerifiedData> {
         decrypt(self.0, data, data_encoding)
     }
@@ -154,7 +155,7 @@ impl<'a> DecryptorAsync<'a> for GoDecryptor<'a> {
 fn decrypt(
     decryptor: gopenpgp_sys::Decryptor,
     data: impl AsRef<[u8]>,
-    data_encoding: crate::DataEncoding,
+    data_encoding: DataEncoding,
 ) -> crate::Result<GoVerifiedData> {
     decryptor
         .decrypt(data.as_ref(), data_encoding.into())
@@ -166,7 +167,7 @@ fn decrypt(
 fn decrypt_stream<T: io::Read>(
     decryptor: gopenpgp_sys::Decryptor<'_>,
     reader: T,
-    data_encoding: crate::DataEncoding,
+    data_encoding: DataEncoding,
 ) -> crate::Result<GoVerifiedDataReader<'_, T>> {
     decryptor
         .decrypt_stream(reader, data_encoding.into())

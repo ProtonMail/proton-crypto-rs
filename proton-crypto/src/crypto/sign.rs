@@ -1,6 +1,6 @@
 use std::{future::Future, io};
 
-use crate::{DataEncoding, EncryptorWriter, PrivateKey, UnixTimestamp};
+use super::{DataEncoding, EncryptorWriter, PrivateKey, UnixTimestamp};
 
 /// `SigningContext` provides a context for signature creation.
 ///

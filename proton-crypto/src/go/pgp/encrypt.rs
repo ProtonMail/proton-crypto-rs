@@ -1,12 +1,10 @@
 use std::io;
 
 use super::{GoPrivateKey, GoPublicKey, GoSessionKey, GoSigningContext};
-use crate::{
-    crypto::{
-        DataEncoding, DetachedSignatureVariant, EncryptorDetachedSignatureWriter,
-        SessionKeyAlgorithm,
-    },
-    Encryptor, EncryptorAsync, EncryptorSync, EncryptorWriter, PGPMessage,
+use crate::crypto::{
+    AsPublicKeyRef, DataEncoding, DetachedSignatureVariant, Encryptor, EncryptorAsync,
+    EncryptorDetachedSignatureWriter, EncryptorSync, EncryptorWriter, OpenPGPKeyID, PGPMessage,
+    SessionKeyAlgorithm,
 };
 
 pub struct GoPGPMessage(pub(super) gopenpgp_sys::PGPMessage);
@@ -30,13 +28,13 @@ impl PGPMessage for GoPGPMessage {
         self.0.data_packet()
     }
 
-    fn encryption_key_ids(&self) -> Vec<crate::OpenPGPKeyID> {
+    fn encryption_key_ids(&self) -> Vec<OpenPGPKeyID> {
         let ids_option = self.0.encryption_key_ids();
         let Some(ids) = ids_option else {
             return Vec::new();
         };
         let mut ids_out = Vec::with_capacity(ids.as_ref().len());
-        ids_out.extend(ids.as_ref().iter().map(|id| crate::OpenPGPKeyID(*id)));
+        ids_out.extend(ids.as_ref().iter().map(|id| OpenPGPKeyID(*id)));
         ids_out
     }
 }
@@ -106,7 +104,7 @@ impl<'a> Encryptor<'a> for GoEncryptor<'a> {
 
     fn with_encryption_key_refs(
         self,
-        encryption_keys: &'a [impl crate::AsPublicKeyRef<Self::PublicKey>],
+        encryption_keys: &'a [impl AsPublicKeyRef<Self::PublicKey>],
     ) -> Self {
         let mut encryptor = self.0;
         for encryption_key in encryption_keys {

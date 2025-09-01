@@ -1,6 +1,6 @@
 use std::{future::Future, io};
 
-use crate::{AsPublicKeyRef, DataEncoding, PublicKey, UnixTimestamp, VerificationResult};
+use super::{AsPublicKeyRef, DataEncoding, PublicKey, UnixTimestamp, VerificationResult};
 
 /// `VerificationContext` allows to provide a context for signature verification.
 ///
@@ -65,7 +65,6 @@ pub trait VerifiedData: AsRef<[u8]> {
 pub trait Verifier<'a> {
     type PublicKey: PublicKey;
     type VerifiedData: VerifiedData;
-    type VerifiedDataReader<'b, T: io::Read + 'b>: VerifiedDataReader<'b, T>;
     type VerificationContext: VerificationContext;
     /// Adds the `OpenPGP` verification key for verifying the signatures.
     fn with_verification_key(self, verification_key: &'a Self::PublicKey) -> Self;

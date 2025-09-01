@@ -58,6 +58,9 @@ pub trait PGPProvider: Send + Sync {
     /// Type for data that might included an `OpenPGP` signature verification result.
     type VerifiedData: VerifiedData;
 
+    /// Returns a version string of the provider.
+    fn provider_version(&self) -> String;
+
     /// Creates a new signing context.
     ///
     /// Creates a `SigningContext` for the given string `value`.
@@ -538,9 +541,9 @@ impl Display for OpenPGPKeyID {
     }
 }
 
-impl<T: Into<u64>> From<T> for OpenPGPKeyID {
-    fn from(value: T) -> Self {
-        Self(value.into())
+impl From<u64> for OpenPGPKeyID {
+    fn from(value: u64) -> Self {
+        Self(value)
     }
 }
 

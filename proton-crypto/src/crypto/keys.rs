@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use crate::{OpenPGPFingerprint, OpenPGPKeyID, SHA256Fingerprint, UnixTimestamp};
+use super::{OpenPGPFingerprint, OpenPGPKeyID, SHA256Fingerprint, UnixTimestamp};
 
 use super::SessionKeyAlgorithm;
 

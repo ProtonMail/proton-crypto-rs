@@ -1,13 +1,11 @@
 use gopenpgp_sys::PublicKeyReference as _;
 
-use crate::{
-    crypto::{
-        KeyGenerator, KeyGeneratorAlgorithm, KeyGeneratorAsync, KeyGeneratorSync,
-        OpenPGPFingerprint, OpenPGPKeyID, SessionKeyAlgorithm,
-    },
-    AccessKeyInfo, AsPublicKeyRef, PrivateKey, PublicKey, SHA256Fingerprint, SessionKey,
-    UnixTimestamp,
+use crate::crypto::{
+    AccessKeyInfo, AsPublicKeyRef, DataEncoding, KeyGenerator, KeyGeneratorAlgorithm,
+    KeyGeneratorAsync, KeyGeneratorSync, OpenPGPFingerprint, OpenPGPKeyID, PrivateKey, PublicKey,
+    SHA256Fingerprint, SessionKey, SessionKeyAlgorithm,
 };
+use crate::UnixTimestamp;
 
 #[derive(Debug, Clone)]
 #[allow(clippy::module_name_repetitions)]
@@ -247,7 +245,7 @@ pub(super) fn session_key_export(
 /// Imports a public key from a byte slice with the specified encoding.
 pub(super) fn public_key_import(
     public_key: impl AsRef<[u8]>,
-    encoding: crate::DataEncoding,
+    encoding: DataEncoding,
 ) -> crate::Result<GoPublicKey> {
     let public_key = gopenpgp_sys::PublicKey::import(public_key.as_ref(), encoding.into())?;
     Ok(GoPublicKey(public_key))
@@ -256,10 +254,10 @@ pub(super) fn public_key_import(
 /// Exports a public key into a byte slice using the specified encoding.
 pub(super) fn public_key_export(
     public_key: &GoPublicKey,
-    encoding: crate::DataEncoding,
+    encoding: DataEncoding,
 ) -> crate::Result<impl AsRef<[u8]>> {
     (match encoding {
-        crate::DataEncoding::Bytes => public_key.0.export(false),
+        DataEncoding::Bytes => public_key.0.export(false),
         _ => public_key.0.export(true),
     })
     .map_err(Into::into)
@@ -269,7 +267,7 @@ pub(super) fn public_key_export(
 pub(super) fn private_key_import(
     private_key: impl AsRef<[u8]>,
     passphrase: impl AsRef<[u8]>,
-    encoding: crate::DataEncoding,
+    encoding: DataEncoding,
 ) -> crate::Result<GoPrivateKey> {
     let private_key = gopenpgp_sys::PrivateKey::import(
         private_key.as_ref(),
@@ -283,10 +281,10 @@ pub(super) fn private_key_import(
 pub(super) fn private_key_export(
     private_key: &GoPrivateKey,
     passphrase: impl AsRef<[u8]>,
-    encoding: crate::DataEncoding,
+    encoding: DataEncoding,
 ) -> crate::Result<impl AsRef<[u8]>> {
     (match encoding {
-        crate::DataEncoding::Bytes => private_key.0.export(passphrase.as_ref(), false),
+        DataEncoding::Bytes => private_key.0.export(passphrase.as_ref(), false),
         _ => private_key.0.export(passphrase.as_ref(), true),
     })
     .map_err(Into::into)
@@ -295,7 +293,7 @@ pub(super) fn private_key_export(
 /// Imports an unlocked private key from a byte slice using the specified encoding.
 pub(super) fn private_key_import_unlocked(
     private_key: impl AsRef<[u8]>,
-    encoding: crate::DataEncoding,
+    encoding: DataEncoding,
 ) -> crate::Result<GoPrivateKey> {
     let private_key =
         gopenpgp_sys::PrivateKey::import_unlocked(private_key.as_ref(), encoding.into())?;
@@ -305,10 +303,10 @@ pub(super) fn private_key_import_unlocked(
 /// Exports an unlocked private key into a byte slice using the specified encoding.
 pub(super) fn private_key_export_unlocked(
     private_key: &GoPrivateKey,
-    encoding: crate::DataEncoding,
+    encoding: DataEncoding,
 ) -> crate::Result<impl AsRef<[u8]>> {
     (match encoding {
-        crate::DataEncoding::Bytes => private_key.0.export_unlocked(false),
+        DataEncoding::Bytes => private_key.0.export_unlocked(false),
         _ => private_key.0.export_unlocked(true),
     })
     .map_err(Into::into)

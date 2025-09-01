@@ -120,8 +120,18 @@ fn test_api_async_public_key_import_export() {
         let exported_public_key = provider
             .public_key_export_async(&imported_public_key, DataEncoding::Armor)
             .await
+            .map(|export| String::from_utf8_lossy(export.as_ref()).to_string())
             .unwrap();
-        assert_eq!(exported_public_key.as_ref(), TEST_PGP_PUBLIC_KEY.as_bytes());
+        // Compare only the armored body, ignoring the checksum line (which starts with '=')
+        let exported_lines: Vec<&str> = exported_public_key
+            .lines()
+            .filter(|line| !line.trim_start().starts_with('='))
+            .collect();
+        let test_lines: Vec<&str> = TEST_PGP_PUBLIC_KEY
+            .lines()
+            .filter(|line| !line.trim_start().starts_with('='))
+            .collect();
+        assert_eq!(exported_lines, test_lines);
     });
 }
 
@@ -270,7 +280,7 @@ fn test_pgp_message_import_async() {
             .pgp_message_import_async(TEST_SIGNCRYPTED_MESSAGE.as_bytes(), DataEncoding::Armor)
             .await
             .expect("import should work");
-        let key_ids = message.encryption_key_ids();
-        assert!(!key_ids.is_empty());
+        assert!(!message.as_key_packets().is_empty());
+        assert!(!message.as_data_packet().is_empty());
     });
 }

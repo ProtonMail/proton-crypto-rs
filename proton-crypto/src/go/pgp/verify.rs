@@ -1,11 +1,12 @@
 use std::io;
 
 use super::GoPublicKey;
-use crate::{
-    crypto::{OpenPGPKeyID, VerificationInformation, VerifiedData},
-    AsPublicKeyRef, CryptoInfoError, UnixTimestamp, VerificationContext, VerificationError,
-    VerificationResult, VerifiedDataReader, Verifier, VerifierAsync, VerifierSync,
+use crate::crypto::{
+    AsPublicKeyRef, DataEncoding, OpenPGPKeyID, VerificationContext, VerificationError,
+    VerificationInformation, VerificationResult, VerifiedData, VerifiedDataReader, Verifier,
+    VerifierAsync, VerifierSync,
 };
+use crate::{CryptoInfoError, UnixTimestamp};
 
 #[allow(clippy::module_name_repetitions)]
 pub struct GoVerifiedData(pub(super) gopenpgp_sys::VerifiedData);
@@ -89,7 +90,6 @@ pub struct GoVerifier<'a>(pub(super) gopenpgp_sys::Verifier<'a>);
 impl<'a> Verifier<'a> for GoVerifier<'a> {
     type PublicKey = GoPublicKey;
     type VerifiedData = GoVerifiedData;
-    type VerifiedDataReader<'b, T: io::Read + 'b> = GoVerifiedDataReader<'b, T>;
     type VerificationContext = GoVerificationContext;
 
     fn with_verification_key(self, verification_key: &'a Self::PublicKey) -> Self {
@@ -135,7 +135,7 @@ impl<'a> VerifierSync<'a> for GoVerifier<'a> {
         self,
         data: impl AsRef<[u8]>,
         signature: impl AsRef<[u8]>,
-        data_encoding: crate::DataEncoding,
+        data_encoding: DataEncoding,
     ) -> VerificationResult {
         verify_detached(self.0, data, signature, data_encoding)
     }
@@ -143,7 +143,7 @@ impl<'a> VerifierSync<'a> for GoVerifier<'a> {
     fn verify_inline(
         self,
         message: impl AsRef<[u8]>,
-        data_encoding: crate::DataEncoding,
+        data_encoding: DataEncoding,
     ) -> crate::Result<Self::VerifiedData> {
         verify_inline(self.0, message, data_encoding)
     }
@@ -156,7 +156,7 @@ impl<'a> VerifierSync<'a> for GoVerifier<'a> {
         self,
         data: T,
         signature: impl AsRef<[u8]>,
-        signature_encoding: crate::DataEncoding,
+        signature_encoding: DataEncoding,
     ) -> VerificationResult {
         verify_detached_stream(self.0, data, signature, signature_encoding)
     }
@@ -167,7 +167,7 @@ impl<'a> VerifierAsync<'a> for GoVerifier<'a> {
         self,
         data: impl AsRef<[u8]>,
         signature: impl AsRef<[u8]>,
-        data_encoding: crate::DataEncoding,
+        data_encoding: DataEncoding,
     ) -> VerificationResult {
         verify_detached(self.0, data, signature, data_encoding)
     }
@@ -175,7 +175,7 @@ impl<'a> VerifierAsync<'a> for GoVerifier<'a> {
     async fn verify_inline_async(
         self,
         message: impl AsRef<[u8]>,
-        data_encoding: crate::DataEncoding,
+        data_encoding: DataEncoding,
     ) -> crate::Result<Self::VerifiedData> {
         verify_inline(self.0, message, data_encoding)
     }
@@ -193,7 +193,7 @@ fn verify_detached(
     verifier: gopenpgp_sys::Verifier,
     data: impl AsRef<[u8]>,
     signature: impl AsRef<[u8]>,
-    data_encoding: crate::DataEncoding,
+    data_encoding: DataEncoding,
 ) -> VerificationResult {
     let verification_result = verifier
         .verify_detached(data.as_ref(), signature.as_ref(), data_encoding.into())
@@ -205,7 +205,7 @@ fn verify_detached(
 fn verify_inline(
     verifier: gopenpgp_sys::Verifier,
     message: impl AsRef<[u8]>,
-    data_encoding: crate::DataEncoding,
+    data_encoding: DataEncoding,
 ) -> crate::Result<GoVerifiedData> {
     verifier
         .verify_inline(message.as_ref(), data_encoding.into())
@@ -229,7 +229,7 @@ fn verify_detached_stream<'a, T: io::Read + 'a>(
     verifier: gopenpgp_sys::Verifier,
     data: T,
     signature: impl AsRef<[u8]>,
-    signature_encoding: crate::DataEncoding,
+    signature_encoding: DataEncoding,
 ) -> VerificationResult {
     let verification_result = verifier
         .verify_detached_stream(data, signature.as_ref(), signature_encoding.into())

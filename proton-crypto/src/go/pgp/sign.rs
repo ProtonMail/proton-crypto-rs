@@ -1,7 +1,7 @@
 use std::io;
 
 use super::{GoEncryptorWriter, GoPrivateKey};
-use crate::{Signer, SignerAsync, SignerSync, SigningContext};
+use crate::crypto::{DataEncoding, Signer, SignerAsync, SignerSync, SigningContext};
 
 #[derive(Debug, Clone)]
 pub struct GoSigningContext(pub(super) gopenpgp_sys::SigningContext);
@@ -54,7 +54,7 @@ impl<'a> SignerSync<'a> for GoSigner<'a> {
     fn sign_inline(
         self,
         data: impl AsRef<[u8]>,
-        out_encoding: crate::DataEncoding,
+        out_encoding: DataEncoding,
     ) -> crate::Result<Vec<u8>> {
         self.0
             .sign(data.as_ref(), false, out_encoding.into())
@@ -64,7 +64,7 @@ impl<'a> SignerSync<'a> for GoSigner<'a> {
     fn sign_detached(
         self,
         data: impl AsRef<[u8]>,
-        out_encoding: crate::DataEncoding,
+        out_encoding: DataEncoding,
     ) -> crate::Result<Vec<u8>> {
         self.0
             .sign(data.as_ref(), true, out_encoding.into())
@@ -79,7 +79,7 @@ impl<'a> SignerSync<'a> for GoSigner<'a> {
         self,
         sign_writer: T,
         detached: bool,
-        data_encoding: crate::DataEncoding,
+        data_encoding: DataEncoding,
     ) -> crate::Result<Self::SignerWriter<'a, T>> {
         self.0
             .sign_stream(sign_writer, detached, data_encoding.into())
@@ -92,7 +92,7 @@ impl<'a> SignerAsync<'a> for GoSigner<'a> {
     async fn sign_inline_async(
         self,
         data: impl AsRef<[u8]>,
-        out_encoding: crate::DataEncoding,
+        out_encoding: DataEncoding,
     ) -> crate::Result<Vec<u8>> {
         self.0
             .sign(data.as_ref(), false, out_encoding.into())
@@ -102,7 +102,7 @@ impl<'a> SignerAsync<'a> for GoSigner<'a> {
     async fn sign_detached_async(
         self,
         data: impl AsRef<[u8]>,
-        out_encoding: crate::DataEncoding,
+        out_encoding: DataEncoding,
     ) -> crate::Result<Vec<u8>> {
         self.0
             .sign(data.as_ref(), true, out_encoding.into())

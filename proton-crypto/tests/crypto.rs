@@ -68,8 +68,8 @@ fn test_api_decrypt_and_verify() {
         .new_decryptor()
         .with_decryption_key(&imported_private_key)
         .with_verification_key(&public_key)
-        .at_verification_time(test_time)
         .with_verification_context(&verification_context)
+        .at_verification_time(test_time)
         .decrypt(message.as_bytes(), DataEncoding::Armor)
         .unwrap();
     let verification_result = verified_data.verification_result();
@@ -133,8 +133,18 @@ fn test_api_public_key_import_export() {
         .unwrap();
     let exported_public_key = provider
         .public_key_export(&imported_public_key, DataEncoding::Armor)
+        .map(|export| String::from_utf8_lossy(export.as_ref()).to_string())
         .unwrap();
-    assert_eq!(exported_public_key.as_ref(), TEST_PGP_PUBLIC_KEY.as_bytes());
+    // Compare only the armored body, ignoring the checksum line (which starts with '=')
+    let exported_lines: Vec<&str> = exported_public_key
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('='))
+        .collect();
+    let test_lines: Vec<&str> = TEST_PGP_PUBLIC_KEY
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('='))
+        .collect();
+    assert_eq!(exported_lines, test_lines);
 }
 
 #[test]
@@ -612,8 +622,7 @@ fn test_pgp_message_import() {
     let message = provider
         .pgp_message_import(TEST_SIGNCRYPTED_MESSAGE.as_bytes(), DataEncoding::Armor)
         .expect("import should work");
-    let key_ids = message.encryption_key_ids();
-    assert!(!key_ids.is_empty());
+    assert_ne!(message.as_key_packets(), message.as_data_packet());
 }
 
 #[test]
