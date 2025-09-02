@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+### Added
+
+- Feature flag `gopgp`, indicating usage of the Go PGP backend (enabled by default).
+- Function `provider_version()` on the PGP provider to print the PGP library backend version.
+- Explicit functions to access the Go PGP provider behind the feature flag: `new_go_pgp_provider()` and `new_go_pgp_provider_async()`.
+
+### Changed
+
+- Internal refactoring to prepare support for multiple backends.
+- `OpenPGPKeyID` now only implements the `From<u64>` trait.
+- Macro `lowercase_string_id` now only implements the `From<String>` trait.
+- Made the following types in the CryptoAPI public: `RawDetachedSignature`, `RawEncryptedMessage`, and `PGPKeyPackets`.
+
 ## [0.6.0] - 2025-06-30
 
 ### Added
