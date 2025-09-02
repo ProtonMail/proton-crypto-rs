@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"unsafe"
 )
 
@@ -8,6 +9,12 @@ import (
 #include "common.h"
 */
 import "C"
+
+func init() {
+	// This is hacky and we should remove it once we have a better solution.
+	// We must support 1023 bit RSA keys with go >= 1.24.
+	os.Setenv("GODEBUG", "rsa1024min=0")
+}
 
 //export pgp_free
 func pgp_free(ptr *C.void) {
