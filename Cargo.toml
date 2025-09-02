@@ -57,22 +57,22 @@ serde = { version="1", features = ["derive"]}
 # --- Workspace crates ---
 [workspace.dependencies.gopenpgp-sys]
 path     = "gopenpgp-sys"
-version  = "0.3.1"
+version  = "0.3.2"
 registry = "proton"
 
 [workspace.dependencies.proton-crypto]
 path     = "proton-crypto"
-version  = "0.6.0"
+version  = "0.7.0"
 registry = "proton"
 
 [workspace.dependencies.proton-crypto-account]
 path     = "proton-crypto-account"
-version  = "0.12.1"
+version  = "0.12.2"
 registry = "proton"
 
 [workspace.dependencies.proton-srp]
 path     = "proton-srp"
-version  = "0.7.0"
+version  = "0.7.1"
 registry = "proton"
 
 [workspace.dependencies.proton-crypto-subtle]

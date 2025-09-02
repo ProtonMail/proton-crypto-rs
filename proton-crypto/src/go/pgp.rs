@@ -21,7 +21,7 @@ use crate::crypto::{
 use crate::{CryptoClock, UnixTimestamp};
 use std::sync::Arc;
 
-pub const VERSION: &str = "0.3.1";
+pub const VERSION: &str = "0.3.2";
 
 #[allow(clippy::module_name_repetitions)]
 pub struct GoPGPProvider(pub &'static CryptoClock);

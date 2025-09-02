@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.3.2] - 2025-09-02
+
+### Changed
+
+- Ensure that go `>=1.24` still allows to use 1023-bit rsa keys.
+
 ## [0.3.1] - 2025-06-18
 
 ### Changed
