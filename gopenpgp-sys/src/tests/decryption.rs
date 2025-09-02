@@ -145,7 +145,6 @@ KNvdUjAExQ==
     assert_eq!(result.as_bytes(), expected_plaintext.as_bytes());
     let verification_result = result.verification_result().unwrap();
     let verification_status = verification_result.status();
-    println!("{:?}", verification_status);
     assert!(matches!(verification_status, VerificationStatus::Ok));
     let signature_info = verification_result.signature_info().unwrap();
 

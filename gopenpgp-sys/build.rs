@@ -174,7 +174,7 @@ fn build_go_lib(
         .output()
         .expect("Failed to get go build command output");
     if !output.status.success() {
-        eprintln!("{:?}", command);
+        eprintln!("{command:?}");
         eprint!("Failed to compile go library:");
         stderr()
             .write_all(output.stderr.as_slice())
@@ -277,7 +277,7 @@ fn prepare_go_lib_build_android(
     let cc = ndk_toolchain
         .clone()
         .join("bin")
-        .join(format!("{}{}-clang", ndk_toolchain_prefix, platform))
+        .join(format!("{ndk_toolchain_prefix}{platform}-clang"))
         .to_str()
         .expect("valid path to CC")
         .to_string();
@@ -289,7 +289,7 @@ fn prepare_go_lib_build_android(
         .to_str()
         .expect("valid sysroot ndk path")
         .to_owned();
-    let sys_root_arg = format!("--sysroot={}", sys_root);
+    let sys_root_arg = format!("--sysroot={sys_root}");
     BindingEnvironmentArguments {
         lib_clang_path: None,
         clang_args: vec![sys_root_arg],
@@ -337,7 +337,7 @@ fn prepare_go_lib_build_ios(
         .expect("Failed to convert libclang path to string")
         .to_string();
 
-    let sys_root_arg = format!("--sysroot={}", sdk_path);
+    let sys_root_arg = format!("--sysroot={sdk_path}");
     BindingEnvironmentArguments {
         lib_clang_path: Some(lib_clang_path),
         clang_args: vec![sys_root_arg],

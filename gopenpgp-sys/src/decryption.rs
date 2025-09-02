@@ -3,7 +3,7 @@
 mod tests;
 
 use std::{
-    io::{self, Error, ErrorKind},
+    io::{self, Error},
     ptr::null_mut,
 };
 
@@ -116,9 +116,9 @@ impl<T: io::Read> io::Read for VerifiedDataReader<'_, T> {
                 buf.len(),
                 &mut data_read,
             );
-            PGPError::unwrap(err).map_err(|err| Error::new(ErrorKind::Other, err.to_string()))?;
+            PGPError::unwrap(err).map_err(|err| Error::other(err.to_string()))?;
             if data_read > buf.len() {
-                return Err(Error::new(ErrorKind::Other, "read more than buffer length"));
+                return Err(Error::other("read more than buffer length"));
             }
             Ok(data_read)
         }

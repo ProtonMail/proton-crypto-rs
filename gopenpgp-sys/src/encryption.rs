@@ -3,7 +3,7 @@
 mod tests;
 
 use std::{
-    io::{self, Error, ErrorKind},
+    io::{self, Error},
     ptr::null_mut,
 };
 
@@ -101,7 +101,7 @@ impl PGPMessage {
             Some(list) => {
                 let mut out = Vec::with_capacity(list.as_ref().len());
                 for value in list.as_ref() {
-                    out.push(format!("{:016X}", value))
+                    out.push(format!("{value:016X}"))
                 }
                 Some(out)
             }
@@ -128,7 +128,7 @@ impl PGPMessage {
             Some(list) => {
                 let mut out = Vec::with_capacity(list.as_ref().len());
                 for value in list.as_ref() {
-                    out.push(format!("{:016X}", value))
+                    out.push(format!("{value:016X}"))
                 }
                 Some(out)
             }
@@ -175,7 +175,7 @@ impl<T: io::Write> io::Write for PGPEncryptorWriteCloser<'_, T> {
                 buf.len(),
                 &mut data_written,
             );
-            PGPError::unwrap(err).map_err(|err| Error::new(ErrorKind::Other, err.to_string()))?;
+            PGPError::unwrap(err).map_err(|err| Error::other(err.to_string()))?;
             Ok(data_written)
         }
     }
@@ -222,7 +222,7 @@ impl<'a, T: io::Write> PGPEncryptorWriteCloser<'a, T> {
         // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
         unsafe {
             let err = sys::pgp_message_write_closer_close(self.handle.0);
-            PGPError::unwrap(err).map_err(|err| Error::new(ErrorKind::Other, err.to_string()))?;
+            PGPError::unwrap(err).map_err(|err| Error::other(err.to_string()))?;
         }
         self.internal_writer.flush()
     }
