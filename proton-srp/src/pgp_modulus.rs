@@ -54,7 +54,7 @@ pub use rpgp_impl::*;
 #[cfg(feature = "pgpinternal")]
 mod rpgp_impl {
     use crate::{ModulusSignatureVerifier, ModulusVerifyError};
-    use pgp::{cleartext::CleartextSignedMessage, Deserializable, SignedPublicKey};
+    use pgp::composed::{CleartextSignedMessage, Deserializable, SignedPublicKey};
 
     /// Implements [`ModulusSignatureVerifier`] by verifying the modulus with [`pgp`].
     #[derive(Default, Debug)]
