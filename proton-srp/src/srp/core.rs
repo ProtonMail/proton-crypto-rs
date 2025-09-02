@@ -173,7 +173,7 @@ impl SRPAuthData {
                 // highly unlikely
                 rounds += 1;
                 continue;
-            };
+            }
             break (client_secret, a_pub, u);
         };
 

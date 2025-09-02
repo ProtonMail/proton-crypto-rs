@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2024-00-00
 
+### Changed
+- bcrypt bumped to `0.17.1`.
+- pgp bumped to `0.16.0`.
+
 ## 0.7.0 2025-05-05
 
 ### Added
