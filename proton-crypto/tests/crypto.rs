@@ -13,7 +13,7 @@ use common::{
     TEST_SESSION_KEY, TEST_SIGNATURE, TEST_SIGNCRYPTED_MESSAGE, TEST_TIME,
 };
 
-use crate::common::{TEST_CLEARTEXT_MESSAGE, TEST_INLINE_SIGNATURE_MESSAGE};
+use crate::common::{TEST_CLEARTEXT_MESSAGE, TEST_INLINE_SIGNATURE_MESSAGE, TEST_RSA_1023_KEY};
 
 fn get_test_private_key<T: PGPProviderSync>(provider: &T) -> T::PrivateKey {
     provider
@@ -264,6 +264,36 @@ fn test_api_encrypt_decrypt() {
     let provider = proton_crypto::new_pgp_provider();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
     let private_key = get_test_private_key(&provider);
+    let public_key = provider.private_key_to_public_key(&private_key).unwrap();
+    let signing_context = provider.new_signing_context("test".to_owned(), true);
+    let pgp_message = provider
+        .new_encryptor()
+        .with_encryption_key(&public_key)
+        .with_signing_key(&private_key)
+        .with_signing_context(&signing_context)
+        .encrypt(plaintext)
+        .unwrap();
+    let verification_context =
+        provider.new_verification_context("test".to_owned(), true, UnixTimestamp::new(0));
+    let verified_data = provider
+        .new_decryptor()
+        .with_decryption_key(&private_key)
+        .with_verification_key(&public_key)
+        .with_verification_context(&verification_context)
+        .decrypt(pgp_message.armor().unwrap(), DataEncoding::Armor)
+        .unwrap();
+    let verification_result = verified_data.verification_result();
+    assert_eq!(verified_data.as_bytes(), plaintext.as_bytes());
+    assert!(verification_result.is_ok());
+}
+
+#[test]
+fn test_api_encrypt_decrypt_rsa1023() {
+    let provider = proton_crypto::new_pgp_provider();
+    let plaintext = TEST_EXPECTED_PLAINTEXT;
+    let private_key = provider
+        .private_key_import_unlocked(TEST_RSA_1023_KEY.as_bytes(), DataEncoding::Armor)
+        .unwrap();
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
     let signing_context = provider.new_signing_context("test".to_owned(), true);
     let pgp_message = provider
