@@ -1,4 +1,9 @@
-use std::{borrow::Cow, mem};
+use std::{
+    borrow::Cow,
+    fmt,
+    io::{self, BufRead, BufReader, Read},
+    mem,
+};
 
 use pgp::{
     composed::decrypt_session_key_with_password,
@@ -9,7 +14,7 @@ use pgp::{
 use crate::{
     armor, CheckUnixTime, CloneablePasswords, DataEncoding, DecryptionError,
     ExternalDetachedSignature, PrivateKey, Profile, PublicKey, SessionKey, VerificationContext,
-    VerificationResult, VerifiedData, Verifier, DEFAULT_PROFILE,
+    VerificationResult, VerifiedData, Verifier, VerifyingReader, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -160,7 +165,7 @@ impl<'a> Decryptor<'a> {
     /// let verified_data = Decryptor::default()
     ///     .with_decryption_key(&key)
     ///     .with_verification_key(key.as_public_key())
-    ///     .at_date(date)
+    ///     .at_date(date.into())
     ///     .decrypt(message.as_bytes(), DataEncoding::Armored)
     ///     .expect("Failed to decrypt");
     ///
@@ -193,6 +198,74 @@ impl<'a> Decryptor<'a> {
         } else {
             self.verifier
                 .verify_message(message)
+                .map_err(DecryptionError::MessageProcessing)
+                .map_err(Into::into)
+        }
+    }
+
+    /// Decrypts the given data and tries to verify the included signatures.
+    ///
+    /// Instead of directly returning the decrypted and verified data,
+    /// this method returns a reader that can be used to read the decrypted data from the input source.
+    /// Once all data has been read, the verification result can be
+    /// obtained by calling the `verification_result` method on the reader.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::io;
+    /// use proton_rpgp::{PrivateKey, Decryptor, DataEncoding, AsPublicKeyRef, UnixTime};
+    ///
+    /// const INPUT_DATA: &str = include_str!("../test-data/messages/encrypted_message_v4.asc");
+    /// let date = UnixTime::new(1_752_572_300);
+    ///
+    /// let key = PrivateKey::import_unlocked(
+    ///     include_str!("../test-data/keys/private_key_v4.asc").as_bytes(),
+    ///     DataEncoding::Armored,
+    /// ).expect("Failed to import key");
+    ///
+    /// let mut verifying_reader = Decryptor::default()
+    ///     .with_decryption_key(&key)
+    ///     .with_verification_key(key.as_public_key())
+    ///     .at_date(date.into())
+    ///     .decrypt_stream(INPUT_DATA.as_bytes(), DataEncoding::Armored)
+    ///     .expect("Failed to decrypt");
+    ///
+    /// let mut buffer = Vec::new();
+    /// io::copy(&mut verifying_reader, &mut buffer).expect("Failed to copy");
+    /// let verification_result = verifying_reader.verification_result();
+    ///
+    /// assert_eq!(buffer, b"hello world");
+    /// assert!(verification_result.is_ok());
+    /// ```
+    pub fn decrypt_stream(
+        mut self,
+        data: impl Read + Send + 'a,
+        data_encoding: DataEncoding,
+    ) -> crate::Result<VerifyingReader<'a>> {
+        let mut buffered_reader = BufReaderWithDebug::new(data);
+        let resolved_data_encoding = data_encoding.resolve_for_read_stream(&mut buffered_reader);
+        let message = armor::decode_to_message_reader(buffered_reader, resolved_data_encoding)
+            .map_err(DecryptionError::MessageProcessing)?;
+
+        if !message.is_encrypted() {
+            return Err(DecryptionError::NoEncryption.into());
+        }
+
+        let message = message.decrypt_with_decryptor(&self)?;
+
+        if let Some(detached_signature) = self.detached_signature.take() {
+            let message_reader = self
+                .clone()
+                .verifier
+                .verify_message_stream(message)
+                .map_err(DecryptionError::MessageProcessing)?;
+            let reader =
+                self.verify_detached_signature_stream(detached_signature, message_reader)?;
+            Ok(reader)
+        } else {
+            self.verifier
+                .verify_message_stream(message)
                 .map_err(DecryptionError::MessageProcessing)
                 .map_err(Into::into)
         }
@@ -260,6 +333,31 @@ impl<'a> Decryptor<'a> {
         };
         Ok(verification_result)
     }
+
+    /// Helper function to verify an external detached signature with a reader.
+    fn verify_detached_signature_stream(
+        mut self,
+        signature: ExternalDetachedSignature,
+        data: impl Read + 'a,
+    ) -> Result<VerifyingReader<'a>, DecryptionError> {
+        let reader = match signature {
+            ExternalDetachedSignature::Unencrypted(signature, signature_data_encoding) => self
+                .verifier
+                .verify_detached_stream(data, signature, signature_data_encoding.into()),
+            ExternalDetachedSignature::Encrypted(signature, signature_data_encoding) => {
+                let profile = self.verifier.profile.clone();
+                let verifier = mem::replace(&mut self.verifier, Verifier::new(profile));
+                let decrypted_siganture =
+                    self.decrypt(signature.as_ref(), signature_data_encoding.into())?;
+                verifier.verify_detached_stream(
+                    data,
+                    &decrypted_siganture.data,
+                    DataEncoding::Unarmored,
+                )
+            }
+        };
+        Ok(reader?)
+    }
 }
 
 impl Default for Decryptor<'_> {
@@ -271,5 +369,36 @@ impl Default for Decryptor<'_> {
 impl<'a> From<Decryptor<'a>> for Verifier<'a> {
     fn from(decryptor: Decryptor<'a>) -> Self {
         decryptor.verifier
+    }
+}
+
+/// Helper struct to wrap a reader without requiring it to implement the `Debug` trait.
+struct BufReaderWithDebug<R: Read + Send>(BufReader<R>);
+
+impl<R: Read + Send> BufReaderWithDebug<R> {
+    fn new(inner: R) -> Self {
+        Self(BufReader::new(inner))
+    }
+}
+
+impl<R: Read + Send> fmt::Debug for BufReaderWithDebug<R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Encryted data")
+    }
+}
+
+impl<R: Read + Send> Read for BufReaderWithDebug<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+impl<R: Read + Send> BufRead for BufReaderWithDebug<R> {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        self.0.fill_buf()
+    }
+
+    fn consume(&mut self, amount: usize) {
+        self.0.consume(amount);
     }
 }

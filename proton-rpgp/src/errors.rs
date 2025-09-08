@@ -83,6 +83,9 @@ pub enum SignatureError {
     #[error("Signature does not specify a hash algorithm")]
     NoHash,
 
+    #[error("Failed to compute hash for signature: {0}")]
+    HashComputation(pgp::errors::Error),
+
     #[error("Raw signature verification failed: {0}")]
     Verification(#[from] pgp::errors::Error),
 
@@ -344,6 +347,9 @@ pub enum MessageProcessingError {
 
     #[error("Failed to read data: {0}")]
     Read(#[from] io::Error),
+
+    #[error("Failed to unarmor data: {0}")]
+    Unarmor(#[from] ArmorError),
 
     #[error("Message is not fully read for verification")]
     NotFullyRead,

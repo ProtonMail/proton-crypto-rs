@@ -175,6 +175,20 @@ pub(crate) fn decode_to_message(
     }
 }
 
+pub(crate) fn decode_to_message_reader<'a>(
+    input: impl BufRead + std::fmt::Debug + 'a + Send,
+    data_encoding: ResolvedDataEncoding,
+) -> Result<Message<'a>, MessageProcessingError> {
+    match data_encoding {
+        ResolvedDataEncoding::Armored => Message::from_armor(input)
+            .map_err(MessageProcessingError::MessageParsing)
+            .map(|value| value.0),
+        ResolvedDataEncoding::Unarmored => {
+            Message::from_bytes(input).map_err(MessageProcessingError::MessageParsing)
+        }
+    }
+}
+
 /// Tries to heuristically detect if the input is armored.
 pub(crate) fn detect_encoding(input: impl AsRef<[u8]>) -> ResolvedDataEncoding {
     const CHECK_ARMOR_PREFIX: &str = "-----BEGIN PGP ";
@@ -189,6 +203,12 @@ pub(crate) fn detect_encoding(input: impl AsRef<[u8]>) -> ResolvedDataEncoding {
     } else {
         ResolvedDataEncoding::Unarmored
     }
+}
+
+pub(crate) fn detect_encoding_reader(
+    input: &mut impl BufRead,
+) -> Result<ResolvedDataEncoding, io::Error> {
+    Ok(detect_encoding(input.fill_buf()?))
 }
 
 pub(crate) struct BinaryArmorSource<'a> {

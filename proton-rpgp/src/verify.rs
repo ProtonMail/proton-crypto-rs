@@ -1,12 +1,13 @@
+use core::fmt;
 use std::{
     borrow::Cow,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Read},
 };
 
 use pgp::{
     armor::BlockType,
     composed::{CleartextSignedMessage, Message},
-    packet::{Packet, PacketParser},
+    packet::{Packet, PacketParser, Signature},
 };
 
 use crate::{
@@ -14,10 +15,13 @@ use crate::{
     signature::{
         VerificationError, VerificationResult, VerificationResultCreator, VerifiedSignature,
     },
-    CheckUnixTime, DataEncoding, MessageProcessingError, MessageVerificationError,
-    MessageVerificationExt, Profile, PublicKey, ResolvedDataEncoding, VerificationContext,
-    VerificationInput, DEFAULT_PROFILE,
+    ArmorError, CheckUnixTime, CustomNormalizedReader, DataEncoding, Error, MessageProcessingError,
+    MessageVerificationError, MessageVerificationExt, Profile, PublicKey, ResolvedDataEncoding,
+    VerificationContext, VerificationInput, DEFAULT_PROFILE,
 };
+
+mod reader;
+pub use reader::*;
 
 /// Verifier type to verify `OpenPGP` signatures.
 #[derive(Debug, Clone)]
@@ -111,7 +115,7 @@ impl<'a> Verifier<'a> {
     ///
     /// let verified_data = Verifier::default()
     ///     .with_verification_key(&key)
-    ///     .at_date(date)
+    ///     .at_date(date.into())
     ///     .verify(INPUT_DATA, DataEncoding::Armored)
     ///     .expect("Failed to verify");
     ///
@@ -151,7 +155,7 @@ impl<'a> Verifier<'a> {
     ///
     /// let result = Verifier::default()
     ///     .with_verification_key(&public_key)
-    ///     .at_date(date)
+    ///     .at_date(date.into())
     ///     .verify_detached(data, signature, DataEncoding::Armored);
     /// assert!(result.is_ok());
     /// ```
@@ -163,7 +167,9 @@ impl<'a> Verifier<'a> {
     ) -> VerificationResult {
         let resolved_signature_encoding = signature_encoding.resolve_for_read(signature.as_ref());
         // Check encoding.
-        let parser = handle_signature_decoding(signature.as_ref(), resolved_signature_encoding)?;
+        let parser: PacketParser<Box<dyn BufRead>> =
+            handle_signature_decoding(signature.as_ref(), resolved_signature_encoding)
+                .map_err(|err| VerificationError::RuntimeError(err.to_string()))?;
 
         // Verify signatures.
         let verified_signatures: Vec<_> = parser
@@ -257,6 +263,110 @@ impl<'a> Verifier<'a> {
         })
     }
 
+    /// Verifies a detached signature against the input data stream using the verifier.
+    ///
+    /// Instead directly returning the verification result,
+    /// this method returns a reader that can be used to read the data to be verifed from the input source.
+    /// Once all data has been read, the verification result can be
+    /// obtained by calling the `verification_result` method on the reader.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, UnixTime};
+    /// use std::io;
+    ///
+    /// const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4.asc");
+    /// const KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
+    /// let date = UnixTime::new(1_753_088_183);
+    ///
+    /// let key = PublicKey::import(KEY.as_bytes(), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    ///
+    /// let mut reader = Verifier::default()
+    ///     .with_verification_key(&key)
+    ///     .at_date(date.into())
+    ///     .verify_stream(INPUT_DATA.as_bytes(), DataEncoding::Armored)
+    ///     .expect("Failed to decrypt");
+    ///
+    /// let mut buffer = Vec::new();
+    /// io::copy(&mut reader, &mut buffer).expect("Failed to copy");
+    /// let verification_result = reader.verification_result();
+    ///
+    /// assert_eq!(buffer, b"hello world");
+    /// assert!(verification_result.is_ok());
+    /// ```
+    pub fn verify_detached_stream(
+        self,
+        data: impl Read + 'a,
+        signature: impl AsRef<[u8]>,
+        signature_encoding: DataEncoding,
+    ) -> crate::Result<VerifyingReader<'a>> {
+        let resolved_signature_encoding = signature_encoding.resolve_for_read(signature.as_ref());
+        // Check encoding.
+        let parser: PacketParser<Box<dyn BufRead>> =
+            handle_signature_decoding(signature.as_ref(), resolved_signature_encoding).map_err(
+                |err| {
+                    Error::Verification(MessageVerificationError::MessageProcessing(
+                        MessageProcessingError::Unarmor(err),
+                    ))
+                },
+            )?;
+
+        let signatures: Vec<Signature> = parser
+            .filter_map(|packet_result| match packet_result {
+                Ok(Packet::Signature(signature)) => Some(signature),
+                _ => None,
+            })
+            .collect();
+
+        let reader = DetachedVerifyingReader::new(self, signatures, Box::new(BufReader::new(data)));
+
+        Ok(reader.into())
+    }
+
+    /// Verifies an inline-signed message with the verifier.
+    ///
+    /// Instead of directly returning the verified data,
+    /// this method returns a reader that can be used to read the data to be verifed from the input source.
+    /// Once all data has been read, the verification result can be obtained
+    /// by calling the `verification_result` method on the reader.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, UnixTime};
+    ///
+    /// const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4.asc");
+    /// const KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
+    /// let date = UnixTime::new(1_753_088_183);
+    ///
+    /// let key = PublicKey::import(KEY.as_bytes(), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    ///
+    /// let verified_data = Verifier::default()
+    ///     .with_verification_key(&key)
+    ///     .at_date(date.into())
+    ///     .verify(INPUT_DATA, DataEncoding::Armored)
+    ///     .expect("Failed to verify");
+    ///
+    /// assert_eq!(verified_data.data, b"hello world");
+    /// assert!(verified_data.verification_result.is_ok());
+    /// ```
+    pub fn verify_stream(
+        self,
+        data: impl Read + fmt::Debug + Send + 'a,
+        data_encoding: DataEncoding,
+    ) -> crate::Result<VerifyingReader<'a>> {
+        let mut buffered_reader = BufReader::new(data);
+        let resolved_data_encoding = data_encoding.resolve_for_read_stream(&mut buffered_reader);
+        let message = armor::decode_to_message_reader(buffered_reader, resolved_data_encoding)
+            .map_err(MessageVerificationError::MessageProcessing)?;
+
+        self.verify_message_stream(message)
+            .map_err(|err| MessageVerificationError::MessageProcessing(err).into())
+    }
+
     /// Helper function to verify and process a decrypted `OpenPGP` message.
     pub(crate) fn verify_message(
         &self,
@@ -295,6 +405,35 @@ impl<'a> Verifier<'a> {
             verification_result,
         })
     }
+
+    /// Helper function to verify and process a decrypted `OpenPGP` message with a reader.
+    pub(crate) fn verify_message_stream(
+        self,
+        mut message: Message<'a>,
+    ) -> Result<VerifyingReader<'a>, MessageProcessingError> {
+        if message.is_encrypted() {
+            return Err(MessageProcessingError::Encrypted);
+        }
+
+        if message.is_compressed() {
+            message = message
+                .decompress()
+                .map_err(MessageProcessingError::Decompression)?;
+            if message.is_compressed() {
+                return Err(MessageProcessingError::Compression);
+            }
+        }
+
+        let normalize = self.native_newlines_utf8;
+        let message_reader = MessageVerifyingReader::new(self, message);
+        if normalize {
+            let reader = CustomNormalizedReader::new_lf(message_reader);
+            return Ok(VerifyingReader::InlineNormalizedLineEndings(Box::new(
+                reader,
+            )));
+        }
+        Ok(message_reader.into())
+    }
 }
 
 impl Default for Verifier<'_> {
@@ -316,12 +455,11 @@ pub struct VerifiedData {
 fn handle_signature_decoding<'a>(
     signature: &'a [u8],
     signature_encoding: ResolvedDataEncoding,
-) -> Result<PacketParser<Box<dyn BufRead + 'a>>, VerificationError> {
+) -> Result<PacketParser<Box<dyn BufRead + 'a>>, ArmorError> {
     match signature_encoding {
         ResolvedDataEncoding::Unarmored => Ok(PacketParser::new(Box::new(signature))),
         ResolvedDataEncoding::Armored => {
-            let reader = armor::decode_to_reader(signature, Some(BlockType::Signature))
-                .map_err(|err| VerificationError::RuntimeError(err.to_string()))?;
+            let reader = armor::decode_to_reader(signature, Some(BlockType::Signature))?;
             Ok(PacketParser::new(Box::new(BufReader::new(reader))))
         }
     }

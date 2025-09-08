@@ -7,6 +7,8 @@ use proton_rpgp::{
     UnixTime, VerificationError,
 };
 
+mod utils;
+
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
 pub const TEST_KEY_V6: &str = include_str!("../test-data/keys/private_key_v6.asc");
 
@@ -623,4 +625,61 @@ pub fn encrypt_with_future_key() {
         .with_encryption_key(future_key.as_public_key())
         .encrypt_raw(input_data, DataEncoding::Armored)
         .expect_err("expect encryption to fail");
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_and_sign_message_v4_stream() {
+    let input_string = "a".repeat(1024 * 1024); // 1 MB string
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let encrypted_data = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .with_signing_key(&key)
+        .encrypt_raw(input_string.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to encrypt");
+
+    let mut verifying_reader = Decryptor::default()
+        .with_decryption_key(&key)
+        .with_verification_key(key.as_public_key())
+        .decrypt_stream(&encrypted_data[..], DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    let mut buffer = Vec::new();
+    utils::test_copy(&mut verifying_reader, &mut buffer, 3).expect("Failed to copy");
+    let verification_result = verifying_reader.verification_result();
+
+    assert_eq!(buffer, input_string.as_bytes());
+    assert!(verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_message_v4_text_stream() {
+    let input_string = "a \n ".repeat(1024 * 1024);
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let encrypted_data = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .with_signing_key(&key)
+        .as_utf8()
+        .encrypt_raw(input_string.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to encrypt");
+
+    let mut verifying_reader = Decryptor::default()
+        .with_decryption_key(&key)
+        .with_verification_key(key.as_public_key())
+        .output_utf8()
+        .decrypt_stream(&encrypted_data[..], DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    let mut buffer = Vec::new();
+    utils::test_copy(&mut verifying_reader, &mut buffer, 3).expect("Failed to copy");
+    let verification_result = verifying_reader.verification_result();
+
+    assert_eq!(buffer, input_string.as_bytes());
+    assert!(verification_result.is_ok());
 }

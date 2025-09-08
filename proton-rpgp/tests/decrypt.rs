@@ -9,6 +9,8 @@ use proton_rpgp::{
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
 pub const TEST_KEY_V6: &str = include_str!("../test-data/keys/private_key_v6.asc");
 
+mod utils;
+
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn decrypt_and_verify_encrypted_message_v4() {
@@ -27,6 +29,30 @@ pub fn decrypt_and_verify_encrypted_message_v4() {
 
     assert_eq!(verified_data.data, b"hello world");
     assert!(verified_data.verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_and_verify_encrypted_message_v4_stream() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/encrypted_message_v4.asc");
+    let date = UnixTime::new(1_752_572_300);
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut verifying_reader = Decryptor::default()
+        .with_decryption_key(&key)
+        .with_verification_key(key.as_public_key())
+        .at_date(date.into())
+        .decrypt_stream(INPUT_DATA.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    let mut buffer = Vec::new();
+    utils::test_copy(&mut verifying_reader, &mut buffer, 3).expect("Failed to copy");
+    let verification_result = verifying_reader.verification_result();
+
+    assert_eq!(buffer, b"hello world");
+    assert!(verification_result.is_ok());
 }
 
 #[test]
@@ -94,6 +120,31 @@ pub fn decrypt_encrypted_message_v4_text() {
 
     assert_eq!(verified_data.data, b"hello world\n     \n");
     assert!(verified_data.verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_encrypted_message_v4_text_stream() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/encrypted_message_v4_text.asc");
+    let date = UnixTime::new(1_752_589_888);
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut verifying_reader = Decryptor::default()
+        .with_decryption_key(&key)
+        .with_verification_key(key.as_public_key())
+        .at_date(date.into())
+        .output_utf8()
+        .decrypt_stream(INPUT_DATA.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    let mut buffer = Vec::new();
+    utils::test_copy(&mut verifying_reader, &mut buffer, 3).expect("Failed to copy");
+    let verification_result = verifying_reader.verification_result();
+
+    assert_eq!(buffer, b"hello world\n     \n");
+    assert!(verification_result.is_ok());
 }
 
 #[test]
@@ -397,4 +448,34 @@ pub fn decrypt_encrypted_message_v4_forwarding() {
 
     assert_eq!(verified_data.data, b"Message for Bob");
     assert!(verified_data.verification_result.is_err());
+}
+
+pub fn decrypt_and_verify_encrypted_message_with_detached_signature_stream() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v6_detached_signature.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_v6_for_message.asc");
+    const KEY: &str = include_str!("../test-data/keys/private_key_v6_detached_sig_message.asc");
+    let date = UnixTime::new(1_752_572_300);
+
+    let key = PrivateKey::import_unlocked(KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut verifying_reader = Decryptor::default()
+        .with_decryption_key(&key)
+        .with_verification_key(key.as_public_key())
+        .with_verification_context(VerificationContext::new("test".to_owned(), true, None))
+        .with_external_detached_signature(ExternalDetachedSignature::new_unencrypted(
+            SIGNATURE.as_bytes(),
+            DataEncoding::Armored,
+        ))
+        .at_date(date.into())
+        .decrypt_stream(INPUT_DATA.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    let mut buffer = Vec::new();
+    utils::test_copy(&mut verifying_reader, &mut buffer, 3).expect("Failed to copy");
+    let verification_result = verifying_reader.verification_result();
+
+    assert_eq!(buffer, b"Hello World :)");
+    assert!(verification_result.is_ok());
 }

@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     fmt::{self, Display},
+    io,
     ops::Deref,
 };
 
@@ -48,6 +49,19 @@ impl DataEncoding {
             DataEncoding::Armored => ResolvedDataEncoding::Armored,
             DataEncoding::Unarmored => ResolvedDataEncoding::Unarmored,
             DataEncoding::Auto => armor::detect_encoding(data),
+        }
+    }
+
+    pub(crate) fn resolve_for_read_stream(
+        self,
+        data: &mut impl io::BufRead,
+    ) -> ResolvedDataEncoding {
+        match self {
+            DataEncoding::Armored => ResolvedDataEncoding::Armored,
+            DataEncoding::Unarmored => ResolvedDataEncoding::Unarmored,
+            DataEncoding::Auto => {
+                armor::detect_encoding_reader(data).unwrap_or(ResolvedDataEncoding::Unarmored)
+            }
         }
     }
 

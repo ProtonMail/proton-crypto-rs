@@ -113,6 +113,7 @@ impl VerificationResultCreator {
 pub enum VerificationInput<'a> {
     Message(&'a Message<'a>),
     Data(&'a [u8]),
+    Hash(&'a [u8]),
 }
 
 /// Represents an internal verified signature.
@@ -167,6 +168,9 @@ impl VerifiedSignature {
                     .verify_message_signature_with_data(
                         date, &signature, input_data, context, profile,
                     ),
+                VerificationInput::Hash(hash) => {
+                    candidate.verify_signature_with_hash(date, &signature, hash, context, profile)
+                }
             };
             if verification_result.is_ok() {
                 verified_by = Some(candidate.into());

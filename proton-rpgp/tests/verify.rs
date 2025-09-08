@@ -1,3 +1,5 @@
+use std::io::{self};
+
 use proton_rpgp::{
     AccessKeyInfo, AsPublicKeyRef, DataEncoding, PrivateKey, Profile, ProfileSettingsBuilder,
     PublicKey, UnixTime, VerificationError, Verifier,
@@ -5,6 +7,8 @@ use proton_rpgp::{
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
 pub const TEST_KEY_V6: &str = include_str!("../test-data/keys/public_key_v6.asc");
+
+mod utils;
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
@@ -20,6 +24,42 @@ pub fn verify_detached_signature_v4() {
         .with_verification_key(&verification_key)
         .at_date(date.into())
         .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
+
+    match verification_result {
+        Ok(verification_information) => {
+            assert_eq!(verification_information.key_id, verification_key.key_id());
+            assert_eq!(
+                verification_information.signature_creation_time,
+                UnixTime::new(1_752_153_549)
+            );
+        }
+        Err(verification_error) => {
+            panic!("Verification failed: {verification_error}");
+        }
+    }
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_detached_signature_v4_stream() {
+    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v4.asc");
+
+    let data = b"hello world";
+
+    let test_date = UnixTime::new(1_752_153_651);
+
+    let verification_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut reader = Verifier::default()
+        .with_verification_key(&verification_key)
+        .at_date(test_date.into())
+        .verify_detached_stream(&data[..], SIGANTURE.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to create verifying reader");
+
+    reader.discard_all_data().expect("Failed to discard data");
+
+    let verification_result = reader.verification_result();
 
     match verification_result {
         Ok(verification_information) => {
@@ -140,6 +180,45 @@ pub fn verify_detached_signature_multiple_signatures() {
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
+pub fn verify_detached_signature_multiple_signatures_stream() {
+    // Contains 3 signatures: random v6 key, random v4 key, and the test key.
+    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_multiple.asc");
+
+    let date = UnixTime::new(1_752_648_785);
+
+    let verification_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut reader = Verifier::default()
+        .with_verification_key(&verification_key)
+        .at_date(date.into())
+        .verify_detached_stream(
+            "hello world".as_bytes(),
+            SIGANTURE.as_bytes(),
+            DataEncoding::Armored,
+        )
+        .expect("Failed to create verifying reader");
+
+    reader.discard_all_data().expect("Failed to discard data");
+
+    let verification_result = reader.verification_result();
+
+    match verification_result {
+        Ok(verification_information) => {
+            assert_eq!(verification_information.key_id, verification_key.key_id());
+            assert_eq!(
+                verification_information.signature_creation_time,
+                UnixTime::new(1_752_220_880)
+            );
+        }
+        Err(verification_error) => {
+            panic!("Verification failed: {verification_error}");
+        }
+    }
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v4_text() {
     const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v4_text.asc");
     const TEXT: &[u8] = b"hello world\n with line endings.   \n";
@@ -226,6 +305,29 @@ pub fn verify_inline_signed_message_v4() {
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
+pub fn verify_inline_signed_message_v4_stream() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4.asc");
+    let date = UnixTime::new(1_753_088_183);
+
+    let key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut reader = Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .at_date(date.into())
+        .verify_stream(INPUT_DATA.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    let mut buffer = Vec::new();
+    io::copy(&mut reader, &mut buffer).expect("Failed to copy");
+    let verification_result = reader.verification_result();
+
+    assert_eq!(buffer, b"hello world");
+    assert!(verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
 pub fn verify_inline_signed_message_v4_fail_no_matching_key() {
     const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4.asc");
     let date = UnixTime::new(1_753_088_183);
@@ -264,6 +366,30 @@ pub fn verify_inline_signed_message_v4_text() {
 
     assert_eq!(verified_data.data, b"hello world \n    \n ");
     assert!(verified_data.verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_inline_signed_message_v4_text_stream() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4_text.asc");
+    let date = UnixTime::new(1_753_088_470);
+
+    let verification_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut reader = Verifier::default()
+        .with_verification_key(&verification_key)
+        .at_date(date.into())
+        .output_utf8()
+        .verify_stream(INPUT_DATA.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to create verifying reader");
+
+    let mut buffer = Vec::new();
+    utils::test_copy(&mut reader, &mut buffer, 3).expect("Failed to copy");
+    let verification_result = reader.verification_result();
+
+    assert_eq!(buffer, b"hello world \n    \n ");
+    assert!(verification_result.is_ok());
 }
 
 #[test]

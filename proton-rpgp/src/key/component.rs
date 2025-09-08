@@ -78,6 +78,41 @@ impl<'a> PublicComponentKey<'a> {
         check_message_signature_details(date, signature, self, context, profile)
     }
 
+    pub fn verify_signature_with_hash(
+        &self,
+        date: CheckUnixTime,
+        signature: &Signature,
+        hash: &[u8],
+        context: Option<&VerificationContext>,
+        profile: &Profile,
+    ) -> Result<(), MessageSignatureError> {
+        let Some(config) = signature.config() else {
+            return Err(MessageSignatureError::Failed(SignatureError::ConfigAccess));
+        };
+        let Some(signed_hash_value) = signature.signed_hash_value() else {
+            return Err(MessageSignatureError::Failed(SignatureError::ConfigAccess));
+        };
+        let Some(signature_bytes) = signature.signature() else {
+            return Err(MessageSignatureError::Failed(SignatureError::ConfigAccess));
+        };
+        if signed_hash_value[0] != hash[0] || signed_hash_value[1] != hash[1] {
+            return Err(MessageSignatureError::Failed(SignatureError::Verification(
+                pgp::errors::Error::Message {
+                    message: format!(
+                        "assertion failed: `(left == right)`\\n  left: `{:?}`,\\n right: `{:?}`: signature: invalid signed hash value",
+                        &signed_hash_value[..2],
+                        &hash[..2]
+                    ),
+                    backtrace: None,
+                },
+            )));
+        }
+        self.public_key
+            .verify_signature(config.hash_alg, hash, signature_bytes)
+            .map_err(|err| MessageSignatureError::Failed(SignatureError::Verification(err)))?;
+        check_message_signature_details(date, signature, self, context, profile)
+    }
+
     /// Get the unix creation time of the public component key.
     pub fn unix_created_at(&self) -> UnixTime {
         self.public_key.created_at().into()

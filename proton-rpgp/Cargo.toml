@@ -14,12 +14,14 @@ chrono = { version = "0.4.39", default-features = false, features = [
 ] }
 rsa = "0.9.8"
 rand = "0.8.5"
+regex = "1.7"
 sha2 = { version = "0.10.6", features = ["oid"] }
 hex = "0.4"
 zeroize = { version="1.8", features = ["zeroize_derive"]}
 smallvec = "1.10.0"
 kem = "=0.3.0-pre.0" # pinned to avoid automatic update in downstream project. 
 web-time = { workspace = true }
+nom = "8.0"
 
 [features]
 default = []
