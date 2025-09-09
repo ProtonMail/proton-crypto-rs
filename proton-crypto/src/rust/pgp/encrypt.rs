@@ -1,4 +1,4 @@
-use std::{io, marker::PhantomData};
+use std::io;
 
 use proton_rpgp::{EncryptedMessage, Profile, SessionKey as RustSessionKey};
 
@@ -76,7 +76,6 @@ pub struct RustEncryptorWriter<'a, T: io::Write + 'a> {
     buffer: Vec<u8>,
     data_encoding: DataEncoding,
     session_key: RustEncryptorType,
-    _marker: PhantomData<T>,
 }
 
 impl<'a, T: io::Write + 'a> RustEncryptorWriter<'a, T> {
@@ -91,7 +90,6 @@ impl<'a, T: io::Write + 'a> RustEncryptorWriter<'a, T> {
             buffer: Vec::with_capacity(INIT_BUFFER_SIZE),
             data_encoding,
             session_key: RustEncryptorType::NoSplit,
-            _marker: PhantomData,
         }
     }
 
@@ -107,7 +105,6 @@ impl<'a, T: io::Write + 'a> RustEncryptorWriter<'a, T> {
             buffer: Vec::with_capacity(INIT_BUFFER_SIZE),
             data_encoding: DataEncoding::Bytes,
             session_key: RustEncryptorType::Split(session_key),
-            _marker: PhantomData,
         };
 
         Ok((key_packet, writer))
@@ -161,7 +158,6 @@ pub struct RustEncryptorDetachedSignatureWriter<'a, T: io::Write + 'a> {
     data_encoding: DataEncoding,
     detached_signature_variant: DetachedSignatureVariant,
     session_key: RustEncryptorType,
-    _marker: PhantomData<T>,
 }
 
 impl<'a, T: io::Write + 'a> RustEncryptorDetachedSignatureWriter<'a, T> {
@@ -178,7 +174,6 @@ impl<'a, T: io::Write + 'a> RustEncryptorDetachedSignatureWriter<'a, T> {
             data_encoding,
             detached_signature_variant,
             session_key: RustEncryptorType::NoSplit,
-            _marker: PhantomData,
         }
     }
 
@@ -196,7 +191,6 @@ impl<'a, T: io::Write + 'a> RustEncryptorDetachedSignatureWriter<'a, T> {
             data_encoding: DataEncoding::Bytes,
             detached_signature_variant,
             session_key: RustEncryptorType::Split(session_key),
-            _marker: PhantomData,
         };
 
         Ok((key_packet, writer))
