@@ -7,7 +7,7 @@ use crate::{
         DataEncoding, EncryptorWriter, Signer, SignerAsync, SignerSync, SigningContext,
         UnixTimestamp,
     },
-    rust::pgp::RustPrivateKey,
+    rust::pgp::{RustPrivateKey, INIT_BUFFER_SIZE},
 };
 
 #[derive(Debug, Clone)]
@@ -37,6 +37,7 @@ impl From<RustSigningContext> for proton_rpgp::SignatureContext {
     }
 }
 
+/// Currently mocks the streaming API by buffering data in memory.
 pub struct RustSignerWriter<'a, T: io::Write + 'a> {
     signer: RustSigner<'a>,
     buffer: Vec<u8>,
@@ -151,9 +152,10 @@ impl<'a> SignerSync<'a> for RustSigner<'a> {
         detached: bool,
         data_encoding: DataEncoding,
     ) -> crate::Result<Self::SignerWriter<'a, T>> {
+        // No streaming support yet, buffering data in memory.
         Ok(RustSignerWriter {
             signer: self,
-            buffer: Vec::new(),
+            buffer: Vec::with_capacity(INIT_BUFFER_SIZE),
             result_writer: sign_writer,
             data_encoding,
             detached,

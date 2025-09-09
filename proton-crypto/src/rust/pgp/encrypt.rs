@@ -70,6 +70,7 @@ enum RustEncryptorType {
     NoSplit,
 }
 
+/// Currently mocks the streaming API by buffering data in memory.
 pub struct RustEncryptorWriter<'a, T: io::Write + 'a> {
     encryptor: RustEncryptor<'a>,
     output_writer: T,
@@ -151,6 +152,7 @@ impl<'a, T: io::Write + 'a> EncryptorWriter<'a, T> for RustEncryptorWriter<'a, T
     }
 }
 
+/// Currently mocks the streaming API by buffering data in memory.
 pub struct RustEncryptorDetachedSignatureWriter<'a, T: io::Write + 'a> {
     encryptor: RustEncryptor<'a>,
     output_writer: T,
@@ -396,6 +398,7 @@ impl<'a> EncryptorSync<'a> for RustEncryptor<'a> {
         output_writer: T,
         output_encoding: DataEncoding,
     ) -> crate::Result<Self::EncryptorWriter<'a, T>> {
+        // No streaming support yet, buffering data in memory.
         Ok(RustEncryptorWriter::init(
             self,
             output_writer,
@@ -407,6 +410,7 @@ impl<'a> EncryptorSync<'a> for RustEncryptor<'a> {
         self,
         output_writer: T,
     ) -> crate::Result<(Vec<u8>, Self::EncryptorWriter<'a, T>)> {
+        // No streaming support yet, buffering data in memory.
         RustEncryptorWriter::init_split(self, output_writer)
     }
 
@@ -416,6 +420,7 @@ impl<'a> EncryptorSync<'a> for RustEncryptor<'a> {
         variant: DetachedSignatureVariant,
         output_encoding: DataEncoding,
     ) -> crate::Result<Self::EncryptorDetachedSignatureWriter<'a, T>> {
+        // No streaming support yet, buffering data in memory.
         Ok(RustEncryptorDetachedSignatureWriter::init(
             self,
             output_writer,

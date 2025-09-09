@@ -174,6 +174,7 @@ impl<'a> DecryptorSync<'a> for RustDecryptor<'a> {
         mut data: T,
         data_encoding: DataEncoding,
     ) -> crate::Result<Self::VerifiedDataReader<'a, T>> {
+        // Currently mocks the streaming API by buffering data in memory.
         let mut buffer = Vec::with_capacity(INIT_BUFFER_SIZE);
         data.read_to_end(&mut buffer)?;
         let decryption_result = self.decrypt(buffer, data_encoding)?;

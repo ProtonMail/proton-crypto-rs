@@ -100,6 +100,7 @@ fn transform_verification_result(result: proton_rpgp::VerificationResult) -> Ver
     }
 }
 
+/// Currently mocks the streaming API by buffering data in memory.
 pub struct RustVerifiedDataReader<'a, T: io::Read + 'a> {
     pub(super) _verifier: Option<RustVerifier<'a>>,
     pub(super) result: Cursor<Vec<u8>>,
@@ -262,7 +263,7 @@ impl<'a> VerifierSync<'a> for RustVerifier<'a> {
         signature: impl AsRef<[u8]>,
         signature_encoding: DataEncoding,
     ) -> VerificationResult {
-        // No streaming support yet,
+        // No streaming support yet, buffering data in memory.
         let mut buffer = Vec::new();
         if let Err(io_error) = data.read_to_end(&mut buffer) {
             return VerificationResult::Err(VerificationError::RuntimeError(io_error.into()));
