@@ -11,7 +11,7 @@ use crate::{
         VerificationInformation, VerificationResult, VerifiedData, VerifiedDataReader, Verifier,
         VerifierAsync, VerifierSync,
     },
-    rust::pgp::RustPublicKey,
+    rust::pgp::{RustPublicKey, INIT_BUFFER_SIZE},
     CryptoInfoError, UnixTimestamp,
 };
 
@@ -264,7 +264,7 @@ impl<'a> VerifierSync<'a> for RustVerifier<'a> {
         signature_encoding: DataEncoding,
     ) -> VerificationResult {
         // No streaming support yet, buffering data in memory.
-        let mut buffer = Vec::new();
+        let mut buffer = Vec::with_capacity(INIT_BUFFER_SIZE);
         if let Err(io_error) = data.read_to_end(&mut buffer) {
             return VerificationResult::Err(VerificationError::RuntimeError(io_error.into()));
         }
