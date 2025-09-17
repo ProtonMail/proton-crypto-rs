@@ -1,9 +1,13 @@
-use proton_crypto::crypto::{
-    AccessKeyInfo, DataEncoding, Decryptor, DecryptorSync, DetachedSignatureVariant, Encryptor,
-    EncryptorDetachedSignatureWriter, EncryptorSync, EncryptorWriter, KeyGenerator,
-    KeyGeneratorSync, OpenPGPFingerprint, OpenPGPKeyID, PGPMessage, PGPProvider, PGPProviderSync,
-    SHA256Fingerprint, SessionKey, SessionKeyAlgorithm, Signer, SignerSync, SigningMode,
-    UnixTimestamp, VerifiedData, VerifiedDataReader, Verifier, VerifierSync, WritingMode,
+use proton_crypto::{
+    crypto::{
+        AccessKeyInfo, DataEncoding, Decryptor, DecryptorSync, DetachedSignatureVariant, Encryptor,
+        EncryptorDetachedSignatureWriter, EncryptorSync, EncryptorWriter, KeyGenerator,
+        KeyGeneratorSync, OpenPGPFingerprint, OpenPGPKeyID, PGPMessage, PGPProvider,
+        PGPProviderSync, SHA256Fingerprint, SessionKey, SessionKeyAlgorithm, Signer, SignerSync,
+        SigningMode, UnixTimestamp, VerifiedData, VerifiedDataReader, Verifier, VerifierSync,
+        WritingMode,
+    },
+    ProtonPGP,
 };
 use std::io::{Read, Write};
 
@@ -33,7 +37,7 @@ fn get_test_public_key<T: PGPProviderSync>(provider: &T) -> T::PublicKey {
 
 #[test]
 fn test_api_session_key_encrypt_decrypt() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let data = "hello";
     let sk = provider
         .session_key_generate(SessionKeyAlgorithm::Aes256)
@@ -54,7 +58,7 @@ fn test_api_session_key_encrypt_decrypt() {
 
 #[test]
 fn test_api_decrypt_and_verify() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let test_time = UnixTimestamp::new(TEST_TIME);
     let expected_plaintext = TEST_EXPECTED_PLAINTEXT;
     let message = TEST_SIGNCRYPTED_MESSAGE;
@@ -79,7 +83,7 @@ fn test_api_decrypt_and_verify() {
 
 #[test]
 fn test_api_decrypt_stream_and_verify() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let test_time = UnixTimestamp::new(TEST_TIME);
     let expected_plaintext = TEST_EXPECTED_PLAINTEXT;
     let message = TEST_SIGNCRYPTED_MESSAGE;
@@ -106,7 +110,7 @@ fn test_api_decrypt_stream_and_verify() {
 
 #[test]
 fn test_api_session_key_import_export() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let session_key_data = hex::decode(TEST_SESSION_KEY).unwrap();
     let imported_session_key = provider
         .session_key_import(&session_key_data, SessionKeyAlgorithm::Aes256)
@@ -127,7 +131,7 @@ fn test_api_session_key_import_export() {
 
 #[test]
 fn test_api_public_key_import_export() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let imported_public_key = provider
         .public_key_import(TEST_PGP_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
         .unwrap();
@@ -149,7 +153,7 @@ fn test_api_public_key_import_export() {
 
 #[test]
 fn test_api_private_key_import_export() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let imported_private_key = get_test_private_key(&provider);
     let exported_private_key = provider
         .private_key_export(
@@ -164,7 +168,7 @@ fn test_api_private_key_import_export() {
 
 #[test]
 fn test_api_private_key_import_export_unlocked() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let imported_private_key = get_test_private_key(&provider);
     let exported_private_key = provider
         .private_key_export_unlocked(&imported_private_key, DataEncoding::Armor)
@@ -178,7 +182,7 @@ fn test_api_private_key_import_export_unlocked() {
 
 #[test]
 fn test_api_verify_detached_signature() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let test_time = UnixTimestamp::new(1_706_018_465);
     let public_key = get_test_public_key(&provider);
     let verification_context =
@@ -194,7 +198,7 @@ fn test_api_verify_detached_signature() {
 
 #[test]
 fn test_api_verify_detached_signature_stream() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let test_time = UnixTimestamp::new(1_706_018_465);
     let public_key = get_test_public_key(&provider);
     let verification_context =
@@ -214,7 +218,7 @@ fn test_api_verify_detached_signature_stream() {
 
 #[test]
 fn test_api_verify_inline_signature() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let test_time = UnixTimestamp::new(1_706_019_172);
     let public_key = get_test_public_key(&provider);
     let verification_context =
@@ -232,7 +236,7 @@ fn test_api_verify_inline_signature() {
 
 #[test]
 fn test_api_verify_cleartext_signature() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let test_time = UnixTimestamp::new(1_706_020_327);
     let public_key = get_test_public_key(&provider);
     let verified_data = provider
@@ -247,7 +251,7 @@ fn test_api_verify_cleartext_signature() {
 
 #[test]
 fn test_api_access_key_info() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let expected_key_id = OpenPGPKeyID::from_hex("CB186C4F0609A697").unwrap();
     let expected_fingerprint = OpenPGPFingerprint::from(
         "CB186C4F0609A697E4D52DFA6C722B0C1F1E27C18A56708F6525EC27BAD9ACC9",
@@ -271,7 +275,7 @@ fn test_api_access_key_info() {
 
 #[test]
 fn test_api_encrypt_decrypt() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
     let private_key = get_test_private_key(&provider);
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
@@ -299,7 +303,7 @@ fn test_api_encrypt_decrypt() {
 
 #[test]
 fn test_api_encrypt_decrypt_rsa1023() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
     let private_key = provider
         .private_key_import_unlocked(TEST_RSA_1023_KEY.as_bytes(), DataEncoding::Armor)
@@ -330,7 +334,7 @@ fn test_api_encrypt_decrypt_rsa1023() {
 #[test]
 #[allow(deprecated)]
 fn test_api_encrypt_stream_decrypt() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
     let private_key = get_test_private_key(&provider);
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
@@ -363,7 +367,7 @@ fn test_api_encrypt_stream_decrypt() {
 #[test]
 #[allow(deprecated)]
 fn test_api_encrypt_stream_split_decrypt() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
     let private_key = get_test_private_key(&provider);
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
@@ -397,7 +401,7 @@ fn test_api_encrypt_stream_split_decrypt() {
 #[test]
 #[allow(deprecated)]
 fn test_api_encrypt_stream_split_decrypt_with_detached_signature() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
     let private_key = get_test_private_key(&provider);
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
@@ -440,7 +444,7 @@ fn test_api_encrypt_stream_split_decrypt_with_detached_signature() {
 
 #[test]
 fn test_api_encrypt_decrypt_session_key() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let sk = provider
         .session_key_generate(SessionKeyAlgorithm::Aes256)
         .unwrap();
@@ -461,7 +465,7 @@ fn test_api_encrypt_decrypt_session_key() {
 
 #[test]
 fn test_api_sign_verify_detached() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let private_key = get_test_private_key(&provider);
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
     let test_time = UnixTimestamp::new(1_706_018_465);
@@ -487,7 +491,7 @@ fn test_api_sign_verify_detached() {
 
 #[test]
 fn test_api_sign_verify_inline() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let private_key = get_test_private_key(&provider);
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
     let test_time = UnixTimestamp::new(1_706_018_465);
@@ -516,7 +520,7 @@ fn test_api_sign_verify_inline() {
 
 #[test]
 fn test_api_sign_verify_cleartext() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let private_key = get_test_private_key(&provider);
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
     let test_time = UnixTimestamp::new(1_706_018_465);
@@ -539,7 +543,7 @@ fn test_api_sign_verify_cleartext() {
 
 #[test]
 fn test_api_sign_detached_stream() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let private_key = get_test_private_key(&provider);
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
     let test_time = UnixTimestamp::new(1_706_018_465);
@@ -571,7 +575,7 @@ fn test_api_sign_detached_stream() {
 
 #[test]
 fn test_api_sign_inline_stream() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let private_key = get_test_private_key(&provider);
     let public_key = provider.private_key_to_public_key(&private_key).unwrap();
     let test_time = UnixTimestamp::new(1_706_018_465);
@@ -606,7 +610,7 @@ fn test_api_sign_inline_stream() {
 
 #[test]
 fn test_key_generation() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let generated_key = provider
         .new_key_generator()
         .with_user_id("test", "test@test.test")
@@ -621,7 +625,7 @@ fn test_key_generation() {
 
 #[test]
 fn test_pgp_message_import() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let message = provider
         .pgp_message_import(TEST_SIGNCRYPTED_MESSAGE.as_bytes(), DataEncoding::Armor)
         .expect("import should work");
@@ -630,7 +634,7 @@ fn test_pgp_message_import() {
 
 #[test]
 fn test_api_passphrase_encrypt_decrypt() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let data = "hello";
     let password = "password";
     let ct = provider
@@ -649,7 +653,7 @@ fn test_api_passphrase_encrypt_decrypt() {
 
 #[test]
 fn test_api_passphrase_encrypt_decrypt_session_key() {
-    let provider = proton_crypto::new_pgp_provider();
+    let provider = ProtonPGP::new_sync();
     let password = "password";
     let sk = provider
         .session_key_generate(SessionKeyAlgorithm::Aes256)

@@ -1,7 +1,10 @@
-use proton_crypto::crypto::{
-    DataEncoding, Decryptor, DecryptorAsync, Encryptor, EncryptorAsync, PGPMessage, PGPProvider,
-    PGPProviderAsync, SessionKeyAlgorithm, Signer, SignerAsync, UnixTimestamp, VerifiedData,
-    Verifier, VerifierAsync,
+use proton_crypto::{
+    crypto::{
+        DataEncoding, Decryptor, DecryptorAsync, Encryptor, EncryptorAsync, PGPMessage,
+        PGPProvider, PGPProviderAsync, SessionKeyAlgorithm, Signer, SignerAsync, UnixTimestamp,
+        VerifiedData, Verifier, VerifierAsync,
+    },
+    ProtonPGP,
 };
 
 pub mod common;
@@ -32,7 +35,7 @@ async fn get_test_public_key<T: PGPProviderAsync>(provider: &T) -> T::PublicKey 
 
 #[test]
 fn test_api_async_encrypt_decrypt_session_key() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     let data = "hello";
     let pt = smol::block_on(async {
         let sk = provider
@@ -59,7 +62,7 @@ fn test_api_async_encrypt_decrypt_session_key() {
 
 #[test]
 fn test_api_async_decrypt_and_verify() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     let test_time = UnixTimestamp::new(TEST_TIME);
     let expected_plaintext = TEST_EXPECTED_PLAINTEXT;
     let message = TEST_SIGNCRYPTED_MESSAGE;
@@ -85,7 +88,7 @@ fn test_api_async_decrypt_and_verify() {
 
 #[test]
 fn test_api_async_session_key_import_export() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     let session_key_data = hex::decode(TEST_SESSION_KEY).unwrap();
     smol::block_on(async {
         let imported_session_key = provider
@@ -111,7 +114,7 @@ fn test_api_async_session_key_import_export() {
 
 #[test]
 fn test_api_async_public_key_import_export() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     smol::block_on(async {
         let imported_public_key = provider
             .public_key_import_async(TEST_PGP_PUBLIC_KEY.as_bytes(), DataEncoding::Armor)
@@ -137,7 +140,7 @@ fn test_api_async_public_key_import_export() {
 
 #[test]
 fn test_api_async_private_key_import_export() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     smol::block_on(async {
         let imported_private_key = provider
             .private_key_import_async(
@@ -162,7 +165,7 @@ fn test_api_async_private_key_import_export() {
 
 #[test]
 fn test_api_verify_detached_signature_async() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     let test_time = UnixTimestamp::new(1_706_018_465);
     smol::block_on(async {
         let public_key = get_test_public_key(&provider).await;
@@ -181,7 +184,7 @@ fn test_api_verify_detached_signature_async() {
 
 #[test]
 fn test_api_encrypt_decrypt() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
     smol::block_on(async {
         let private_key = get_test_private_key(&provider).await;
@@ -213,7 +216,7 @@ fn test_api_encrypt_decrypt() {
 
 #[test]
 fn test_api_sign_verify_detached() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     smol::block_on(async {
         let private_key = get_test_private_key(&provider).await;
         let public_key = get_test_public_key(&provider).await;
@@ -242,7 +245,7 @@ fn test_api_sign_verify_detached() {
 
 #[test]
 fn test_api_sign_verify_inline() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     smol::block_on(async {
         let private_key = get_test_private_key(&provider).await;
         let public_key = get_test_public_key(&provider).await;
@@ -274,7 +277,7 @@ fn test_api_sign_verify_inline() {
 
 #[test]
 fn test_pgp_message_import_async() {
-    let provider = proton_crypto::new_pgp_provider_async();
+    let provider = ProtonPGP::new_async();
     smol::block_on(async {
         let message = provider
             .pgp_message_import_async(TEST_SIGNCRYPTED_MESSAGE.as_bytes(), DataEncoding::Armor)

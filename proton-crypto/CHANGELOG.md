@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+### Added
+
+- New struct `OpenPGP` that allows to create OpenPGP providers.
+- New struct `SRP` that allows to create SRP providers.
+
 ### Changed
 
 - Use `impl IntoIterator` for multiple key input in the crypto API.

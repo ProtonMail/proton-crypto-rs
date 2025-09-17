@@ -127,6 +127,48 @@ impl CryptoClockProvider for LocalTimeProvider {
     }
 }
 
+/// Offers functions to create a [`PGPProviderSync`] or [`PGPProviderAsync`].
+pub struct ProtonPGP {}
+
+impl ProtonPGP {
+    pub fn new_sync() -> impl PGPProviderSync {
+        new_pgp_provider()
+    }
+
+    pub fn new_async() -> impl PGPProviderAsync {
+        new_pgp_provider_async()
+    }
+
+    #[cfg(feature = "rustpgp")]
+    pub fn new_rust_sync() -> impl PGPProviderSync {
+        new_rust_pgp_provider()
+    }
+
+    #[cfg(feature = "rustpgp")]
+    pub fn new_rust_async() -> impl PGPProviderAsync {
+        new_rust_pgp_provider_async()
+    }
+
+    #[cfg(feature = "gopgp")]
+    pub fn new_go_sync() -> impl PGPProviderSync {
+        new_go_pgp_provider()
+    }
+
+    #[cfg(feature = "gopgp")]
+    pub fn new_go_async() -> impl PGPProviderAsync {
+        new_go_pgp_provider_async()
+    }
+}
+
+/// Offers functions to create a [`SRPProvider`].
+pub struct ProtonSRP {}
+
+impl ProtonSRP {
+    pub fn new_sync() -> impl SRPProvider {
+        new_srp_provider()
+    }
+}
+
 /// Factory function to create a synchronous `PGPProvider`.
 pub fn new_pgp_provider() -> impl PGPProviderSync {
     #[cfg(all(feature = "rustpgp", feature = "gopgp", not(feature = "multi_be")))]
