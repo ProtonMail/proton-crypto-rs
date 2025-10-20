@@ -504,7 +504,8 @@ mod tests {
 
     use crate::{
         types::UnixTime, DataEncoding, KeyCertificationSelectionError, KeyValidationError,
-        PrivateKey, PrivateKeySelectionExt, Profile, PublicKey, SignatureUsage,
+        PrivateKey, PrivateKeySelectionExt, Profile, ProfileSettingsBuilder, PublicKey,
+        SignatureUsage,
     };
 
     use super::PublicKeySelectionExt;
@@ -623,7 +624,11 @@ mod tests {
         const TEST_KEY: &str =
             include_str!("../test-data/keys/public_key_v4_subkey_expired_binding_signature.asc");
         let expired = UnixTime::new(1_751_881_317);
-        let profile = Profile::default();
+        let profile = Profile::new(
+            ProfileSettingsBuilder::new()
+                .allow_encryption_with_future_and_expired_keys(false)
+                .build(),
+        );
 
         let public_key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
             .expect("Failed to import key");

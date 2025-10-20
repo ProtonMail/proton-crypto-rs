@@ -134,6 +134,9 @@ pub struct ProfileSettings {
     /// This setting is potentially insecure, but it is needed to verify messages signed with keys that were later reformatted,
     /// and have self-signature's creation date that does not match the primary key creation date.
     pub allow_insecure_verification_with_reformatted_keys: bool,
+
+    /// If true, allows encryption to expired or not yet valid keys.
+    pub allow_encryption_with_future_or_expired_keys: bool,
 }
 
 impl Default for ProfileSettings {
@@ -175,6 +178,7 @@ impl Default for ProfileSettings {
             ignore_key_flags: false,
             known_notation_names: HashSet::from([PROTON_CONTEXT_NOTATION_NAME.to_string()]),
             allow_insecure_verification_with_reformatted_keys: true,
+            allow_encryption_with_future_or_expired_keys: true,
         }
     }
 }
@@ -369,6 +373,14 @@ impl ProfileSettingsBuilder {
     pub fn allow_insecure_verification_with_reformatted_keys(mut self, allow: bool) -> Self {
         self.settings
             .allow_insecure_verification_with_reformatted_keys = allow;
+        self
+    }
+
+    /// Sets whether to allow encryption with future and expired keys.
+    ///
+    /// If true, no time checks are performed for encryption key selection.
+    pub fn allow_encryption_with_future_and_expired_keys(mut self, allow: bool) -> Self {
+        self.settings.allow_encryption_with_future_or_expired_keys = allow;
         self
     }
 

@@ -121,8 +121,15 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<PublicComponentKey<'_>, KeyValidationError> {
+        // Disable time checks on the key if he profile enables encryption with future/expired keys.
+        let encryption_date = if profile.allow_encryption_with_future_or_expired_keys() {
+            CheckUnixTime::disable()
+        } else {
+            date
+        };
+
         // Check if the primary key is valid.
-        let primary_self_certification = self.check_primary_key(date, profile)?;
+        let primary_self_certification = self.check_primary_key(encryption_date, profile)?;
 
         let primary_key = self.primary_key();
         check_key_requirements(primary_key, profile)
@@ -137,7 +144,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         for sub_key in self.iter_subkeys() {
             // Check subkey certifications.
             let sub_key_self_certification =
-                match sub_key.check_validity(primary_key, date, profile) {
+                match sub_key.check_validity(primary_key, encryption_date, profile) {
                     Ok(self_certification) => self_certification,
                     Err(err) => {
                         subkey_errors.push(KeyValidationError::KeySelfCertification(err));

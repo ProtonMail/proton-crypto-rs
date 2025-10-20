@@ -3,7 +3,8 @@ use std::sync::LazyLock;
 use pgp::crypto::{aead::AeadAlgorithm, hash::HashAlgorithm, sym::SymmetricKeyAlgorithm};
 use proton_rpgp::{
     AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, EncryptedMessage, Encryptor, Error,
-    PrivateKey, Profile, ProfileSettingsBuilder, SessionKey, StringToKeyOption, VerificationError,
+    KeyGenerator, PrivateKey, Profile, ProfileSettingsBuilder, SessionKey, StringToKeyOption,
+    UnixTime, VerificationError,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -585,4 +586,41 @@ pub fn encrypt_and_sign_message_v4_with_detached_signature_text() {
     };
     test(false);
     test(true);
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_with_future_key() {
+    let future_key = KeyGenerator::default()
+        .at_date(UnixTime::new(2_139_650_917))
+        .with_user_id("test", "test@test.test")
+        .generate()
+        .unwrap();
+    let input_data = b"hello world";
+    let encrypted_data = Encryptor::default()
+        .with_encryption_key(future_key.as_public_key())
+        .encrypt_raw(input_data, DataEncoding::Armored)
+        .expect("Failed to encrypt");
+
+    let verified_data = Decryptor::default()
+        .with_decryption_key(&future_key)
+        .decrypt(encrypted_data.as_slice(), DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, input_data);
+    assert!(matches!(
+        verified_data.verification_result,
+        Err(VerificationError::NotSigned)
+    ));
+
+    let disabled_profile = Profile::new(
+        ProfileSettingsBuilder::new()
+            .allow_encryption_with_future_and_expired_keys(false)
+            .build(),
+    );
+
+    Encryptor::new(disabled_profile)
+        .with_encryption_key(future_key.as_public_key())
+        .encrypt_raw(input_data, DataEncoding::Armored)
+        .expect_err("expect encryption to fail");
 }

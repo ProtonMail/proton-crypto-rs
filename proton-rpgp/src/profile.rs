@@ -144,6 +144,10 @@ impl Profile {
         self.settings
             .allow_insecure_verification_with_reformatted_keys
     }
+
+    pub fn allow_encryption_with_future_or_expired_keys(&self) -> bool {
+        self.settings.allow_encryption_with_future_or_expired_keys
+    }
 }
 
 impl Default for Profile {
