@@ -21,7 +21,7 @@ pub fn decrypt_and_verify_encrypted_message_v4() {
     let verified_data = Decryptor::default()
         .with_decryption_key(&key)
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -41,7 +41,7 @@ pub fn decrypt_and_verify_encrypted_message_v6() {
     let verified_data = Decryptor::default()
         .with_decryption_key(&key)
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -60,7 +60,7 @@ pub fn decrypt_encrypted_message_wrong_key() {
 
     let decryption_result = Decryptor::default()
         .with_decryption_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored);
 
     match decryption_result {
@@ -87,7 +87,7 @@ pub fn decrypt_encrypted_message_v4_text() {
     let verified_data = Decryptor::default()
         .with_decryption_key(&key)
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .output_utf8()
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
@@ -108,7 +108,7 @@ pub fn decrypt_and_verify_encrypted_message_v4_fail_due_to_past_date() {
     let verified_data = Decryptor::default()
         .with_decryption_key(&key)
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -132,7 +132,7 @@ pub fn decrypt_and_verify_encrypted_message_v4_multi_key_packets() {
     let verified_data = Decryptor::default()
         .with_decryption_key(&key)
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -156,7 +156,7 @@ pub fn decrypt_and_verify_encrypted_message_v4_multiple_keys() {
     let verified_data = Decryptor::default()
         .with_decryption_keys(&keys)
         .with_verification_keys(keys.iter().map(AsPublicKeyRef::as_public_key))
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -180,7 +180,7 @@ pub fn decrypt_and_verify_encrypted_message_v4_wrong_verification_key() {
     let verified_data = Decryptor::default()
         .with_decryption_keys(keys.iter().copied())
         .with_verification_key(key_v6.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -221,7 +221,7 @@ pub fn decrypt_encrypted_message_v4_text_mail() {
 
     let verified_data = Decryptor::default()
         .with_decryption_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .output_utf8()
         .decrypt(input_data, DataEncoding::Unarmored)
         .expect("Failed to decrypt");
@@ -289,7 +289,7 @@ pub fn decrypt_and_verify_encrypted_message_v4_with_session_key() {
     let verified_data = Decryptor::default()
         .with_session_key(&session_key)
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -343,7 +343,7 @@ pub fn decrypt_encrypted_message_v4_wildcard() {
 
     let verified_data = Decryptor::default()
         .with_decryption_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -370,7 +370,7 @@ pub fn decrypt_and_verify_encrypted_message_with_detached_signature() {
             SIGNATURE.as_bytes(),
             DataEncoding::Armored,
         ))
-        .at_date(date)
+        .at_date(date.into())
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 

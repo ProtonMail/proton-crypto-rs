@@ -20,9 +20,9 @@ use rand::{CryptoRng, Rng};
 use crate::{
     core::message_signature_subpackets,
     preferences::{self, RecipientsAlgorithms},
-    DataEncoding, KeyValidationError, PrivateComponentKey, PrivateKey, PrivateKeySelectionExt,
-    Profile, ResolvedDataEncoding, SignatureContext, SignatureMode, SignatureUsage, SigningError,
-    UnixTime, DEFAULT_PROFILE,
+    CheckUnixTime, DataEncoding, KeyValidationError, PrivateComponentKey, PrivateKey,
+    PrivateKeySelectionExt, Profile, ResolvedDataEncoding, SignatureContext, SignatureMode,
+    SignatureUsage, SigningError, UnixTime, DEFAULT_PROFILE,
 };
 
 /// A signer that can create `OpenPGP` signatures over data.
@@ -35,7 +35,7 @@ pub struct Signer<'a> {
     pub(crate) signing_keys: Vec<&'a PrivateKey>,
 
     /// The date to use for the signatures.
-    pub(crate) date: UnixTime,
+    pub(crate) date: CheckUnixTime,
 
     /// The signature type to use for the signatures.
     ///
@@ -55,7 +55,7 @@ impl<'a> Signer<'a> {
         Self {
             profile,
             signing_keys: Vec::new(),
-            date: UnixTime::now().unwrap_or_default(),
+            date: CheckUnixTime::enable_now(),
             signature_type: SignatureMode::default(),
             signature_context: None,
             data_mode: DataMode::Binary,
@@ -77,7 +77,7 @@ impl<'a> Signer<'a> {
     }
 
     /// Sets the date to use for the signatures.
-    pub fn at_date(mut self, date: UnixTime) -> Self {
+    pub fn at_date(mut self, date: CheckUnixTime) -> Self {
         self.date = date;
         self
     }
@@ -187,7 +187,7 @@ impl<'a> Signer<'a> {
                 signing_key
                     .sign_data(
                         data.as_ref(),
-                        self.date,
+                        self.signature_creation_time(),
                         self.signature_type,
                         hash_algorithm,
                         self.signature_context.as_deref(),
@@ -256,7 +256,7 @@ impl<'a> Signer<'a> {
                     signing_key
                         .sign_data(
                             text.as_bytes(),
-                            self.date,
+                            self.signature_creation_time(),
                             SignatureMode::Text,
                             *hash_algorithm,
                             self.signature_context.as_deref(),
@@ -358,7 +358,7 @@ impl<'a> Signer<'a> {
         for (signing_key, hash_algorithm) in signing_keys.iter().zip(hash_algorithms) {
             let (hashed, unhashed) = message_signature_subpackets(
                 &signing_key.private_key,
-                self.date,
+                self.signature_creation_time(),
                 hash_algorithm,
                 self.signature_context.as_deref(),
                 &mut rng,
@@ -376,6 +376,10 @@ impl<'a> Signer<'a> {
 
     pub(crate) fn profile(&self) -> &Profile {
         &self.profile
+    }
+
+    fn signature_creation_time(&self) -> UnixTime {
+        self.date.at().unwrap_or(UnixTime::now_unchecked()) // If there is no date specified, use local time.
     }
 }
 
@@ -472,7 +476,7 @@ mod tests {
 
         let signature_bytes = Signer::default()
             .with_signing_key(&key)
-            .at_date(date)
+            .at_date(date.into())
             .sign_detached(input_data, DataEncoding::Unarmored)
             .expect("Failed to sign");
 
@@ -499,7 +503,7 @@ mod tests {
 
         let signature_bytes = Signer::default()
             .with_signing_key(&key)
-            .at_date(date)
+            .at_date(date.into())
             .as_utf8()
             .sign_detached(input_data, DataEncoding::Unarmored)
             .expect("Failed to sign");
@@ -529,7 +533,7 @@ mod tests {
 
         let signature_bytes = Signer::default()
             .with_signing_key(&key)
-            .at_date(date)
+            .at_date(date.into())
             .sign_detached(input_data, DataEncoding::Unarmored)
             .expect("Failed to sign");
 
@@ -555,7 +559,7 @@ mod tests {
 
         let data_bytes = Signer::default()
             .with_signing_key(&key)
-            .at_date(date)
+            .at_date(date.into())
             .sign(input_data, DataEncoding::Unarmored)
             .expect("Failed to sign");
 
@@ -587,7 +591,7 @@ mod tests {
 
         let data_bytes = Signer::default()
             .with_signing_key(&key)
-            .at_date(date)
+            .at_date(date.into())
             .as_utf8()
             .sign(input_data, DataEncoding::Unarmored)
             .expect("Failed to sign");
@@ -625,7 +629,7 @@ mod tests {
 
         let data_bytes = Signer::default()
             .with_signing_key(&key)
-            .at_date(date)
+            .at_date(date.into())
             .sign_detached(input_data, DataEncoding::Unarmored)
             .expect("Failed to sign");
 

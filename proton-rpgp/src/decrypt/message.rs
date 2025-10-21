@@ -5,8 +5,8 @@ use pgp::{
 };
 
 use crate::{
-    DecryptionError, Decryptor, GenericKeyIdentifier, PrivateKey, PrivateKeySelectionExt, Profile,
-    PublicKeyExt, UnixTime,
+    CheckUnixTime, DecryptionError, Decryptor, GenericKeyIdentifier, PrivateKey,
+    PrivateKeySelectionExt, Profile, PublicKeyExt,
 };
 
 pub trait MessageDecryptionExt<'a> {
@@ -119,7 +119,7 @@ pub(crate) fn handle_pkesk_decryption<'a>(
     for decryption_key in decryption_keys.filter(|dk| check_pkesk_match(&generic_identifier, dk)) {
         // Only allow verified decryption keys.
         let decryption_keys_result = decryption_key.secret.decryption_keys(
-            UnixTime::zero(), // disable time checks for decryption keys.
+            CheckUnixTime::disable(), // disable time checks for decryption keys.
             Some(generic_identifier.clone()),
             profile,
         );

@@ -9,7 +9,6 @@ use pgp::{
     packet::KeyFlags,
     types::{Fingerprint, KeyId, Password},
 };
-use web_time::{SystemTime, UNIX_EPOCH};
 
 use crate::{armor, FingerprintError};
 
@@ -92,10 +91,15 @@ impl UnixTime {
     }
 
     pub fn now() -> Option<Self> {
+        use web_time::{SystemTime, UNIX_EPOCH};
         match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(n) => Some(Self(n.as_secs())),
+            Ok(n) => Some(UnixTime::new(n.as_secs())),
             Err(_) => None,
         }
+    }
+
+    pub fn now_unchecked() -> Self {
+        Self::now().unwrap_or_default()
     }
 
     /// Creates a unix timestamp with the zero value.
@@ -147,6 +151,52 @@ impl From<UnixTime> for DateTime<Utc> {
     fn from(value: UnixTime) -> Self {
         let seconds = i64::try_from(value.unix_seconds()).unwrap_or_default();
         DateTime::from_timestamp(seconds, 0).unwrap_or_default()
+    }
+}
+
+/// An optional Unix timestamp used for validating time against in `OpenPGP` operations.
+///
+/// If unset, time-based checks are disabled.
+/// When constructing new `OpenPGP` packets with disabled checks, the current system time is used by default.
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Default)]
+pub struct CheckUnixTime(Option<UnixTime>);
+
+impl CheckUnixTime {
+    pub fn new(unix_time: u64) -> Self {
+        Self::enable(UnixTime::new(unix_time))
+    }
+
+    /// Enables time-based checks using the provided Unix timestamp.
+    pub fn enable(unix_time: UnixTime) -> Self {
+        Self(Some(unix_time))
+    }
+
+    /// Enables time-based checks using the current system time.
+    pub fn enable_now() -> Self {
+        Self(Some(UnixTime::now().unwrap_or_default()))
+    }
+
+    /// Disables time-based checks.
+    pub fn disable() -> Self {
+        Self(None)
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.0.is_some()
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        self.0.is_none()
+    }
+
+    pub fn at(&self) -> Option<UnixTime> {
+        self.0
+    }
+}
+
+impl From<UnixTime> for CheckUnixTime {
+    fn from(value: UnixTime) -> Self {
+        Self(Some(value))
     }
 }
 

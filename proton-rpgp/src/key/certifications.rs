@@ -6,7 +6,7 @@ use pgp::{
 };
 
 use crate::{
-    check_signature_details, types::UnixTime, KeyCertificationSelectionError, Profile,
+    check_signature_details, types::CheckUnixTime, KeyCertificationSelectionError, Profile,
     SignatureError, SignatureExt,
 };
 
@@ -25,7 +25,7 @@ pub trait CertificationSelectionExt {
         &self,
         key: &K,
         key_signature: &packet::Signature,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<(), SignatureError>;
 
@@ -40,7 +40,7 @@ pub trait CertificationSelectionExt {
     fn latest_valid_self_certification<K: PublicKeyTrait + Serialize>(
         &self,
         primary_key: &K,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<&packet::Signature, KeyCertificationSelectionError> {
         let mut selected_signature: Option<&packet::Signature> = None;
@@ -57,9 +57,11 @@ pub trait CertificationSelectionExt {
                 .transpose()?;
 
             // Check if the signature is not in the future with date as a reference.
-            if !date.checks_disabled() && date < sig_creation_time {
-                failures.push(SignatureError::FutureSignature(sig_creation_time));
-                continue;
+            if let Some(date) = date.at() {
+                if date < sig_creation_time {
+                    failures.push(SignatureError::FutureSignature(sig_creation_time));
+                    continue;
+                }
             }
 
             // Skip if we already have a newer valid signature.
@@ -88,17 +90,20 @@ pub trait CertificationSelectionExt {
         &self,
         primary_key: &K,
         self_signature: Option<&packet::Signature>,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> bool {
         let self_signature_creation_time = if let Some(self_signature) = self_signature {
-            self_signature.unix_created_at().unwrap_or(UnixTime::zero())
+            self_signature
+                .unix_created_at()
+                .map(CheckUnixTime::from)
+                .unwrap_or(CheckUnixTime::disable())
         } else {
-            UnixTime::zero()
+            CheckUnixTime::disable()
         };
 
         // Helper closure to verify signature + details
-        let is_valid = |sig: &packet::Signature, date: UnixTime| {
+        let is_valid = |sig: &packet::Signature, date: CheckUnixTime| {
             self.verify_certification(primary_key, sig, date, profile)
                 .is_ok()
         };
@@ -107,7 +112,7 @@ pub trait CertificationSelectionExt {
         if self
             .iter_self_revocations()
             .filter(|sig| sig.is_issued_by(primary_key) && sig.is_hard_revocation())
-            .any(|sig| is_valid(sig, UnixTime::zero()))
+            .any(|sig| is_valid(sig, CheckUnixTime::disable()))
         {
             return true;
         }
@@ -116,7 +121,13 @@ pub trait CertificationSelectionExt {
         self.iter_self_revocations()
             .filter(|sig| sig.is_issued_by(primary_key) && sig.is_revocation())
             .filter_map(|sig| sig.unix_created_at().ok().map(|time| (sig, time)))
-            .filter(|(_, time)| *time >= self_signature_creation_time)
+            .filter(|(_, time)| {
+                if let Some(self_signature_creation_time) = self_signature_creation_time.at() {
+                    *time >= self_signature_creation_time
+                } else {
+                    true
+                }
+            })
             .any(|(sig, _)| is_valid(sig, date))
     }
 
@@ -128,7 +139,7 @@ pub trait CertificationSelectionExt {
     fn check_validity<K: PublicKeyTrait + Serialize>(
         &self,
         primary_key: &K,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<&packet::Signature, KeyCertificationSelectionError> {
         let self_signature = self.latest_valid_self_certification(primary_key, date, profile)?;
@@ -158,7 +169,7 @@ impl CertificationSelectionExt for SignedUser {
         &self,
         key: &K,
         self_signature: &packet::Signature,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<(), SignatureError> {
         self_signature
@@ -181,7 +192,7 @@ impl CertificationSelectionExt for SignedPublicSubKey {
         &self,
         signing_key: &K,
         self_signature: &packet::Signature,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<(), SignatureError> {
         verify_subkey_signature(self_signature, signing_key, &self.key, date, profile)
@@ -201,7 +212,7 @@ impl CertificationSelectionExt for SignedSecretSubKey {
         &self,
         signing_key: &K,
         self_signature: &packet::Signature,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<(), SignatureError> {
         verify_subkey_signature(
@@ -218,7 +229,7 @@ fn verify_subkey_signature<K, S>(
     self_signature: &packet::Signature,
     signing_key: &K,
     subkey: &S,
-    date: UnixTime,
+    date: CheckUnixTime,
     profile: &Profile,
 ) -> Result<(), SignatureError>
 where
@@ -260,7 +271,7 @@ impl CertificationSelectionExt for SignedPublicKey {
         &self,
         key: &K,
         key_signature: &packet::Signature,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<(), SignatureError> {
         key_signature
@@ -283,7 +294,7 @@ impl CertificationSelectionExt for SignedSecretKey {
         &self,
         key: &K,
         key_signature: &packet::Signature,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<(), SignatureError> {
         key_signature

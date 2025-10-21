@@ -18,7 +18,7 @@ pub fn verify_detached_signature_v4() {
 
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
@@ -47,7 +47,7 @@ pub fn verify_detached_signature_v4_fails() {
 
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
@@ -82,7 +82,7 @@ pub fn verify_detached_signature_v4_fails_rsa_512() {
 
     let verification_result = Verifier::default()
         .with_verification_key(verification_key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(
             b"Hello World :)",
             SIGANTURE.as_bytes(),
@@ -98,7 +98,7 @@ pub fn verify_detached_signature_v4_fails_rsa_512() {
 
     let verification_result = Verifier::new(profile)
         .with_verification_key(verification_key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(
             b"Hello World :)",
             SIGANTURE.as_bytes(),
@@ -121,7 +121,7 @@ pub fn verify_detached_signature_multiple_signatures() {
 
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
@@ -151,7 +151,7 @@ pub fn verify_detached_signature_v4_text() {
 
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(TEXT, SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
@@ -180,7 +180,7 @@ pub fn verify_detached_signature_v6() {
 
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
@@ -199,7 +199,7 @@ pub fn verify_detached_signature_v6_pqc() {
 
     let verification_result = Verifier::default()
         .with_verification_key(verification_key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
@@ -216,7 +216,7 @@ pub fn verify_inline_signed_message_v4() {
 
     let verified_data = Verifier::default()
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
@@ -235,7 +235,7 @@ pub fn verify_inline_signed_message_v4_fail_no_matching_key() {
 
     let verified_data = Verifier::default()
         .with_verification_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .verify(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to verify");
 
@@ -257,7 +257,7 @@ pub fn verify_inline_signed_message_v4_text() {
 
     let verified_data = Verifier::default()
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .output_utf8()
         .verify(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
@@ -277,7 +277,7 @@ pub fn verify_inline_signed_cleartext_message_v4() {
 
     let verified_data = Verifier::default()
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_cleartext(INPUT_DATA)
         .expect("Failed to verifiy");
 
@@ -302,7 +302,7 @@ pub fn verify_inline_signed_cleartext_message_v4_escaped() {
 
     let verified_data = Verifier::default()
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_cleartext(INPUT_DATA)
         .expect("Failed to verifiy");
 

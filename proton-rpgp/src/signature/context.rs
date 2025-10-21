@@ -2,7 +2,7 @@ use pgp::packet::{Notation, Subpacket, SubpacketData};
 
 use std::{borrow::Cow, fmt};
 
-use crate::{MessageSignatureError, SignatureContextError, UnixTime};
+use crate::{CheckUnixTime, MessageSignatureError, SignatureContextError, UnixTime};
 
 pub const PROTON_CONTEXT_NOTATION_NAME: &str = "context@proton.ch";
 
@@ -96,7 +96,7 @@ impl VerificationContext {
     pub(crate) fn check_subpackets<'a>(
         &'a self,
         subpackets: impl IntoIterator<Item = &'a Subpacket>,
-        date: UnixTime,
+        date: CheckUnixTime,
     ) -> Result<(), MessageSignatureError> {
         // Collect all context notations matching the Proton context name
         let mut context_notations = Self::filter_context(subpackets)
@@ -122,8 +122,10 @@ impl VerificationContext {
         }
 
         // If the context is not required at this time, we accept any context.
-        if !self.is_required_at_time(date) {
-            return Ok(());
+        if let Some(date) = date.at() {
+            if !self.is_required_at_time(date) {
+                return Ok(());
+            }
         }
 
         // If required, there must be exactly one context notation

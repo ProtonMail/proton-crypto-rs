@@ -137,8 +137,8 @@ fn key_is_revoked() {
     let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let expect_is_revoked = key_revoked.is_revoked(&KEY_TEST_PROFILE, date);
-    let expect_is_not_revoked = key.is_revoked(&KEY_TEST_PROFILE, date);
+    let expect_is_revoked = key_revoked.is_revoked(&KEY_TEST_PROFILE, date.into());
+    let expect_is_not_revoked = key.is_revoked(&KEY_TEST_PROFILE, date.into());
 
     assert!(expect_is_revoked && !expect_is_not_revoked);
 }
@@ -154,8 +154,8 @@ fn key_is_expired() {
     let key = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let expect_expired = key.is_expired(&profile, expired);
-    let expect_not_expired = key.is_expired(&profile, not_expired);
+    let expect_expired = key.is_expired(&profile, expired.into());
+    let expect_not_expired = key.is_expired(&profile, not_expired.into());
 
     assert!(expect_expired && !expect_not_expired);
 }
@@ -171,8 +171,8 @@ fn key_can_encrypt() {
     let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let expect_can_encrypt = key.check_can_encrypt(&profile, date);
-    let expect_cannot_encrypt = sub_key_revoked.check_can_encrypt(&profile, date);
+    let expect_can_encrypt = key.check_can_encrypt(&profile, date.into());
+    let expect_cannot_encrypt = sub_key_revoked.check_can_encrypt(&profile, date.into());
 
     assert!(expect_can_encrypt.is_ok() && expect_cannot_encrypt.is_err());
 }
@@ -188,8 +188,8 @@ fn key_can_verify() {
     let key = PublicKey::import(TEST_PUBLIC_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let expect_can_verify = key.check_can_verify(&profile, date);
-    let expect_cannot_verify = key_revoked.check_can_verify(&profile, date);
+    let expect_can_verify = key.check_can_verify(&profile, date.into());
+    let expect_cannot_verify = key_revoked.check_can_verify(&profile, date.into());
 
     assert!(expect_can_verify.is_ok() && expect_cannot_verify.is_err());
 }
@@ -225,10 +225,10 @@ fn key_generation_default() {
         .export_unlocked(DataEncoding::Armored)
         .expect("Failed to export key");
 
-    key.check_can_encrypt(&KEY_TEST_PROFILE, date)
+    key.check_can_encrypt(&KEY_TEST_PROFILE, date.into())
         .expect("Cannot encrypt");
 
-    key.check_can_verify(&KEY_TEST_PROFILE, date)
+    key.check_can_verify(&KEY_TEST_PROFILE, date.into())
         .expect("Cannot verify");
 
     assert_eq!(key.version(), 4);
@@ -273,7 +273,7 @@ fn key_is_not_expired_with_zero_expiration_time() {
     let key = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let expired = key.is_expired(&profile, date);
+    let expired = key.is_expired(&profile, date.into());
 
     assert!(!expired);
 }
@@ -286,8 +286,8 @@ fn key_can_verify_revoked_based_on_time() {
     let key = PublicKey::import(LOCAL_TEST_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let can_verify = key.check_can_verify(&profile, UnixTime::new(1_573_576_706));
+    let can_verify = key.check_can_verify(&profile, UnixTime::new(1_573_576_706).into());
     assert!(can_verify.is_err());
-    let can_verify = key.check_can_verify(&profile, UnixTime::new(1_751_984_424));
+    let can_verify = key.check_can_verify(&profile, UnixTime::new(1_751_984_424).into());
     assert!(can_verify.is_ok());
 }

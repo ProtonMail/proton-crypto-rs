@@ -9,9 +9,9 @@ use pgp::{
 };
 
 use crate::{
-    types::UnixTime, AnyPublicKey, AnySecretKey, CertificationSelectionExt, GenericKeyIdentifier,
-    KeyCertificationSelectionError, KeyRequirementError, KeyValidationError, PrivateComponentKey,
-    Profile, PublicComponentKey, PublicKeyExt, SignatureExt,
+    types::CheckUnixTime, AnyPublicKey, AnySecretKey, CertificationSelectionExt,
+    GenericKeyIdentifier, KeyCertificationSelectionError, KeyRequirementError, KeyValidationError,
+    PrivateComponentKey, Profile, PublicComponentKey, PublicKeyExt, SignatureExt, UnixTime,
 };
 
 use rsa::traits::PublicKeyParts;
@@ -43,7 +43,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
     /// and prefers user-ids marked as primary or that have the newest date.
     fn select_user_id_with_certification(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<(&SignedUser, &packet::Signature), KeyCertificationSelectionError> {
         let mut errors = Vec::new();
@@ -75,7 +75,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
     /// Otherwise, it returns the user-id self-certification that is valid at the given date.
     fn primary_self_signature(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<&packet::Signature, KeyCertificationSelectionError> {
         match self.primary_key().version() {
@@ -94,7 +94,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
     /// the self-certification is not revoked, and the key is not expired.
     fn check_primary_key(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<&packet::Signature, KeyCertificationSelectionError> {
         let primary_self_certification = self.primary_self_signature(date, profile)?;
@@ -118,7 +118,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
     /// Selects an encryption key from the `OpenPGP` key.
     fn encryption_key(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<PublicComponentKey<'_>, KeyValidationError> {
         // Check if the primary key is valid.
@@ -207,7 +207,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
     /// If there are no verification keys, an error is returned.
     fn verification_keys(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         key_ids: Vec<GenericKeyIdentifier>,
         usage: SignatureUsage,
         profile: &Profile,
@@ -311,7 +311,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
     /// If there are no signing keys, an error is returned.
     fn signing_key(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         key_id: Option<KeyId>,
         usage: SignatureUsage,
         profile: &Profile,
@@ -417,7 +417,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
     /// If there are no decryption keys, an error is returned.
     fn decryption_keys(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         key_id: Option<GenericKeyIdentifier>,
         profile: &Profile,
     ) -> Result<Vec<PrivateComponentKey<'_>>, KeyValidationError> {
@@ -608,11 +608,11 @@ fn compare_identities(current: &packet::Signature, potential: &packet::Signature
 pub(crate) fn check_key_not_expired<K: PublicKeyTrait + Serialize>(
     key: &K,
     self_signature: &packet::Signature,
-    date: UnixTime,
+    check_date: CheckUnixTime,
 ) -> Result<(), KeyCertificationSelectionError> {
-    if date.checks_disabled() {
+    let Some(date) = check_date.at() else {
         return Ok(());
-    }
+    };
     let key_creation_time = key.created_at();
     if UnixTime::from(key_creation_time) > date {
         return Err(KeyCertificationSelectionError::FutureKey {

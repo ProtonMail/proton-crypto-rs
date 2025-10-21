@@ -4,7 +4,7 @@ use pgp::{
     types::PublicKeyTrait,
 };
 
-use crate::{types::UnixTime, GenericKeyIdentifier, Profile, SignatureError};
+use crate::{types::UnixTime, CheckUnixTime, GenericKeyIdentifier, Profile, SignatureError};
 
 mod message;
 pub use message::*;
@@ -31,7 +31,7 @@ pub(crate) trait SignatureExt {
 
     fn unix_created_at(&self) -> Result<UnixTime, SignatureError>;
 
-    fn check_not_expired(&self, date: UnixTime) -> Result<(), SignatureError>;
+    fn check_not_expired(&self, date: CheckUnixTime) -> Result<(), SignatureError>;
 }
 
 impl SignatureExt for Signature {
@@ -71,10 +71,10 @@ impl SignatureExt for Signature {
             .ok_or(SignatureError::NoCreationTime)
     }
 
-    fn check_not_expired(&self, date: UnixTime) -> Result<(), SignatureError> {
-        if date.checks_disabled() {
+    fn check_not_expired(&self, date: CheckUnixTime) -> Result<(), SignatureError> {
+        let Some(date) = date.at() else {
             return Ok(());
-        }
+        };
         let creation_time = self.created().ok_or(SignatureError::NoCreationTime)?;
         let unix_creation_time = UnixTime::from(creation_time);
         if date < unix_creation_time {
@@ -115,7 +115,7 @@ impl SignatureExt for Signature {
 
 pub(crate) fn check_signature_details(
     signature: &Signature,
-    date: UnixTime,
+    date: CheckUnixTime,
     profile: &Profile,
 ) -> Result<(), SignatureError> {
     // Check the used hash algorithm.

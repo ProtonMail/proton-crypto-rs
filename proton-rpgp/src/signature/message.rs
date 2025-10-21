@@ -5,10 +5,10 @@ use pgp::{
 };
 
 use crate::{
-    check_signature_details, types::UnixTime, AsPublicKeyRef, GenericKeyIdentifierList, KeyInfo,
-    MessageProcessingError, MessageSignatureError, Profile, PublicComponentKey,
+    check_signature_details, types::CheckUnixTime, AsPublicKeyRef, GenericKeyIdentifierList,
+    KeyInfo, MessageProcessingError, MessageSignatureError, Profile, PublicComponentKey,
     PublicKeySelectionExt, SignatureContextError, SignatureError, SignatureExt, SignatureUsage,
-    VerificationContext, LIB_ERROR_PREFIX,
+    UnixTime, VerificationContext, LIB_ERROR_PREFIX,
 };
 
 /// The result of verifying signature in an `OpenPGP` message.
@@ -131,7 +131,7 @@ pub(crate) struct VerifiedSignature {
 impl VerifiedSignature {
     /// Create a verified signature by verifying the signature with the given public keys.
     pub fn create_by_verifying(
-        date: UnixTime,
+        date: CheckUnixTime,
         signature: Signature,
         with_public_keys: &[impl AsPublicKeyRef],
         data_to_verify: VerificationInput<'_>,
@@ -196,7 +196,7 @@ impl VerifiedSignature {
                 .as_public_key()
                 .as_signed_public_key()
                 .verification_keys(
-                    signature_creation_time,
+                    signature_creation_time.into(),
                     signature.issuer_generic_identifier(),
                     SignatureUsage::Sign,
                     profile,
@@ -248,7 +248,7 @@ impl VerifiedSignature {
 
 /// Additional checks for signatures that are verified in a message.
 pub(crate) fn check_message_signature_details(
-    date: UnixTime,
+    date: CheckUnixTime,
     signature: &Signature,
     selected_key: &PublicComponentKey<'_>,
     context: Option<&VerificationContext>,
@@ -299,17 +299,6 @@ pub(crate) fn check_message_signature_details(
             SignatureContextError::CriticialContext(criticial_context),
         ));
     }
-
-    // Check key signatures details at the signature creation time.
-    let check_time = if date.checks_disabled() {
-        date
-    } else {
-        // Todo: This is dangerous with a 0 unix time. We should change it to optional. CRYPTO-291.
-        signature_creation_time
-    };
-    check_signature_details(selected_key.primary_self_certification, check_time, profile)?;
-    check_signature_details(selected_key.self_certification, check_time, profile)?;
-
     Ok(())
 }
 
@@ -318,7 +307,7 @@ pub(crate) trait MessageVerificationExt {
     /// Verifies the nested signatures of the message.
     fn verify_nested_to_verified_signatures(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         keys: &[impl AsPublicKeyRef],
         context: Option<&VerificationContext>,
         profile: &Profile,
@@ -329,7 +318,7 @@ impl MessageVerificationExt for Message<'_> {
     /// Verifies the nested signatures of the message.
     fn verify_nested_to_verified_signatures(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         keys: &[impl AsPublicKeyRef],
         context: Option<&VerificationContext>,
         profile: &Profile,

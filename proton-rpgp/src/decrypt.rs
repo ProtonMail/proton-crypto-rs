@@ -7,9 +7,9 @@ use pgp::{
 };
 
 use crate::{
-    armor, CloneablePasswords, DataEncoding, DecryptionError, ExternalDetachedSignature,
-    PrivateKey, Profile, PublicKey, SessionKey, UnixTime, VerificationContext, VerificationResult,
-    VerifiedData, Verifier, DEFAULT_PROFILE,
+    armor, CheckUnixTime, CloneablePasswords, DataEncoding, DecryptionError,
+    ExternalDetachedSignature, PrivateKey, Profile, PublicKey, SessionKey, VerificationContext,
+    VerificationResult, VerifiedData, Verifier, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -127,7 +127,7 @@ impl<'a> Decryptor<'a> {
     /// Set the date to verify the signature against.
     ///
     /// In default mode, the system clock is used.
-    pub fn at_date(mut self, date: UnixTime) -> Self {
+    pub fn at_date(mut self, date: CheckUnixTime) -> Self {
         self.verifier = self.verifier.at_date(date);
         self
     }
@@ -148,9 +148,9 @@ impl<'a> Decryptor<'a> {
     /// # Example
     ///
     /// ```
-    /// use proton_rpgp::{PrivateKey, Decryptor, DataEncoding, AsPublicKeyRef, UnixTime};
+    /// use proton_rpgp::{PrivateKey, Decryptor, DataEncoding, AsPublicKeyRef, CheckUnixTime};
     /// let message: &str = include_str!("../test-data/messages/encrypted_message_v4.asc");
-    /// let date = UnixTime::new(1_752_572_300);
+    /// let date = CheckUnixTime::new(1_752_572_300);
     ///
     /// let key = PrivateKey::import_unlocked(
     ///     include_str!("../test-data/keys/private_key_v4.asc").as_bytes(),

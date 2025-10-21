@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use proton_rpgp::{
-    pgp::crypto::sym::SymmetricKeyAlgorithm, DataEncoding as RustDataEncoding, Profile,
-    SessionKey as RustSessionKey, UnixTime as RustUnixTime, DEFAULT_PROFILE,
+    pgp::crypto::sym::SymmetricKeyAlgorithm, CheckUnixTime as RustCheckUnixTime,
+    DataEncoding as RustDataEncoding, Profile, SessionKey as RustSessionKey,
+    UnixTime as RustUnixTime, DEFAULT_PROFILE,
 };
 
 use crate::{
@@ -44,6 +45,22 @@ impl From<RustUnixTime> for UnixTimestamp {
 impl From<UnixTimestamp> for RustUnixTime {
     fn from(value: UnixTimestamp) -> Self {
         Self::new(value.0)
+    }
+}
+
+impl From<RustCheckUnixTime> for UnixTimestamp {
+    fn from(value: RustCheckUnixTime) -> Self {
+        Self(value.at().unwrap_or_default().unix_seconds())
+    }
+}
+
+impl From<UnixTimestamp> for RustCheckUnixTime {
+    fn from(value: UnixTimestamp) -> Self {
+        if value.is_zero() {
+            Self::disable()
+        } else {
+            Self::enable(value.into())
+        }
     }
 }
 

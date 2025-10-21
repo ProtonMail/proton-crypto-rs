@@ -18,10 +18,10 @@ use rand::{CryptoRng, Rng};
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError, ExternalDetachedSignature,
-    KeyValidationError, PrivateKey, Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt,
-    ResolvedDataEncoding, SessionKey, SignatureContext, Signer, SigningError, UnixTime,
-    DEFAULT_PROFILE,
+    CheckUnixTime, Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError,
+    ExternalDetachedSignature, KeyValidationError, PrivateKey, Profile, PublicComponentKey,
+    PublicKey, PublicKeySelectionExt, ResolvedDataEncoding, SessionKey, SignatureContext, Signer,
+    SigningError, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -156,7 +156,7 @@ impl<'a> Encryptor<'a> {
     }
 
     /// Sets the date to use for the signatures and keys selection.
-    pub fn at_date(mut self, date: UnixTime) -> Self {
+    pub fn at_date(mut self, date: CheckUnixTime) -> Self {
         self.signer = self.signer.at_date(date);
         self
     }

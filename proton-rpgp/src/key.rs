@@ -520,7 +520,7 @@ mod tests {
 
         let (primary_user_id, _) = public_key
             .as_signed_public_key()
-            .select_user_id_with_certification(time, &profile)
+            .select_user_id_with_certification(time.into(), &profile)
             .expect("Failed to select primary user id");
 
         assert_eq!(
@@ -541,7 +541,7 @@ mod tests {
 
         let (primary_user_id, _) = public_key
             .as_signed_public_key()
-            .select_user_id_with_certification(time, &profile)
+            .select_user_id_with_certification(time.into(), &profile)
             .expect("Failed to select primary user id");
 
         assert_eq!(
@@ -561,7 +561,7 @@ mod tests {
 
         let user_id_result = private_key
             .as_signed_public_key()
-            .select_user_id_with_certification(date, &profile);
+            .select_user_id_with_certification(date.into(), &profile);
 
         assert!(matches!(
             user_id_result,
@@ -581,13 +581,13 @@ mod tests {
 
         let check_result = public_key
             .as_signed_public_key()
-            .check_primary_key(not_expired, &profile);
+            .check_primary_key(not_expired.into(), &profile);
 
         assert!(check_result.is_ok());
 
         let check_result = public_key
             .as_signed_public_key()
-            .check_primary_key(expired, &profile);
+            .check_primary_key(expired.into(), &profile);
 
         assert!(matches!(
             check_result,
@@ -610,7 +610,7 @@ mod tests {
 
         let check_result = public_key
             .as_signed_public_key()
-            .check_primary_key(date, &profile);
+            .check_primary_key(date.into(), &profile);
 
         assert!(matches!(
             check_result,
@@ -630,7 +630,7 @@ mod tests {
 
         let selection_result = public_key
             .as_signed_public_key()
-            .encryption_key(expired, &profile);
+            .encryption_key(expired.into(), &profile);
 
         match selection_result {
             Err(KeyValidationError::NoEncryptionKey(_, selection_errors)) => {
@@ -657,7 +657,7 @@ mod tests {
 
         let selection_result = public_key
             .as_signed_public_key()
-            .encryption_key(date, &profile);
+            .encryption_key(date.into(), &profile);
 
         match selection_result {
             Err(KeyValidationError::KeySelfCertification(
@@ -684,7 +684,7 @@ mod tests {
 
         let selection_result = public_key
             .as_signed_public_key()
-            .encryption_key(date, &profile)
+            .encryption_key(date.into(), &profile)
             .expect("key selected");
 
         assert_eq!(
@@ -704,7 +704,7 @@ mod tests {
 
         let selection_result = private_key
             .secret
-            .signing_key(date, None, SignatureUsage::Sign, &profile)
+            .signing_key(date.into(), None, SignatureUsage::Sign, &profile)
             .expect("key selected");
         assert_eq!(
             selection_result.private_key.fingerprint().to_string(),
@@ -723,7 +723,7 @@ mod tests {
 
         let selection_result = public_key
             .as_signed_public_key()
-            .verification_keys(date, Vec::default(), SignatureUsage::Sign, &profile)
+            .verification_keys(date.into(), Vec::default(), SignatureUsage::Sign, &profile)
             .expect("key selected");
 
         let selected = selection_result.into_iter().next().unwrap();
@@ -744,7 +744,7 @@ mod tests {
 
         let selection_result = private_key
             .secret
-            .decryption_keys(date, None, &profile)
+            .decryption_keys(date.into(), None, &profile)
             .expect("key selected");
 
         let selected = selection_result.into_iter().next().unwrap();

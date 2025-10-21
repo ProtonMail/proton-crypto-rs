@@ -5,9 +5,9 @@ use pgp::{
 use sha2::Sha256;
 
 use crate::{
-    check_key_not_expired, AsPublicKeyRef, CertificationSelectionExt, FingerprintSha256,
-    GenericKeyIdentifier, Profile, PublicComponentKey, PublicKeySelectionExt, SignatureUsage,
-    UnixTime,
+    check_key_not_expired, AsPublicKeyRef, CertificationSelectionExt, CheckUnixTime,
+    FingerprintSha256, GenericKeyIdentifier, Profile, PublicComponentKey, PublicKeySelectionExt,
+    SignatureUsage,
 };
 
 /// A trait for types that can provide information about an `OpenPGP` key.
@@ -35,23 +35,23 @@ pub trait AccessKeyInfo {
     /// Checks if the key can encrypt at the given unixtime.
     ///
     /// Returns an error if no valid encryption key can be found.
-    fn check_can_encrypt(&self, profile: &Profile, date: UnixTime) -> crate::Result<()>;
+    fn check_can_encrypt(&self, profile: &Profile, date: CheckUnixTime) -> crate::Result<()>;
 
     /// Checks if any of the keys can be used for verification at the given date.
     ///
     /// Returns an error if no valid verification keys can be found.
-    fn check_can_verify(&self, profile: &Profile, date: UnixTime) -> crate::Result<()>;
+    fn check_can_verify(&self, profile: &Profile, date: CheckUnixTime) -> crate::Result<()>;
 
     /// Checks if the primary key is expired at the given date.
     ///
     /// Also returns `true` if no valid primary self-certification can be found.
-    fn is_expired(&self, profile: &Profile, date: UnixTime) -> bool;
+    fn is_expired(&self, profile: &Profile, date: CheckUnixTime) -> bool;
 
     /// Checks if the primary key is revoked at the given date.
     ///
     /// Note that third-party revocation signatures are not supported.
     /// Note also that Identity and Subkey revocation should be checked separately.
-    fn is_revoked(&self, profile: &Profile, date: UnixTime) -> bool;
+    fn is_revoked(&self, profile: &Profile, date: CheckUnixTime) -> bool;
 }
 
 // Implement the `KeyInfo` trait for types that can access a `PublicKey` reference.
@@ -123,7 +123,7 @@ impl<T: AsPublicKeyRef> AccessKeyInfo for T {
     /// Checks if the key can encrypt at the given unixtime.
     ///
     /// Returns an error if no valid encryption key can be found.
-    fn check_can_encrypt(&self, profile: &Profile, date: UnixTime) -> crate::Result<()> {
+    fn check_can_encrypt(&self, profile: &Profile, date: CheckUnixTime) -> crate::Result<()> {
         self.as_public_key()
             .as_signed_public_key()
             .encryption_key(date, profile)
@@ -134,7 +134,7 @@ impl<T: AsPublicKeyRef> AccessKeyInfo for T {
     /// Checks if any of the keys can be used for verification at the given date.
     ///
     /// Returns an error if no valid verification keys can be found.
-    fn check_can_verify(&self, profile: &Profile, date: UnixTime) -> crate::Result<()> {
+    fn check_can_verify(&self, profile: &Profile, date: CheckUnixTime) -> crate::Result<()> {
         self.as_public_key()
             .as_signed_public_key()
             .verification_keys(date, Vec::default(), SignatureUsage::Sign, profile)
@@ -145,7 +145,7 @@ impl<T: AsPublicKeyRef> AccessKeyInfo for T {
     /// Checks if the primary key is expired at the given date.
     ///
     /// Also retruns `true` if no valid primary self-certification can be found.
-    fn is_expired(&self, profile: &Profile, date: UnixTime) -> bool {
+    fn is_expired(&self, profile: &Profile, date: CheckUnixTime) -> bool {
         let pub_key_ref = self.as_public_key().as_signed_public_key();
         let Ok(self_signature) = pub_key_ref.primary_self_signature(date, profile) else {
             return true;
@@ -158,7 +158,7 @@ impl<T: AsPublicKeyRef> AccessKeyInfo for T {
     ///
     /// Note that third-party revocation signatures are not supported.
     /// Note also that Identity and Subkey revocation should be checked separately.
-    fn is_revoked(&self, profile: &Profile, date: UnixTime) -> bool {
+    fn is_revoked(&self, profile: &Profile, date: CheckUnixTime) -> bool {
         let pub_key_ref = self.as_public_key().as_signed_public_key();
         pub_key_ref.revoked(pub_key_ref.primary_key(), None, date, profile)
     }

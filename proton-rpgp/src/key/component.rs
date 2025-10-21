@@ -11,9 +11,9 @@ use pgp::{
 };
 
 use crate::{
-    core, signature::check_message_signature_details, MessageSignatureError, PkeskDecryptionError,
-    Profile, SignatureContext, SignatureError, SignatureMode, SigningError, UnixTime,
-    VerificationContext,
+    core, signature::check_message_signature_details, CheckUnixTime, MessageSignatureError,
+    PkeskDecryptionError, Profile, SignatureContext, SignatureError, SignatureMode, SigningError,
+    UnixTime, VerificationContext,
 };
 
 /// Represents a view on a selected public component key in an `OpenPGP` key.
@@ -52,7 +52,7 @@ impl<'a> PublicComponentKey<'a> {
     /// Verify a message signature using the public component key.
     pub fn verify_message_signature_with_data<R: Read>(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         signature: &Signature,
         data_to_verify: R,
         context: Option<&VerificationContext>,
@@ -66,7 +66,7 @@ impl<'a> PublicComponentKey<'a> {
 
     pub fn verify_message_signature_with_message(
         &self,
-        date: UnixTime,
+        date: CheckUnixTime,
         signature: &Signature,
         message: &Message<'_>,
         context: Option<&VerificationContext>,

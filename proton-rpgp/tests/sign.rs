@@ -17,13 +17,13 @@ pub fn sign_create_detached_signature_v4_binary() {
 
     let signature_bytes = Signer::default()
         .with_signing_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .sign_detached(input_data, DataEncoding::Armored)
         .expect("Failed to sign");
 
     let verification_result = Verifier::default()
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(input_data, &signature_bytes, DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
@@ -40,14 +40,14 @@ pub fn sign_create_detached_signature_v4_text() {
 
     let signature_bytes = Signer::default()
         .with_signing_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .as_utf8()
         .sign_detached(text.as_bytes(), DataEncoding::Armored)
         .expect("Failed to sign");
 
     let verification_result = Verifier::default()
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(text.as_bytes(), &signature_bytes, DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
@@ -68,20 +68,20 @@ pub fn sign_create_detached_signature_multi() {
     let signature_bytes = Signer::default()
         .with_signing_key(&key_v6)
         .with_signing_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .sign_detached(input_data, DataEncoding::Armored)
         .expect("Failed to sign");
 
     let verification_result = Verifier::default()
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(input_data, &signature_bytes, DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
 
     let verification_result = Verifier::default()
         .with_verification_key(key_v6.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(input_data, &signature_bytes, DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
@@ -99,13 +99,13 @@ pub fn sign_create_detached_signature_rsa_1023() {
 
     let signature_bytes = Signer::default()
         .with_signing_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .sign_detached(input_data, DataEncoding::Armored)
         .expect("Failed to sign");
 
     let verification_result = Verifier::default()
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(input_data, &signature_bytes, DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
@@ -124,7 +124,7 @@ pub fn sign_create_text_signature_with_non_utf8_data_should_fail() {
     let result = Signer::default()
         .with_signing_key(&key)
         .as_utf8()
-        .at_date(date)
+        .at_date(date.into())
         .sign_detached(input_data, DataEncoding::Armored);
 
     assert!(matches!(
@@ -135,7 +135,7 @@ pub fn sign_create_text_signature_with_non_utf8_data_should_fail() {
     // Binary mode should not fail.
     let result = Signer::default()
         .with_signing_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .sign_detached(input_data, DataEncoding::Armored);
 
     assert!(result.is_ok());
@@ -154,13 +154,13 @@ pub fn sign_create_detached_signature_v6_pqc() {
 
     let signature_bytes = Signer::default()
         .with_signing_key(&key)
-        .at_date(date)
+        .at_date(date.into())
         .sign_detached(input_data, DataEncoding::Armored)
         .expect("Failed to sign");
 
     let verification_result = Verifier::default()
         .with_verification_key(key.as_public_key())
-        .at_date(date)
+        .at_date(date.into())
         .verify_detached(input_data, &signature_bytes, DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
@@ -335,7 +335,7 @@ pub fn sign_check_signature_context() {
     let signature_critical = Signer::default()
         .with_signing_key(&key)
         .with_signature_context(SignatureContext::new("test".into(), true))
-        .at_date(date)
+        .at_date(date.into())
         .sign_detached(input_data, DataEncoding::Armored)
         .unwrap();
 
@@ -346,10 +346,11 @@ pub fn sign_check_signature_context() {
         if let Some(ctx) = ctx {
             verifier = verifier.with_verification_context(ctx);
         }
-        let result =
-            verifier
-                .at_date(date)
-                .verify_detached(input_data, signature, DataEncoding::Armored);
+        let result = verifier.at_date(date.into()).verify_detached(
+            input_data,
+            signature,
+            DataEncoding::Armored,
+        );
         if expect_ok {
             assert!(result.is_ok());
         } else {
@@ -399,7 +400,7 @@ pub fn sign_check_signature_context() {
     let signature_non_critical = Signer::default()
         .with_signing_key(&key)
         .with_signature_context(SignatureContext::new("test".into(), false))
-        .at_date(date)
+        .at_date(date.into())
         .sign_detached(input_data, DataEncoding::Armored)
         .unwrap();
 

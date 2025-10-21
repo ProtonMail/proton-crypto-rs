@@ -14,9 +14,9 @@ use crate::{
     signature::{
         VerificationError, VerificationResult, VerificationResultCreator, VerifiedSignature,
     },
-    DataEncoding, MessageProcessingError, MessageVerificationError, MessageVerificationExt,
-    Profile, PublicKey, ResolvedDataEncoding, UnixTime, VerificationContext, VerificationInput,
-    DEFAULT_PROFILE,
+    CheckUnixTime, DataEncoding, MessageProcessingError, MessageVerificationError,
+    MessageVerificationExt, Profile, PublicKey, ResolvedDataEncoding, VerificationContext,
+    VerificationInput, DEFAULT_PROFILE,
 };
 
 /// Verifier type to verify `OpenPGP` signatures.
@@ -29,7 +29,7 @@ pub struct Verifier<'a> {
     pub(crate) verification_keys: Vec<&'a PublicKey>,
 
     /// The date to verify the signature against.
-    pub(crate) date: UnixTime,
+    pub(crate) date: CheckUnixTime,
 
     /// Whether to sanitize the output plaintext from canonicalized line endings
     /// and check that the output is utf-8 encoded.
@@ -45,7 +45,7 @@ impl<'a> Verifier<'a> {
         Self {
             profile,
             verification_keys: Vec::new(),
-            date: UnixTime::now().unwrap_or_default(),
+            date: CheckUnixTime::enable_now(),
             verification_context: None,
             native_newlines_utf8: false,
         }
@@ -77,7 +77,7 @@ impl<'a> Verifier<'a> {
     /// Set the date to verify the signature against.
     ///
     /// In default mode, the system clock is used.
-    pub fn at_date(mut self, date: UnixTime) -> Self {
+    pub fn at_date(mut self, date: CheckUnixTime) -> Self {
         self.date = date;
         self
     }
@@ -100,11 +100,11 @@ impl<'a> Verifier<'a> {
     /// # Example
     ///
     /// ```
-    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, UnixTime};
+    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, CheckUnixTime};
     ///
     /// const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4.asc");
     /// const KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
-    /// let date = UnixTime::new(1_753_088_183);
+    /// let date = CheckUnixTime::new(1_753_088_183);
     ///
     /// let key = PublicKey::import(KEY.as_bytes(), DataEncoding::Armored)
     ///     .expect("Failed to import key");
@@ -139,13 +139,13 @@ impl<'a> Verifier<'a> {
     /// # Example
     ///
     /// ```
-    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, UnixTime};
+    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, CheckUnixTime};
     ///
     /// // Assume `public_key` is a valid PublicKey, and `signature` is a detached signature.
     /// let public_key = include_str!("../test-data/keys/public_key_v4.asc");
     /// let signature = include_str!("../test-data/signatures/signature_v4.asc");
     /// let data = b"hello world";
-    /// let date = UnixTime::now().unwrap();
+    /// let date = CheckUnixTime::enable_now();
     ///
     /// let public_key = PublicKey::import(public_key.as_bytes(), DataEncoding::Armored).unwrap();
     ///
@@ -202,7 +202,7 @@ impl<'a> Verifier<'a> {
     /// # Example
     ///
     /// ```
-    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding, UnixTime};
+    /// use proton_rpgp::{Verifier, PublicKey, DataEncoding};
     ///
     /// const INPUT_DATA: &str = include_str!("../test-data/messages/signed_cleartext_message_v4.asc");
     ///
