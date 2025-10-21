@@ -8,7 +8,7 @@ use crate::{
     check_signature_details, types::CheckUnixTime, AsPublicKeyRef, GenericKeyIdentifierList,
     KeyInfo, MessageProcessingError, MessageSignatureError, Profile, PublicComponentKey,
     PublicKeySelectionExt, SignatureContextError, SignatureError, SignatureExt, SignatureUsage,
-    UnixTime, VerificationContext, LIB_ERROR_PREFIX,
+    UnixTime, VerificationContext, FUTURE_SIGNATUTRE_ERROR_MESSAGE, LIB_ERROR_PREFIX,
 };
 
 /// The result of verifying signature in an `OpenPGP` message.
@@ -141,7 +141,7 @@ impl VerifiedSignature {
         // Select the verification keys from the list of public keys.
         // The keys are selected based on the signature issuer's key ID list.
         let verification_candidates =
-            match Self::select_verification_keys(&signature, with_public_keys, profile) {
+            match Self::select_verification_keys(&signature, with_public_keys, date, profile) {
                 Ok(candidates) => candidates,
                 Err(error) => {
                     return Self {
@@ -185,6 +185,7 @@ impl VerifiedSignature {
     fn select_verification_keys<'a>(
         signature: &Signature,
         public_keys: &'a [impl AsPublicKeyRef],
+        date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<Vec<PublicComponentKey<'a>>, MessageSignatureError> {
         let mut verification_candidates = Vec::new();
@@ -203,8 +204,27 @@ impl VerifiedSignature {
                 ) {
                 Ok(keys) => keys,
                 Err(error) => {
-                    key_selection_errors.push(error);
-                    continue;
+                    let result = if profile.allow_insecure_verification_with_reformatted_keys()
+                        && error.to_string().contains(FUTURE_SIGNATUTRE_ERROR_MESSAGE)
+                    {
+                        key.as_public_key()
+                            .as_signed_public_key()
+                            .verification_keys(
+                                date,
+                                signature.issuer_generic_identifier(),
+                                SignatureUsage::Sign,
+                                profile,
+                            )
+                    } else {
+                        Err(error)
+                    };
+                    match result {
+                        Ok(keys) => keys,
+                        Err(error) => {
+                            key_selection_errors.push(error);
+                            continue;
+                        }
+                    }
                 }
             };
             verification_candidates.extend(keys);

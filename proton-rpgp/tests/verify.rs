@@ -309,3 +309,45 @@ pub fn verify_inline_signed_cleartext_message_v4_escaped() {
     assert_eq!(verified_data.data, expected_data);
     assert!(verified_data.verification_result.is_ok());
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_inline_signed_message_v4_with_reformatted_key() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/signed_message_v4_reformatted_key.asc");
+    const REFORMATTED_KEY: &str = include_str!("../test-data/keys/private_key_v4_reformatted.asc");
+    let date = UnixTime::new(1_753_088_183);
+
+    let key = PrivateKey::import_unlocked(REFORMATTED_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let profile = Profile::new(
+        ProfileSettingsBuilder::new()
+            .allow_insecure_verification_with_reformatted_keys(true)
+            .build(),
+    );
+
+    let verified_data = Verifier::new(profile)
+        .with_verification_key(key.as_public_key())
+        .at_date(date.into())
+        .verify(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"plaintext");
+    assert!(verified_data.verification_result.is_ok());
+
+    let profile = Profile::new(
+        ProfileSettingsBuilder::new()
+            .allow_insecure_verification_with_reformatted_keys(false)
+            .build(),
+    );
+
+    let verified_data = Verifier::new(profile)
+        .with_verification_key(key.as_public_key())
+        .at_date(date.into())
+        .verify(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"plaintext");
+    assert!(verified_data.verification_result.is_err());
+}

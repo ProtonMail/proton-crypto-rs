@@ -139,6 +139,11 @@ impl Profile {
             .message_encryption_s2k_params
             .generate_s2k_params(self.rng())
     }
+
+    pub fn allow_insecure_verification_with_reformatted_keys(&self) -> bool {
+        self.settings
+            .allow_insecure_verification_with_reformatted_keys
+    }
 }
 
 impl Default for Profile {

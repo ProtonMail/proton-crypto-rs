@@ -15,6 +15,8 @@ use crate::{
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) const LIB_ERROR_PREFIX: &str = "Proton-rPGP";
+pub(crate) const FUTURE_SIGNATUTRE_ERROR_MESSAGE: &str =
+    "Signature has a creation time in the future";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -90,7 +92,7 @@ pub enum SignatureError {
     #[error("Failed to access signature config")]
     ConfigAccess,
 
-    #[error("Signature has a creation time in the future: {0}")]
+    #[error("{FUTURE_SIGNATUTRE_ERROR_MESSAGE}: {0}")]
     FutureSignature(UnixTime),
 
     #[error("Signature is expired at unix time {date}, signature creation {creation}, expiration: {expiration}")]

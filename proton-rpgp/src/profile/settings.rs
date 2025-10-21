@@ -127,6 +127,13 @@ pub struct ProfileSettings {
 
     /// If true, ignore key flags in key usage checks.
     pub ignore_key_flags: bool,
+
+    /// Allow verification of message signatures with keys whose validity at the time of signing cannot be determined.
+    ///
+    /// Instead, a verification key will also be considered valid as long as it is valid at the current time.
+    /// This setting is potentially insecure, but it is needed to verify messages signed with keys that were later reformatted,
+    /// and have self-signature's creation date that does not match the primary key creation date.
+    pub allow_insecure_verification_with_reformatted_keys: bool,
 }
 
 impl Default for ProfileSettings {
@@ -167,6 +174,7 @@ impl Default for ProfileSettings {
             max_recursion_depth: 8,
             ignore_key_flags: false,
             known_notation_names: HashSet::from([PROTON_CONTEXT_NOTATION_NAME.to_string()]),
+            allow_insecure_verification_with_reformatted_keys: true,
         }
     }
 }
@@ -351,6 +359,16 @@ impl ProfileSettingsBuilder {
     /// If true, key flags will be ignored when verifying signatures.
     pub fn ignore_key_flags(mut self, ignore: bool) -> Self {
         self.settings.ignore_key_flags = ignore;
+        self
+    }
+
+    /// Sets whether to allow insecure verification with reformatted keys.
+    ///
+    /// If true, verification will allow keys whose validity at the time of signing cannot be determined,
+    /// which is needed for some reformatted or migrated keys but may be less secure.
+    pub fn allow_insecure_verification_with_reformatted_keys(mut self, allow: bool) -> Self {
+        self.settings
+            .allow_insecure_verification_with_reformatted_keys = allow;
         self
     }
 
