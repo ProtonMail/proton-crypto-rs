@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2024-00-00
 
+### Fixed
+
+- use the `web-time` crate to support time usage under WebAssembly environments
+
 ## 0.7.1 2025-09-02
 
 ### Changed

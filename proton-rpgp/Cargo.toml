@@ -19,6 +19,7 @@ hex = "0.4"
 zeroize = { version="1.8", features = ["zeroize_derive"]}
 smallvec = "1.10.0"
 kem = "=0.3.0-pre.0" # pinned to avoid automatic update in downstream project. 
+web-time = { workspace = true }
 
 [features]
 default = []

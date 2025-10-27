@@ -54,6 +54,7 @@ sha2 = "0.10.9"
 thiserror = "1"
 zeroize = { version="1.7.0", features = ["zeroize_derive"]}
 serde = { version="1", features = ["derive"]}
+web-time = "1.1.0"
 
 # --- Workspace crates ---
 [workspace.dependencies.gopenpgp-sys]

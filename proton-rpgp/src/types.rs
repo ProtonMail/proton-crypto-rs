@@ -2,7 +2,6 @@ use std::{
     borrow::Cow,
     fmt::{self, Display},
     ops::Deref,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use chrono::{DateTime, Utc};
@@ -10,6 +9,7 @@ use pgp::{
     packet::KeyFlags,
     types::{Fingerprint, KeyId, Password},
 };
+use web_time::{SystemTime, UNIX_EPOCH};
 
 use crate::{armor, FingerprintError};
 

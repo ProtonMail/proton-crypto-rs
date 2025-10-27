@@ -20,8 +20,8 @@ use std::{
     fmt::{Display, Formatter},
     io,
     sync::OnceLock,
-    time::SystemTime,
 };
+use web_time::SystemTime;
 
 /// An generic error thrown by the crypto APIs.
 #[derive(Clone, Debug)]
