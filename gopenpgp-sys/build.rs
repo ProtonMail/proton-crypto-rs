@@ -45,49 +45,24 @@ enum Platform {
 }
 
 impl Platform {
-    fn from_env() -> Platform {
-        let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
-        let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    fn from_env() -> Self {
+        let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+        let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
         let target = env::var("TARGET").unwrap();
 
-        if target_os == "android" {
-            if target_arch == "x86_64" {
-                return Platform::Android(CPUArch::X86_64);
-            } else if target_arch == "aarch64" {
-                return Platform::Android(CPUArch::Aarch64);
-            } else if target_arch == "arm" {
-                return Platform::Android(CPUArch::Arm);
-            } else if target_arch == "x86" {
-                return Platform::Android(CPUArch::X86);
-            } else {
-                panic!("unsupported android architecture: {target_arch}")
-            }
-        } else if target_os == "ios" {
-            if target_arch == "x86_64" {
-                return Platform::Ios(IosTarget::Simulator);
-            }
-
-            return if target.ends_with("-sim") {
-                Platform::Ios(IosTarget::SimulatorArm)
-            } else {
-                Platform::Ios(IosTarget::Device)
-            };
-        } else if target_os == "windows" {
-            return if target_arch == "x86_64" {
-                Platform::Windows(CPUArch::X86_64)
-            } else if target_arch == "x86" {
-                Platform::Windows(CPUArch::X86)
-            } else {
-                panic!("unsupported architecture: {target_arch}")
-            };
-        }
-
-        if target_arch == "x86_64" {
-            Platform::Unix(CPUArch::X86_64)
-        } else if target_arch == "aarch64" || target_arch == "arm64" {
-            Platform::Unix(CPUArch::Aarch64)
-        } else {
-            panic!("unsupported architecture: {target_arch}")
+        match (os.as_str(), arch.as_str()) {
+            ("android", "x86_64") => Self::Android(CPUArch::X86_64),
+            ("android", "aarch64") => Self::Android(CPUArch::Aarch64),
+            ("android", "arm") => Self::Android(CPUArch::Arm),
+            ("android", "x86") => Self::Android(CPUArch::X86),
+            ("ios", "x86_64") => Self::Ios(IosTarget::Simulator),
+            ("ios", "aarch64" | "arm64") if target.is_sim() => Self::Ios(IosTarget::SimulatorArm),
+            ("ios", "aarch64" | "arm64") => Self::Ios(IosTarget::Device),
+            ("windows", "x86_64") => Self::Windows(CPUArch::X86_64),
+            ("windows", "x86") => Self::Windows(CPUArch::X86),
+            ("macos" | "linux", "x86_64") => Self::Unix(CPUArch::X86_64),
+            ("macos" | "linux", "aarch64" | "arm64") => Self::Unix(CPUArch::Aarch64),
+            (os, arch) => panic!("unsupported architecture: {os}/{arch}"),
         }
     }
 }
@@ -543,4 +518,14 @@ fn get_ios_clang_path(target: IosTarget) -> String {
     }
 
     String::from_utf8(output.stdout).unwrap().replace('\n', "")
+}
+
+trait TargetExt {
+    fn is_sim(&self) -> bool;
+}
+
+impl<T: AsRef<str>> TargetExt for T {
+    fn is_sim(&self) -> bool {
+        self.as_ref().ends_with("-sim")
+    }
 }
