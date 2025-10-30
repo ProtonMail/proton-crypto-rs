@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Cursor},
+    io::{self},
     marker::PhantomData,
 };
 
@@ -11,7 +11,7 @@ use crate::{
         VerificationInformation, VerificationResult, VerifiedData, VerifiedDataReader, Verifier,
         VerifierAsync, VerifierSync,
     },
-    rust::pgp::{RustPublicKey, INIT_BUFFER_SIZE},
+    rust::pgp::RustPublicKey,
     CryptoInfoError, UnixTimestamp,
 };
 
@@ -102,21 +102,28 @@ fn transform_verification_result(result: proton_rpgp::VerificationResult) -> Ver
 
 /// Currently mocks the streaming API by buffering data in memory.
 pub struct RustVerifiedDataReader<'a, T: io::Read + 'a> {
-    pub(super) _verifier: Option<RustVerifier<'a>>,
-    pub(super) result: Cursor<Vec<u8>>,
-    pub(super) verification_result: VerificationResult,
-    pub(super) _marker: PhantomData<T>,
+    pub(super) reader: proton_rpgp::VerifyingReader<'a>,
+    pub(super) source: PhantomData<T>,
+}
+
+impl<'a, T: io::Read + 'a> RustVerifiedDataReader<'a, T> {
+    pub fn new(reader: proton_rpgp::VerifyingReader<'a>) -> Self {
+        Self {
+            reader,
+            source: PhantomData,
+        }
+    }
 }
 
 impl<'a, T: io::Read + 'a> io::Read for RustVerifiedDataReader<'a, T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.result.read(buf)
+        self.reader.read(buf)
     }
 }
 
 impl<'a, T: io::Read + 'a> VerifiedDataReader<'a, T> for RustVerifiedDataReader<'a, T> {
     fn verification_result(self) -> VerificationResult {
-        self.verification_result
+        transform_verification_result(self.reader.verification_result())
     }
 }
 
@@ -259,16 +266,18 @@ impl<'a> VerifierSync<'a> for RustVerifier<'a> {
 
     fn verify_detached_stream<T: io::Read + 'a>(
         self,
-        mut data: T,
+        data: T,
         signature: impl AsRef<[u8]>,
         signature_encoding: DataEncoding,
     ) -> VerificationResult {
-        // No streaming support yet, buffering data in memory.
-        let mut buffer = Vec::with_capacity(INIT_BUFFER_SIZE);
-        if let Err(io_error) = data.read_to_end(&mut buffer) {
-            return VerificationResult::Err(VerificationError::RuntimeError(io_error.into()));
-        }
-        self.verify_detached(buffer, signature, signature_encoding)
+        let mut reader = self
+            .inner
+            .verify_detached_stream(data, signature, signature_encoding.into())
+            .map_err(|err| VerificationError::RuntimeError(err.into()))?;
+        reader
+            .discard_all_data()
+            .map_err(|err| VerificationError::RuntimeError(err.into()))?;
+        transform_verification_result(reader.verification_result())
     }
 }
 

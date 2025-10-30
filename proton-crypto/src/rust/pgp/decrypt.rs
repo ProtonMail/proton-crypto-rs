@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
-    io::{self, Cursor},
-    marker::PhantomData,
+    io::{self},
 };
 
 use proton_rpgp::{
@@ -12,11 +11,11 @@ use proton_rpgp::{
 use crate::{
     crypto::{
         AsPublicKeyRef, DataEncoding, Decryptor, DecryptorAsync, DecryptorSync,
-        DetachedSignatureVariant, UnixTimestamp, VerifiedData,
+        DetachedSignatureVariant, UnixTimestamp,
     },
     rust::pgp::{
         RustPrivateKey, RustPublicKey, RustVerificationContext, RustVerifiedData,
-        RustVerifiedDataReader, INIT_BUFFER_SIZE,
+        RustVerifiedDataReader,
     },
 };
 
@@ -169,22 +168,15 @@ impl<'a> DecryptorSync<'a> for RustDecryptor<'a> {
             .map_err(Into::into)
     }
 
-    fn decrypt_stream<T: io::Read + 'a>(
+    fn decrypt_stream<T: io::Read + Send + 'a>(
         self,
-        mut data: T,
+        data: T,
         data_encoding: DataEncoding,
     ) -> crate::Result<Self::VerifiedDataReader<'a, T>> {
-        // Currently mocks the streaming API by buffering data in memory.
-        let mut buffer = Vec::with_capacity(INIT_BUFFER_SIZE);
-        data.read_to_end(&mut buffer)?;
-        let decryption_result = self.decrypt(buffer, data_encoding)?;
-        let verification_result = decryption_result.verification_result();
-        Ok(RustVerifiedDataReader {
-            _verifier: None,
-            result: Cursor::new(decryption_result.into_vec()),
-            verification_result,
-            _marker: PhantomData,
-        })
+        self.inner
+            .decrypt_stream(data, data_encoding.into())
+            .map(RustVerifiedDataReader::new)
+            .map_err(Into::into)
     }
 }
 

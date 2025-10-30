@@ -125,7 +125,7 @@ impl<'a> DecryptorSync<'a> for GoDecryptor<'a> {
         decrypt_session_key(self.0, key_packets)
     }
 
-    fn decrypt_stream<T: io::Read + 'a>(
+    fn decrypt_stream<T: io::Read + Send + 'a>(
         self,
         data: T,
         data_encoding: DataEncoding,

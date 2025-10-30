@@ -6,7 +6,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[cfg(feature = "gopgp")]
 mod go;
 
-#[cfg(feature = "rustpgp")]
 mod rust;
 
 pub mod crypto;

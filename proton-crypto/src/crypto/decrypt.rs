@@ -163,7 +163,7 @@ pub trait DecryptorSync<'a>: Decryptor<'a> {
     /// Once all data is read, the signature verification result can be accessed via the dedicated method on `VerifiedDataReader`.
     /// The encoding indicates if the input message should be unarmored or not, i.e., Bytes/Armor/Auto
     /// where Auto tries to detect automatically.
-    fn decrypt_stream<T: io::Read + 'a>(
+    fn decrypt_stream<T: io::Read + Send + 'a>(
         self,
         data: T,
         data_encoding: DataEncoding,
