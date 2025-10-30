@@ -121,7 +121,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<PublicComponentKey<'_>, KeyValidationError> {
-        // Disable time checks on the key if he profile enables encryption with future/expired keys.
+        // Disable time checks on the key if the profile enables encryption with future/expired keys.
         let encryption_date = if profile.allow_encryption_with_future_or_expired_keys() {
             CheckUnixTime::disable()
         } else {
