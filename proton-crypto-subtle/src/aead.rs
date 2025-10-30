@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 //! Implements Proton standard AES-GCM-256 encryption and decryption.
 //!
 //! This module provides a simple interface for encrypting and decrypting data using AES-GCM-256.
