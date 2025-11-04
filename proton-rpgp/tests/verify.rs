@@ -331,7 +331,7 @@ pub fn verify_inline_signed_message_v4_with_reformatted_key() {
         .with_verification_key(key.as_public_key())
         .at_date(date.into())
         .verify(INPUT_DATA, DataEncoding::Armored)
-        .expect("Failed to decrypt");
+        .expect("Failed to verify");
 
     assert_eq!(verified_data.data, b"plaintext");
     assert!(verified_data.verification_result.is_ok());
@@ -346,7 +346,7 @@ pub fn verify_inline_signed_message_v4_with_reformatted_key() {
         .with_verification_key(key.as_public_key())
         .at_date(date.into())
         .verify(INPUT_DATA, DataEncoding::Armored)
-        .expect("Failed to decrypt");
+        .expect("Failed to verify");
 
     assert_eq!(verified_data.data, b"plaintext");
     assert!(verified_data.verification_result.is_err());
