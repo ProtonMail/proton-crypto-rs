@@ -1,4 +1,8 @@
-use std::{cell::RefCell, io::Read, rc::Rc};
+use std::{
+    cell::RefCell,
+    io::{self, Read},
+    rc::Rc,
+};
 
 use nom::Input;
 use pgp::{line_writer::LineBreak, normalize_lines::NormalizedReader};
@@ -135,7 +139,91 @@ impl<R: Read> ReferencedReader<R> {
 }
 
 impl<R: Read> Read for ReferencedReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.borrow_mut().read(buf)
+    }
+}
+
+/// Wrapping reader that checks that the input data is valid UTF-8.
+///
+/// Non-UTF-8 data in the input stream is rejected with an `io::Error`.
+/// COPIED FROM rPGP
+pub(crate) struct Utf8CheckReader<R>
+where
+    R: Read,
+{
+    source: R,
+
+    // Overhang bytes from the last read, if any.
+    // If this is `Some`, it contains bytes that we'll prepend and check with the next read.
+    rest: Option<Vec<u8>>,
+}
+
+impl<R: Read> Utf8CheckReader<R> {
+    pub(crate) fn new(source: R) -> Self {
+        Self { source, rest: None }
+    }
+
+    pub(crate) fn into_inner(self) -> R {
+        self.source
+    }
+}
+
+impl<R: Read> Read for Utf8CheckReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        // Checks if `data` contains valid utf-8 and returns up to 3 bytes of overhang, which
+        // might add up to a valid codepoint with more data in the following read.
+        // Errors if `data` is definitely not UTF-8.
+        fn check_utf8(data: &[u8]) -> Result<Option<Vec<u8>>, io::Error> {
+            match std::str::from_utf8(data) {
+                Ok(_) => Ok(None),
+                Err(err) => {
+                    let valid_up_to = err.valid_up_to();
+
+                    // handle the remaining data, which may be a fragment of UTF-8 that will be
+                    // completed in the next read
+                    let rest = &data[valid_up_to..];
+
+                    match rest.len() {
+                        0 => Ok(None),
+                        1..=3 => Ok(Some(Vec::from(rest))),
+
+                        // 3 bytes is the longest possibly legal intermediate fragment of UTF-8 data.
+                        // If `rest` is longer, then the data is definitely not valid UTF-8.
+                        4.. => Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "Invalid UTF-8 data",
+                        )),
+                    }
+                }
+            }
+        }
+
+        let len = self.source.read(buf)?;
+
+        if len == 0 {
+            // We reached the end of the input stream
+
+            // If the UTF-8 parsing seems to be stuck mid-codepoint, we error
+            if self.rest.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Invalid UTF-8 data",
+                ));
+            }
+
+            return Ok(0);
+        }
+
+        self.rest = if let Some(mut check) = self.rest.take() {
+            // check overhang from last read + the new data from this read
+            check.extend_from_slice(&buf[..len]);
+            check_utf8(&check)?
+        } else {
+            // we have no overhang from the last read, just check the data from this read
+            check_utf8(&buf[..len])?
+        };
+
+        Ok(len)
     }
 }

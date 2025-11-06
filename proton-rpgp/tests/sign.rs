@@ -31,6 +31,35 @@ pub fn sign_create_detached_signature_v4_binary() {
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
+pub fn sign_create_detached_signature_v4_binary_stream() {
+    let date = UnixTime::new(1_752_476_259);
+    let input_data = b"hello world";
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut signature_gen = Signer::default()
+        .with_signing_key(&key)
+        .at_date(date.into())
+        .sign_detached_stream(&input_data[..], DataEncoding::Armored)
+        .expect("Failed to sign");
+
+    signature_gen
+        .discard_all_data()
+        .expect("Failed to discard data");
+
+    let signature_bytes = signature_gen.finalize().expect("Failed to finalize");
+
+    let verification_result = Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .at_date(date.into())
+        .verify_detached(input_data, &signature_bytes, DataEncoding::Armored);
+
+    assert!(verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
 pub fn sign_create_detached_signature_v4_text() {
     let date = UnixTime::new(1_752_476_259);
     let text = "hello world\n sdf    \n   ";
@@ -200,6 +229,29 @@ pub fn sign_verify_inline_message_v4() {
         result.verification_result,
         Err(VerificationError::NoVerifier(_, _))
     ));
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn sign_verify_inline_message_v4_stream() {
+    let input_data = b"hello world";
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let mut dest = Vec::new();
+    Signer::default()
+        .with_signing_key(&key)
+        .sign_stream(&input_data[..], DataEncoding::Armored, &mut dest)
+        .expect("Failed to sign");
+
+    let verified_data = Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .verify(&dest, DataEncoding::Armored)
+        .expect("Failed to verify");
+
+    assert_eq!(verified_data.data, input_data);
+    assert!(verified_data.verification_result.is_ok());
 }
 
 #[test]

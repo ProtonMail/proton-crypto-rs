@@ -395,6 +395,9 @@ pub enum SigningError {
 
     #[error("Unexpected error: {0}")]
     Unexpected(Box<Error>),
+
+    #[error("Cannot sign data: not all data has been read")]
+    NotAllDataRead,
 }
 
 #[derive(Debug, thiserror::Error)]

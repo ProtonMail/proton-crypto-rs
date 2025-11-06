@@ -3,7 +3,7 @@ use std::io::Read;
 use pgp::{
     composed::{Message, PlainSessionKey},
     crypto::{ecc_curve::ECCCurve, hash::HashAlgorithm, public_key::PublicKeyAlgorithm},
-    packet::{self, PublicKeyEncryptedSessionKey, Signature},
+    packet::{self, PublicKeyEncryptedSessionKey, Signature, SignatureHasher},
     types::{
         Fingerprint, KeyDetails, KeyId, KeyVersion, Password, PkeskVersion, PublicKeyTrait,
         PublicParams, SecretKeyTrait, SecretParams,
@@ -123,7 +123,7 @@ impl<'a> PublicComponentKey<'a> {
 ///
 /// Since an `OpenPGP` key can contain multiple actual keys, an operation must
 /// select one. A secret component key represents such a selected key.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct PrivateComponentKey<'a> {
     /// The secret key part of the component key (either a primary or subkey).
     ///
@@ -194,6 +194,26 @@ impl<'a> PrivateComponentKey<'a> {
             PublicParams::ECDH(params) if params.curve() == ECCCurve::Curve25519
         );
         key_check && curve_check && has_forward_flag
+    }
+
+    pub(crate) fn sign_for_reader(
+        &self,
+        at_date: UnixTime,
+        signature_mode: SignatureMode,
+        hash_algorithm: HashAlgorithm,
+        signature_context: Option<&SignatureContext>,
+        profile: &Profile,
+    ) -> Result<SignatureHasher, SigningError> {
+        core::configure_message_signature(
+            &self.private_key,
+            at_date,
+            signature_mode,
+            hash_algorithm,
+            signature_context,
+            profile.rng(),
+        )?
+        .into_hasher()
+        .map_err(SigningError::Sign)
     }
 }
 

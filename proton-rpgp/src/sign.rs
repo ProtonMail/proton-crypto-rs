@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    io::{self, Read},
+    io::{Read, Write},
 };
 
 use pgp::{
@@ -22,8 +22,11 @@ use crate::{
     preferences::{self, RecipientsAlgorithms},
     CheckUnixTime, DataEncoding, KeyValidationError, PrivateComponentKey, PrivateKey,
     PrivateKeySelectionExt, Profile, ResolvedDataEncoding, SignatureContext, SignatureMode,
-    SignatureUsage, SigningError, UnixTime, DEFAULT_PROFILE,
+    SignatureUsage, SigningError, UnixTime, Utf8CheckReader, DEFAULT_PROFILE,
 };
+
+mod reader;
+pub use reader::*;
 
 /// A signer that can create `OpenPGP` signatures over data.
 #[derive(Debug, Clone)]
@@ -119,30 +122,41 @@ impl<'a> Signer<'a> {
     ) -> crate::Result<Vec<u8>> {
         let mut utf8_buffer = String::new();
         let message_data_ref = self.handle_data_mode(data.as_ref(), &mut utf8_buffer)?;
-        let mut message_builder = MessageBuilder::from_reader("", message_data_ref);
 
-        let signing_keys = self
-            .select_signing_keys()
-            .map_err(SigningError::KeySelection)?;
-
-        // Compression is determined by the profile.
-        if self.profile.message_compression() != CompressionAlgorithm::Uncompressed {
-            message_builder.compression(self.profile.message_compression());
-        }
-
-        let signed_builder = self.sign_message(message_builder, &signing_keys, None)?;
-
+        let message_builder = MessageBuilder::from_reader("", message_data_ref);
         let mut buffer = Vec::new();
-        let rng = self.profile.rng();
-        to_writer(
-            &signing_keys,
-            signed_builder,
-            message_encoding.resolve_for_write(),
-            rng,
-            &mut buffer,
-        )?;
-
+        self.sign_and_write(message_builder, message_encoding, &mut buffer)?;
         Ok(buffer)
+    }
+
+    /// Reads data from source and writes an inline-signed `OpenPGP` message to dest.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use proton_rpgp::{Signer, DataEncoding, UnixTime, PrivateKey};
+    ///
+    /// let key = PrivateKey::import_unlocked(include_bytes!("../test-data/keys/private_key_v4.asc"), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    /// let mut buffer = Vec::new();
+    /// let message = Signer::default()
+    ///     .with_signing_key(&key)
+    ///     .sign_stream(&b"hello world"[..], DataEncoding::Armored, &mut buffer)
+    ///     .expect("Failed to sign");
+    /// ```
+    pub fn sign_stream<R, W>(
+        self,
+        source: R,
+        message_encoding: DataEncoding,
+        mut dest: W,
+    ) -> crate::Result<()>
+    where
+        R: Read,
+        W: Write,
+    {
+        let message_data_ref = self.handle_data_mode_reader(source);
+        let message_builder = MessageBuilder::from_reader("", message_data_ref);
+        self.sign_and_write(message_builder, message_encoding, &mut dest)
     }
 
     /// Signs the given data and returns the signature.
@@ -203,6 +217,20 @@ impl<'a> Signer<'a> {
         )?;
 
         Ok(signature_bytes)
+    }
+
+    pub fn sign_detached_stream<R: Read + 'a>(
+        self,
+        data: R,
+        signature_encoding: DataEncoding,
+    ) -> crate::Result<DetachedSignatureGenerator<'a>> {
+        let inner = self.sign_detached_inner_stream(data)?;
+
+        Ok(DetachedSignatureGenerator::new(
+            self,
+            inner,
+            signature_encoding,
+        ))
     }
 
     /// Creates a cleartext signed message.
@@ -287,6 +315,37 @@ impl<'a> Signer<'a> {
         Ok(cleartext_bytes)
     }
 
+    fn sign_and_write<W>(
+        &self,
+        mut message_builder: MessageBuilder<impl Read>,
+        message_encoding: DataEncoding,
+        dest: &mut W,
+    ) -> crate::Result<()>
+    where
+        W: Write,
+    {
+        let signing_keys = self
+            .select_signing_keys()
+            .map_err(SigningError::KeySelection)?;
+
+        // Compression is determined by the profile.
+        if self.profile.message_compression() != CompressionAlgorithm::Uncompressed {
+            message_builder.compression(self.profile.message_compression());
+        }
+
+        let signed_builder = self.sign_message(message_builder, &signing_keys, None)?;
+        let rng = self.profile.rng();
+
+        to_writer(
+            &signing_keys,
+            signed_builder,
+            message_encoding.resolve_for_write(),
+            rng,
+            dest,
+        )?;
+        Ok(())
+    }
+
     pub(crate) fn check_input_data(&self, data: &[u8]) -> Result<(), SigningError> {
         match self.signature_type {
             SignatureMode::Text => std::str::from_utf8(data)
@@ -311,6 +370,16 @@ impl<'a> Signer<'a> {
         }
     }
 
+    pub(crate) fn handle_data_mode_reader<'b, R: Read + 'b>(&self, data: R) -> Box<dyn Read + 'b> {
+        match self.data_mode {
+            DataMode::Utf8 => Box::new(NormalizedReader::new(
+                Utf8CheckReader::new(data),
+                LineBreak::Crlf,
+            )),
+            _ => Box::new(data),
+        }
+    }
+
     pub(crate) fn select_signing_keys(
         &self,
     ) -> Result<Vec<PrivateComponentKey<'_>>, KeyValidationError> {
@@ -321,6 +390,42 @@ impl<'a> Signer<'a> {
                     .signing_key(self.date, None, SignatureUsage::Sign, &self.profile)
             })
             .collect()
+    }
+
+    pub(crate) fn sign_detached_inner_stream<R: Read + 'a>(
+        &self,
+        data: R,
+    ) -> crate::Result<InnerDetachedHashingReader<'a>> {
+        let signing_keys = self
+            .select_signing_keys()
+            .map_err(SigningError::KeySelection)?;
+
+        // Determine which hash algorithm to use for each key.
+        let hash_algorithms = preferences::select_hash_algorithm_from_keys(
+            self.profile.message_hash_algorithm(),
+            &signing_keys,
+            None,
+            &self.profile,
+        );
+
+        let keys_and_hashers: Result<Vec<_>, SigningError> = signing_keys
+            .into_iter()
+            .zip(hash_algorithms)
+            .map(|(signing_key, hash_algorithm)| {
+                signing_key.sign_for_reader(
+                    self.signature_creation_time(),
+                    self.signature_type,
+                    hash_algorithm,
+                    self.signature_context.as_deref(),
+                    &self.profile,
+                )
+            })
+            .collect();
+
+        Ok(InnerDetachedHashingReader::new(
+            Box::new(data),
+            keys_and_hashers?,
+        ))
     }
 
     /// Prepares the message builder to sign the message with the given signing keys.
@@ -428,7 +533,7 @@ fn to_writer<'a, RAND, W, R, E>(
 ) -> Result<(), SigningError>
 where
     RAND: Rng + CryptoRng,
-    W: io::Write,
+    W: Write,
     R: Read,
     E: Encryption,
 {

@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    io::{self, Read},
+    io::{Read, Write},
     mem,
 };
 
@@ -19,9 +19,9 @@ use rand::{CryptoRng, Rng};
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
     CheckUnixTime, Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError,
-    ExternalDetachedSignature, KeyValidationError, PrivateKey, Profile, PublicComponentKey,
-    PublicKey, PublicKeySelectionExt, ResolvedDataEncoding, SessionKey, SignatureContext, Signer,
-    SigningError, DEFAULT_PROFILE,
+    ExternalDetachedSignature, ExternalHashTracker, KeyValidationError, PrivateKey, Profile,
+    PublicComponentKey, PublicKey, PublicKeySelectionExt, ResolvedDataEncoding, SessionKey,
+    SignatureContext, Signer, SigningError, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -189,18 +189,112 @@ impl<'a> Encryptor<'a> {
     ///     .encrypt(b"Hello world!")
     ///     .expect("Failed to encrypt");
     /// ```
-    pub fn encrypt(mut self, data: &'a [u8]) -> crate::Result<EncryptedMessage> {
+    pub fn encrypt(mut self, data: &[u8]) -> crate::Result<EncryptedMessage> {
         let detached_signature = self.handle_detached_signature_operation(data)?;
 
-        let mut message = self
-            .write_and_signcrypt(data, DataEncoding::Unarmored, true)
-            .map(|(encrypted_data, revealed_session_key)| {
-                EncryptedMessage::new(encrypted_data, revealed_session_key)
-            })?;
+        let mut utf8_buffer = String::new();
+        let message_data_ref = self
+            .signer
+            .handle_data_mode(data.as_ref(), &mut utf8_buffer)?;
 
-        message.detached_signature = detached_signature;
+        let mut output = Vec::new();
+        let revealed_session_key =
+            self.write_and_signcrypt(message_data_ref, DataEncoding::Unarmored, true, &mut output)?;
+
+        let mut message = EncryptedMessage::new(output, revealed_session_key);
+        message.info.detached_signature = detached_signature;
 
         Ok(message)
+    }
+
+    /// Encrypts and optionally signs the given data and writes an `OpenPGP` message type.
+    ///
+    /// Reads all data from the source and writes the encrypted message to the destination.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use proton_rpgp::{AsPublicKeyRef, DataEncoding, Decryptor, Encryptor, PrivateKey};
+    ///
+    /// let key = PrivateKey::import_unlocked(include_bytes!("../test-data/keys/private_key_v4.asc"), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    ///
+    /// let mut buffer = Vec::new();
+    /// let encrypted_message = Encryptor::default()
+    ///     .with_encryption_key(key.as_public_key())
+    ///     .with_signing_key(&key)
+    ///     .encrypt_stream(&b"Hello world!"[..], DataEncoding::Armored, &mut buffer)
+    ///     .expect("Failed to encrypt");
+    /// ```
+    pub fn encrypt_stream<R: Read, W: Write>(
+        mut self,
+        source: R,
+        data_encoding: DataEncoding,
+        dest: W,
+    ) -> crate::Result<EncryptedMessageInfo> {
+        let (detached_signature_handle, input_source) =
+            self.handle_detached_signature_hash_stream(source)?;
+
+        let message_data_ref = self.signer.handle_data_mode_reader(input_source);
+
+        let sk = self
+            .clone()
+            .write_and_signcrypt(message_data_ref, data_encoding, true, dest)?;
+
+        let detached_signature =
+            self.handle_detached_signature_sign_stream(detached_signature_handle)?;
+
+        Ok(EncryptedMessageInfo::new(detached_signature, sk))
+    }
+
+    /// Encrypts and optionally signs the given data and writes an `OpenPGP` message type in split mode.
+    ///
+    /// Reads all data from the source and writes ONLY the data packet to the destination.
+    /// The serialized key packets are returned in the first element of the return tuple.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use proton_rpgp::{AsPublicKeyRef, DataEncoding, Decryptor, Encryptor, PrivateKey};
+    ///
+    /// let key = PrivateKey::import_unlocked(include_bytes!("../test-data/keys/private_key_v4.asc"), DataEncoding::Armored)
+    ///     .expect("Failed to import key");
+    ///
+    /// let mut data_packet = Vec::new();
+    /// let (key_packets, _) = Encryptor::default()
+    ///     .with_encryption_key(key.as_public_key())
+    ///     .with_signing_key(&key)
+    ///     .encrypt_stream_split(&b"Hello world!"[..], &mut data_packet)
+    ///     .expect("Failed to encrypt");
+    pub fn encrypt_stream_split<R: Read, W: Write>(
+        mut self,
+        source: R,
+        dest: W,
+    ) -> crate::Result<(Vec<u8>, EncryptedMessageInfo)> {
+        let (detached_signature_handle, input_source) =
+            self.handle_detached_signature_hash_stream(source)?;
+
+        let message_data_ref = self.signer.handle_data_mode_reader(input_source);
+
+        let num_key_packets = self.encryption_keys.len() + self.passphrases.len();
+        let key_packet_tracker = SharedKeyPacketBuffer::new();
+        let packet_split_writer =
+            PacketSplitWriter::new(dest, key_packet_tracker.clone(), num_key_packets);
+
+        let sk = self.clone().write_and_signcrypt(
+            message_data_ref,
+            DataEncoding::Unarmored,
+            true,
+            packet_split_writer,
+        )?;
+
+        let detached_signature =
+            self.handle_detached_signature_sign_stream(detached_signature_handle)?;
+
+        Ok((
+            key_packet_tracker.into_key_packets(),
+            EncryptedMessageInfo::new(detached_signature, sk),
+        ))
     }
 
     /// Encrypts the session key and returns the encrypted session key packets (Key packets).
@@ -284,9 +378,14 @@ impl<'a> Encryptor<'a> {
         data: &'a [u8],
         data_encoding: DataEncoding,
     ) -> crate::Result<Vec<u8>> {
-        self.write_and_signcrypt(data, data_encoding, false)
-            .map(|(data, _)| data)
-            .map_err(Into::into)
+        let mut utf8_buffer = String::new();
+        let message_data_ref = self
+            .signer
+            .handle_data_mode(data.as_ref(), &mut utf8_buffer)?;
+
+        let mut output = Vec::with_capacity(data.len());
+        self.write_and_signcrypt(message_data_ref, data_encoding, false, &mut output)?;
+        Ok(output)
     }
 
     /// Generates a session key that is used for the encryption.
@@ -330,12 +429,13 @@ impl<'a> Encryptor<'a> {
         Ok(session_key)
     }
 
-    fn write_and_signcrypt(
+    fn write_and_signcrypt<R: Read, W: Write>(
         self,
-        data: &'a [u8],
+        data: R,
         data_encoding: DataEncoding,
         extract_session_key: bool,
-    ) -> Result<(Vec<u8>, Option<SessionKey>), EncryptionError> {
+        mut dest: W,
+    ) -> Result<Option<SessionKey>, EncryptionError> {
         self.check_encryption_tools()?;
         let encryption_keys = self.select_encryption_keys()?;
 
@@ -347,12 +447,7 @@ impl<'a> Encryptor<'a> {
             self.profile(),
         );
 
-        let mut utf8_buffer = String::new();
-        let message_data_ref = self
-            .signer
-            .handle_data_mode(data.as_ref(), &mut utf8_buffer)?;
-
-        let mut message_builder = MessageBuilder::from_reader("", message_data_ref);
+        let mut message_builder = MessageBuilder::from_reader("", data);
 
         // Set the compression algorithm if any.
         if recipients_algorithm_selection.compression_algorithm
@@ -361,12 +456,7 @@ impl<'a> Encryptor<'a> {
             message_builder.compression(recipients_algorithm_selection.compression_algorithm);
         }
 
-        // Check that the input data is valid for signature type text if enabled.
-        self.signer.check_input_data(data)?;
-
         let mut rng = self.profile().rng();
-        let mut output = Vec::new();
-
         let encryption_mechanism = if let Some(session_key) = &self.session_key {
             session_key.encryption_mechanism(&recipients_algorithm_selection, self.profile())?
         } else {
@@ -393,7 +483,7 @@ impl<'a> Encryptor<'a> {
                     &recipients_algorithm_selection,
                     resolved_data_encoding,
                     rng,
-                    &mut output,
+                    &mut dest,
                 )?;
 
                 session_key
@@ -417,14 +507,14 @@ impl<'a> Encryptor<'a> {
                     &recipients_algorithm_selection,
                     resolved_data_encoding,
                     rng,
-                    &mut output,
+                    &mut dest,
                 )?;
 
                 session_key
             }
         };
 
-        Ok((output, revealed_session_key))
+        Ok(revealed_session_key)
     }
 
     /// Helper function to optionally sign the message and write it to the output.
@@ -439,7 +529,7 @@ impl<'a> Encryptor<'a> {
     ) -> Result<(), EncryptionError>
     where
         RAND: Rng + CryptoRng,
-        W: io::Write,
+        W: Write,
         R: Read,
         E: Encryption,
     {
@@ -492,6 +582,65 @@ impl<'a> Encryptor<'a> {
                 let signature = signer
                     .sign_detached(data, DataEncoding::Unarmored)
                     .map_err(SigningError::from)?;
+                if self.detached_signature_op == SignDetachedOperation::Unencrypted {
+                    Ok(Some(ExternalDetachedSignature::new_unencrypted(
+                        signature,
+                        DataEncoding::Unarmored,
+                    )))
+                } else {
+                    let mut encryptor = self.clone();
+                    encryptor.signer.data_mode = DataMode::Binary;
+                    let encrypted_signature = encryptor
+                        .encrypt_raw(&signature, DataEncoding::Unarmored)
+                        .map_err(EncryptionError::from)?;
+                    Ok(Some(ExternalDetachedSignature::new_encrypted(
+                        encrypted_signature,
+                        DataEncoding::Unarmored,
+                    )))
+                }
+            }
+        }
+    }
+
+    /// Wraps a detached signature reader if necessary.
+    fn handle_detached_signature_hash_stream<'b, R: Read + 'b>(
+        &mut self,
+        data: R,
+    ) -> Result<(Option<DetachedSignatureHandle<'a>>, Box<dyn Read + 'b>), EncryptionError>
+    where
+        'a: 'b,
+    {
+        if self.detached_signature_op == SignDetachedOperation::None {
+            Ok((None, Box::new(data)))
+        } else {
+            let mut replaced_signer = Signer::new(self.signer.profile.clone());
+            replaced_signer.data_mode = self.signer.data_mode;
+            let signer = mem::replace(&mut self.signer, replaced_signer);
+            let inner = signer.sign_detached_inner_stream(data)?;
+            Ok((
+                Some(DetachedSignatureHandle {
+                    tracker: inner.external_hash_tracker(),
+                    signer,
+                }),
+                Box::new(inner),
+            ))
+        }
+    }
+
+    /// Handle the detached signature creation if required by the handle.
+    fn handle_detached_signature_sign_stream(
+        &mut self,
+        detached_singer: Option<DetachedSignatureHandle<'a>>,
+    ) -> Result<Option<ExternalDetachedSignature<'static>>, EncryptionError> {
+        match self.detached_signature_op {
+            SignDetachedOperation::None => Ok(None),
+            SignDetachedOperation::Unencrypted | SignDetachedOperation::Encrypted => {
+                let Some(handle) = detached_singer else {
+                    return Err(EncryptionError::Signing(SigningError::NotAllDataRead));
+                };
+                let signature = handle
+                    .tracker
+                    .sign_with(&handle.signer, DataEncoding::Unarmored)?;
                 if self.detached_signature_op == SignDetachedOperation::Unencrypted {
                     Ok(Some(ExternalDetachedSignature::new_unencrypted(
                         signature,
@@ -636,7 +785,7 @@ fn message_to_writer<'a, RAND, W, R, E>(
 ) -> Result<(), EncryptionError>
 where
     RAND: Rng + CryptoRng,
-    W: io::Write,
+    W: Write,
     R: Read,
     E: Encryption,
 {
@@ -766,4 +915,9 @@ enum SignDetachedOperation {
     // Insecure when signing low-entropy data.
     Unencrypted,
     Encrypted,
+}
+
+struct DetachedSignatureHandle<'a> {
+    tracker: ExternalHashTracker,
+    signer: Signer<'a>,
 }

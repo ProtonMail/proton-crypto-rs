@@ -17,10 +17,7 @@ use crate::{ArmorError, EncryptedMessageError, SessionKey};
 
 /// Encrypted message type which allows to query information about the encrypted message.
 #[derive(Debug, Clone)]
-pub struct EncryptedMessage {
-    /// The encrypted data.
-    pub encrypted_data: Vec<u8>,
-
+pub struct EncryptedMessageInfo {
     /// An optional detached signature.
     pub(crate) detached_signature: Option<ExternalDetachedSignature<'static>>,
 
@@ -28,12 +25,52 @@ pub struct EncryptedMessage {
     pub(crate) revealed_session_key: Option<SessionKey>,
 }
 
+impl EncryptedMessageInfo {
+    pub(crate) fn new(
+        detached_signature: Option<ExternalDetachedSignature<'static>>,
+        revealed_session_key: Option<SessionKey>,
+    ) -> Self {
+        Self {
+            detached_signature,
+            revealed_session_key,
+        }
+    }
+
+    /// Returns the detached signature if any.
+    pub fn detached_signature(&self) -> Option<&ExternalDetachedSignature<'static>> {
+        self.detached_signature.as_ref()
+    }
+
+    /// Returns the revealed session key if enabled
+    pub fn revealed_session_key(&self) -> Option<&SessionKey> {
+        self.revealed_session_key.as_ref()
+    }
+
+    /// Splits the detached signature from the message.
+    ///
+    /// Returns the message without the detached signature and the detached signature.
+    pub fn split_detached_signature(
+        mut self,
+    ) -> (Self, Option<ExternalDetachedSignature<'static>>) {
+        let detached_signature = self.detached_signature.take();
+        (self, detached_signature)
+    }
+}
+
+/// Encrypted message type which allows to query information about the encrypted message.
+#[derive(Debug, Clone)]
+pub struct EncryptedMessage {
+    /// The encrypted data.
+    pub encrypted_data: Vec<u8>,
+
+    pub(crate) info: EncryptedMessageInfo,
+}
+
 impl EncryptedMessage {
     pub(crate) fn new(encrypted_data: Vec<u8>, revealed_session_key: Option<SessionKey>) -> Self {
         Self {
             encrypted_data,
-            detached_signature: None,
-            revealed_session_key,
+            info: EncryptedMessageInfo::new(None, revealed_session_key),
         }
     }
 
@@ -55,7 +92,7 @@ impl EncryptedMessage {
 
     /// Returns the revealed session key if enabled
     pub fn revealed_session_key(&self) -> Option<&SessionKey> {
-        self.revealed_session_key.as_ref()
+        self.info.revealed_session_key.as_ref()
     }
 
     /// Provides a slice of the key packets.
@@ -110,7 +147,7 @@ impl EncryptedMessage {
 
     /// Returns the detached signature if any.
     pub fn detached_signature(&self) -> Option<&ExternalDetachedSignature<'static>> {
-        self.detached_signature.as_ref()
+        self.info.detached_signature.as_ref()
     }
 
     /// Splits the detached signature from the message.
@@ -119,7 +156,7 @@ impl EncryptedMessage {
     pub fn split_detached_signature(
         mut self,
     ) -> (Self, Option<ExternalDetachedSignature<'static>>) {
-        let detached_signature = self.detached_signature.take();
+        let detached_signature = self.info.detached_signature.take();
         (self, detached_signature)
     }
 }
@@ -202,7 +239,7 @@ type ExternalCounter = Rc<RefCell<usize>>;
 ///
 /// `ExternalCountingReader` is !Send and !Sync, i.e., do not used it in concurrent environments.
 /// It mutates the external counter when reading from the inner reader.
-struct ExternalCountingReader<R> {
+pub(super) struct ExternalCountingReader<R> {
     /// The inner reader.
     inner: R,
 
@@ -211,14 +248,14 @@ struct ExternalCountingReader<R> {
 }
 
 impl<R: BufRead> ExternalCountingReader<R> {
-    fn new(inner: R, size: ExternalCounter) -> Self {
+    pub(super) fn new(inner: R, size: ExternalCounter) -> Self {
         Self {
             inner,
             bytes_read: size,
         }
     }
 
-    fn bytes_read(&self) -> usize {
+    pub(super) fn bytes_read(&self) -> usize {
         *self.bytes_read.borrow()
     }
 }
@@ -240,4 +277,101 @@ impl<R: BufRead> BufRead for ExternalCountingReader<R> {
         *self.bytes_read.borrow_mut() += amt;
         self.inner.consume(amt);
     }
+}
+
+/// Helper to extract the key key packets in streaming encryption mode.
+#[derive(Debug, Clone)]
+pub(crate) struct SharedKeyPacketBuffer(Rc<RefCell<Vec<u8>>>);
+
+impl SharedKeyPacketBuffer {
+    pub(crate) fn new() -> Self {
+        Self(Rc::new(RefCell::new(Vec::new())))
+    }
+}
+
+impl SharedKeyPacketBuffer {
+    fn write_all(&self, buf: &[u8]) {
+        self.0.borrow_mut().extend_from_slice(buf);
+    }
+
+    fn split_off(&self, len: usize) -> Vec<u8> {
+        self.0.borrow_mut().split_off(len)
+    }
+
+    fn len(&self) -> usize {
+        self.0.borrow().len()
+    }
+
+    pub(crate) fn into_key_packets(self) -> Vec<u8> {
+        self.0.take()
+    }
+}
+
+/// Writer that splits the key packets and the data packet in streaming encryption mode.
+pub struct PacketSplitWriter<W: io::Write> {
+    /// The shared buffer for the key packets.
+    key_packets: SharedKeyPacketBuffer,
+
+    /// The wrapped writer.
+    inner_writer: W,
+
+    /// The number of key packets expected.
+    num_key_packets: usize,
+
+    /// Whether the key packets are all written.
+    key_packets_done: bool,
+}
+
+impl<W: io::Write> PacketSplitWriter<W> {
+    pub(crate) fn new(
+        inner_writer: W,
+        kp_buffer: SharedKeyPacketBuffer,
+        num_key_packets: usize,
+    ) -> Self {
+        Self {
+            key_packets: kp_buffer,
+            inner_writer,
+            num_key_packets,
+            key_packets_done: false,
+        }
+    }
+}
+
+impl<W: io::Write> io::Write for PacketSplitWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if self.key_packets_done {
+            return self.inner_writer.write(buf);
+        }
+        self.key_packets.write_all(buf);
+        let (split_point, num_key_packets) = detect_key_packets(&self.key_packets.0.borrow()[..]);
+        if num_key_packets == self.num_key_packets {
+            self.key_packets_done = true;
+            if split_point < self.key_packets.len() {
+                let leftover = self.key_packets.split_off(split_point);
+                self.inner_writer.write_all(&leftover)?;
+            }
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner_writer.flush()
+    }
+}
+
+fn detect_key_packets(key_packets: &[u8]) -> (usize, usize) {
+    let bytes_read = Rc::new(RefCell::new(0));
+    let reader = ExternalCountingReader::new(key_packets, bytes_read.clone());
+    let mut split_point = 0;
+    let mut num_key_packets = 0;
+    for packet in PacketParser::new(reader) {
+        match packet {
+            Ok(Packet::PublicKeyEncryptedSessionKey(_) | Packet::SymKeyEncryptedSessionKey(_)) => {
+                split_point = *bytes_read.borrow();
+                num_key_packets += 1;
+            }
+            _ => break,
+        }
+    }
+    (split_point, num_key_packets)
 }
