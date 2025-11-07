@@ -95,13 +95,17 @@ func pgp_verification_result_signature_info(handle C.uintptr_t, signature_info *
 func pgp_verification_result_all_signatures(handle C.uintptr_t, signatures *C.PGP_Signatures) C.PGP_Error {
 	verifyResult := handleToVerificationResult(handle)
 	var allSerializedSignatures bytes.Buffer
+	numberOfSignatures := 0
 	for _, messageSignature := range verifyResult.Signatures {
-		if err := messageSignature.Signature.Serialize(&allSerializedSignatures); err != nil {
-			return errorToPGPError(fmt.Errorf("serializing signature failed %w", err))
+		if messageSignature.Signature != nil {
+			if err := messageSignature.Signature.Serialize(&allSerializedSignatures); err != nil {
+				return errorToPGPError(fmt.Errorf("serializing signature failed %w", err))
+			}
+			numberOfSignatures += 1
 		}
 	}
-	signatures.number_of_signatures = C.size_t(len(verifyResult.Signatures))
-	if len(verifyResult.Signatures) > 0 {
+	signatures.number_of_signatures = C.size_t(numberOfSignatures)
+	if numberOfSignatures > 0 {
 		allSigC, allSigCLen := sliceToCMem(allSerializedSignatures.Bytes())
 		signatures.all_signatures = allSigC
 		signatures.all_signatures_len = allSigCLen
