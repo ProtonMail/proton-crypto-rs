@@ -1,11 +1,11 @@
 use std::{future::Future, io};
 
+use crate::crypto::{DetachedMessageData, DetachedSignatureVariant, SigningMode, WritingMode};
+
 use super::{
     AsPublicKeyRef, DataEncoding, OpenPGPKeyID, PrivateKey, PublicKey, SigningContext,
     UnixTimestamp,
 };
-
-use super::DetachedSignatureVariant;
 
 /// Represent an `OpenPGP` message with encrypted data.
 pub trait PGPMessage: AsRef<[u8]> + Send + Sync {
@@ -209,6 +209,7 @@ pub trait EncryptorSync<'a>: Encryptor<'a> {
     /// The `output_encoding` argument defines the output encoding, i.e., Bytes or Armored
     /// Once all data has been written to the returned `EncryptorWriter`, `finalize` must be
     /// called to finalize the encryption.
+    #[deprecated(note = "Non-streaming with the rust backend, use `encrypt_to_writer` instead")]
     fn encrypt_stream<T: io::Write + 'a>(
         self,
         output_writer: T,
@@ -223,6 +224,7 @@ pub trait EncryptorSync<'a>: Encryptor<'a> {
     /// encrypted data (i.e., `data packet`) part is written to the `output_writer`
     /// Once all data has been written to the returned `EncryptorWriter`, `finalize` must be
     /// called to finalize the encryption.
+    #[deprecated(note = "Non-streaming with the rust backend, use `encrypt_to_writer` instead")]
     fn encrypt_stream_split<T: io::Write + 'a>(
         self,
         output_writer: T,
@@ -237,6 +239,7 @@ pub trait EncryptorSync<'a>: Encryptor<'a> {
     /// once encryption is done.
     /// Once all data has been written to the returned `EncryptorWriter`, `finalize` must be
     /// called to finalize the encryption.
+    #[deprecated(note = "Non-streaming with the rust backend, use `encrypt_to_writer` instead")]
     fn encrypt_stream_with_detached_signature<T: io::Write + 'a>(
         self,
         output_writer: T,
@@ -254,11 +257,29 @@ pub trait EncryptorSync<'a>: Encryptor<'a> {
     /// once encryption is done.
     /// Once all data has been written to the returned `EncryptorWriter`, `finalize` must be
     /// called to finalize the encryption.
+    #[deprecated(note = "Non-streaming with the rust backend, use `encrypt_to_writer` instead")]
     fn encrypt_stream_split_with_detached_signature<T: io::Write + 'a>(
         self,
         output_writer: T,
         variant: DetachedSignatureVariant,
     ) -> crate::Result<(Vec<u8>, Self::EncryptorDetachedSignatureWriter<'a, T>)>;
+
+    /// Reads the data from `source` and writes the encrypted `OpenPGP` message to `dest`.
+    ///
+    /// - The `data_encoding` argument defines the output encoding, i.e., Bytes or Armored.
+    /// - The `signing_mode` argument defines the signing mode, i.e., inline or detached.
+    ///   In the detached mode, the signature can be extracted from the return value [`DetachedMessageData`].
+    /// - The `writing_mode` argument defines the writing mode, i.e., if the packets should be split.
+    ///   In the split mode, the key packets are NOT written to the `dest` writer, and are
+    ///   returned as part of the return value [`DetachedMessageData`].
+    fn encrypt_to_writer<R: io::Read, W: io::Write>(
+        self,
+        source: R,
+        data_encoding: DataEncoding,
+        signing_mode: SigningMode,
+        writing_mode: WritingMode,
+        dest: W,
+    ) -> crate::Result<DetachedMessageData>;
 }
 
 /// `EncryptorAsync` provides asynchronous `OpenPGP` encryption operations.

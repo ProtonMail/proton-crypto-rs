@@ -2,8 +2,8 @@ use proton_crypto::crypto::{
     AccessKeyInfo, DataEncoding, Decryptor, DecryptorSync, DetachedSignatureVariant, Encryptor,
     EncryptorDetachedSignatureWriter, EncryptorSync, EncryptorWriter, KeyGenerator,
     KeyGeneratorSync, OpenPGPFingerprint, OpenPGPKeyID, PGPMessage, PGPProvider, PGPProviderSync,
-    SHA256Fingerprint, SessionKey, SessionKeyAlgorithm, Signer, SignerSync, UnixTimestamp,
-    VerifiedData, VerifiedDataReader, Verifier, VerifierSync,
+    SHA256Fingerprint, SessionKey, SessionKeyAlgorithm, Signer, SignerSync, SigningMode,
+    UnixTimestamp, VerifiedData, VerifiedDataReader, Verifier, VerifierSync, WritingMode,
 };
 use std::io::{Read, Write};
 
@@ -328,6 +328,7 @@ fn test_api_encrypt_decrypt_rsa1023() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_api_encrypt_stream_decrypt() {
     let provider = proton_crypto::new_pgp_provider();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
@@ -360,6 +361,7 @@ fn test_api_encrypt_stream_decrypt() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_api_encrypt_stream_split_decrypt() {
     let provider = proton_crypto::new_pgp_provider();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
@@ -393,6 +395,7 @@ fn test_api_encrypt_stream_split_decrypt() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_api_encrypt_stream_split_decrypt_with_detached_signature() {
     let provider = proton_crypto::new_pgp_provider();
     let plaintext = TEST_EXPECTED_PLAINTEXT;
@@ -663,4 +666,164 @@ fn test_api_passphrase_encrypt_decrypt_session_key() {
         .decrypt_session_key(&ct)
         .unwrap();
     assert_eq!(sk.export().as_ref(), sk_out.export().as_ref());
+}
+
+#[test]
+fn test_api_encrypt_to_writer() {
+    let provider = proton_crypto::new_pgp_provider();
+    let plaintext = TEST_EXPECTED_PLAINTEXT;
+    let private_key = get_test_private_key(&provider);
+    let public_key = provider.private_key_to_public_key(&private_key).unwrap();
+    let signing_context = provider.new_signing_context("test".to_owned(), true);
+    let mut buffer = Vec::with_capacity(plaintext.len());
+    provider
+        .new_encryptor()
+        .with_encryption_key(&public_key)
+        .with_signing_key(&private_key)
+        .with_signing_context(&signing_context)
+        .encrypt_to_writer(
+            plaintext.as_bytes(),
+            DataEncoding::Armor,
+            SigningMode::Inline,
+            WritingMode::default(),
+            &mut buffer,
+        )
+        .unwrap();
+
+    let verification_context =
+        provider.new_verification_context("test".to_owned(), true, UnixTimestamp::new(0));
+    let verified_data = provider
+        .new_decryptor()
+        .with_decryption_key(&private_key)
+        .with_verification_key(&public_key)
+        .with_verification_context(&verification_context)
+        .decrypt(buffer.as_slice(), DataEncoding::Armor)
+        .unwrap();
+    let verification_result = verified_data.verification_result();
+    assert_eq!(verified_data.as_bytes(), plaintext.as_bytes());
+    assert!(verification_result.is_ok());
+}
+
+#[test]
+fn test_api_encrypt_to_writer_with_detached_signature() {
+    let provider = proton_crypto::new_pgp_provider();
+    let plaintext = TEST_EXPECTED_PLAINTEXT;
+    let private_key = get_test_private_key(&provider);
+    let public_key = provider.private_key_to_public_key(&private_key).unwrap();
+    let signing_context = provider.new_signing_context("test".to_owned(), true);
+    let mut buffer = Vec::with_capacity(plaintext.len());
+    let additional_data = provider
+        .new_encryptor()
+        .with_encryption_key(&public_key)
+        .with_signing_key(&private_key)
+        .with_signing_context(&signing_context)
+        .encrypt_to_writer(
+            plaintext.as_bytes(),
+            DataEncoding::Armor,
+            SigningMode::Detached(DetachedSignatureVariant::Plaintext),
+            WritingMode::All,
+            &mut buffer,
+        )
+        .unwrap();
+
+    let detached_signature = additional_data.try_into_detached_signature().unwrap();
+
+    let verification_context =
+        provider.new_verification_context("test".to_owned(), true, UnixTimestamp::new(0));
+    let verified_data = provider
+        .new_decryptor()
+        .with_decryption_key(&private_key)
+        .with_verification_key(&public_key)
+        .with_verification_context(&verification_context)
+        .with_detached_signature(
+            detached_signature,
+            DetachedSignatureVariant::Plaintext,
+            true,
+        )
+        .decrypt(buffer.as_slice(), DataEncoding::Armor)
+        .unwrap();
+    let verification_result = verified_data.verification_result();
+    assert_eq!(verified_data.as_bytes(), plaintext.as_bytes());
+    assert!(verification_result.is_ok());
+}
+
+#[test]
+fn test_api_encrypt_to_writer_split_decrypt_with_detached_signature() {
+    let provider = proton_crypto::new_pgp_provider();
+    let plaintext = TEST_EXPECTED_PLAINTEXT;
+    let private_key = get_test_private_key(&provider);
+    let public_key = provider.private_key_to_public_key(&private_key).unwrap();
+    let signing_context = provider.new_signing_context("test".to_owned(), true);
+    let mut buffer = Vec::with_capacity(plaintext.len());
+    let detached_data = provider
+        .new_encryptor()
+        .with_encryption_key(&public_key)
+        .with_signing_key(&private_key)
+        .with_signing_context(&signing_context)
+        .encrypt_to_writer(
+            plaintext.as_bytes(),
+            DataEncoding::Armor,
+            SigningMode::Detached(DetachedSignatureVariant::Plaintext),
+            WritingMode::SplitKeyPackets,
+            &mut buffer,
+        )
+        .unwrap();
+
+    let (mut key_packets, detached_signature) = detached_data.try_into_parts().unwrap();
+    key_packets.extend(buffer.iter());
+    let verification_context =
+        provider.new_verification_context("test".to_owned(), true, UnixTimestamp::new(0));
+    let verified_data = provider
+        .new_decryptor()
+        .with_decryption_key(&private_key)
+        .with_verification_key(&public_key)
+        .with_verification_context(&verification_context)
+        .with_detached_signature(
+            detached_signature,
+            DetachedSignatureVariant::Plaintext,
+            false,
+        )
+        .decrypt(key_packets, DataEncoding::Bytes)
+        .unwrap();
+    let verification_result = verified_data.verification_result();
+    assert_eq!(verified_data.as_bytes(), plaintext.as_bytes());
+    assert!(verification_result.is_ok());
+}
+
+#[test]
+fn test_api_encrypt_to_writer_split_decrypt() {
+    let provider = proton_crypto::new_pgp_provider();
+    let plaintext = TEST_EXPECTED_PLAINTEXT;
+    let private_key = get_test_private_key(&provider);
+    let public_key = provider.private_key_to_public_key(&private_key).unwrap();
+    let signing_context = provider.new_signing_context("test".to_owned(), true);
+    let mut buffer = Vec::with_capacity(plaintext.len());
+    let detached_data = provider
+        .new_encryptor()
+        .with_encryption_key(&public_key)
+        .with_signing_key(&private_key)
+        .with_signing_context(&signing_context)
+        .encrypt_to_writer(
+            plaintext.as_bytes(),
+            DataEncoding::Armor,
+            SigningMode::default(),
+            WritingMode::SplitKeyPackets,
+            &mut buffer,
+        )
+        .unwrap();
+
+    let mut key_packets = detached_data.try_into_key_packets().unwrap();
+    key_packets.extend(buffer.iter());
+    let verification_context =
+        provider.new_verification_context("test".to_owned(), true, UnixTimestamp::new(0));
+    let verified_data = provider
+        .new_decryptor()
+        .with_decryption_key(&private_key)
+        .with_verification_key(&public_key)
+        .with_verification_context(&verification_context)
+        .decrypt(key_packets, DataEncoding::Bytes)
+        .unwrap();
+    let verification_result = verified_data.verification_result();
+    assert_eq!(verified_data.as_bytes(), plaintext.as_bytes());
+    assert!(verification_result.is_ok());
 }

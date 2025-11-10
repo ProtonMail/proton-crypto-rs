@@ -16,7 +16,7 @@ use std::{
     future::Future,
 };
 
-use crate::lowercase_string_id;
+use crate::{lowercase_string_id, CryptoInfoError};
 
 use serde::{Deserialize, Serialize};
 
@@ -610,5 +610,71 @@ impl DetachedSignatureVariant {
     /// Returns true if it is the encrypted variant.
     pub fn is_encrypted(&self) -> bool {
         *self == DetachedSignatureVariant::Encrypted
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SigningMode {
+    /// Produce an inline signature.
+    #[default]
+    Inline,
+
+    /// Produce a detached signature.
+    Detached(DetachedSignatureVariant),
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WritingMode {
+    /// Write the whole message to the output.
+    #[default]
+    All,
+
+    /// Return the key packets and only write the data packet to the output.
+    SplitKeyPackets,
+}
+
+/// Additional detached message data returned by the encryptor.
+#[derive(Debug, Clone, Default)]
+pub struct DetachedMessageData {
+    /// Optional key packets that may have been written here instead of the output.
+    pub key_packets: Option<PGPKeyPackets>,
+
+    /// Optional detached signature that is returned if the signing mode was `Detached`.
+    pub detached_signature: Option<RawDetachedSignature>,
+}
+
+impl DetachedMessageData {
+    pub fn try_as_detached_signature(&self) -> crate::Result<&RawDetachedSignature> {
+        self.detached_signature
+            .as_ref()
+            .ok_or(CryptoInfoError::new("no detached signature").into())
+    }
+
+    pub fn try_into_detached_signature(self) -> crate::Result<RawDetachedSignature> {
+        self.detached_signature
+            .ok_or(CryptoInfoError::new("no key packets").into())
+    }
+
+    pub fn try_as_key_packets(&self) -> crate::Result<&PGPKeyPackets> {
+        self.key_packets
+            .as_ref()
+            .ok_or(CryptoInfoError::new("no key packets").into())
+    }
+
+    pub fn try_into_key_packets(self) -> crate::Result<PGPKeyPackets> {
+        self.key_packets
+            .ok_or(CryptoInfoError::new("no key packets").into())
+    }
+
+    pub fn try_into_parts(self) -> crate::Result<(PGPKeyPackets, RawDetachedSignature)> {
+        let kp = self
+            .key_packets
+            .ok_or(crate::Error::from(CryptoInfoError::new("no key packets")))?;
+        let ds = self
+            .detached_signature
+            .ok_or(crate::Error::from(CryptoInfoError::new(
+                "no detached packets",
+            )))?;
+        Ok((kp, ds))
     }
 }

@@ -2,9 +2,9 @@ use std::io;
 
 use super::{GoPrivateKey, GoPublicKey, GoSessionKey, GoSigningContext};
 use crate::crypto::{
-    AsPublicKeyRef, DataEncoding, DetachedSignatureVariant, Encryptor, EncryptorAsync,
-    EncryptorDetachedSignatureWriter, EncryptorSync, EncryptorWriter, OpenPGPKeyID, PGPMessage,
-    SessionKeyAlgorithm,
+    AsPublicKeyRef, DataEncoding, DetachedMessageData, DetachedSignatureVariant, Encryptor,
+    EncryptorAsync, EncryptorDetachedSignatureWriter, EncryptorSync, EncryptorWriter, OpenPGPKeyID,
+    PGPMessage, SessionKeyAlgorithm, SigningMode, WritingMode,
 };
 
 pub struct GoPGPMessage(pub(super) gopenpgp_sys::PGPMessage);
@@ -234,6 +234,59 @@ impl<'a> EncryptorSync<'a> for GoEncryptor<'a> {
         // TODO: Currently GopenPGP does not offer a dedicated session key generation based on recipient keys
         // we used the default here.
         super::generate_session_key(SessionKeyAlgorithm::Aes256)
+    }
+
+    fn encrypt_to_writer<R: io::Read, W: io::Write>(
+        self,
+        mut source: R,
+        data_encoding: DataEncoding,
+        signing_mode: SigningMode,
+        writing_mode: WritingMode,
+        dest: W,
+    ) -> crate::Result<DetachedMessageData> {
+        match (signing_mode, writing_mode) {
+            (SigningMode::Inline, WritingMode::All) => {
+                let mut write_closer = self.0.encrypt_stream(dest, data_encoding.into())?;
+                io::copy(&mut source, &mut write_closer)?;
+                write_closer.close()?;
+                Ok(DetachedMessageData::default())
+            }
+            (SigningMode::Detached(variant), WritingMode::All) => {
+                let mut write_closer = self.0.encrypt_stream_with_detached_signature(
+                    dest,
+                    variant.is_encrypted(),
+                    data_encoding.into(),
+                )?;
+
+                io::copy(&mut source, &mut write_closer)?;
+                write_closer.close()?;
+                Ok(DetachedMessageData {
+                    key_packets: None,
+                    detached_signature: Some(write_closer.take_detached_signature()),
+                })
+            }
+            (SigningMode::Inline, WritingMode::SplitKeyPackets) => {
+                let (key_packets, mut write_closer) = self.0.encrypt_stream_split(dest)?;
+                io::copy(&mut source, &mut write_closer)?;
+                write_closer.close()?;
+                Ok(DetachedMessageData {
+                    key_packets: Some(key_packets),
+                    detached_signature: None,
+                })
+            }
+            (SigningMode::Detached(variant), WritingMode::SplitKeyPackets) => {
+                let (key_packets, mut write_closer) = self
+                    .0
+                    .encrypt_stream_split_with_detached_signature(dest, variant.is_encrypted())?;
+
+                io::copy(&mut source, &mut write_closer)?;
+                write_closer.close()?;
+                Ok(DetachedMessageData {
+                    key_packets: Some(key_packets),
+                    detached_signature: Some(write_closer.take_detached_signature()),
+                })
+            }
+        }
     }
 }
 

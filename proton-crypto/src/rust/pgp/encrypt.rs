@@ -1,12 +1,12 @@
 use std::io;
 
-use proton_rpgp::{EncryptedMessage, Profile, SessionKey as RustSessionKey};
+use proton_rpgp::{EncryptedMessage, EncryptedMessageInfo, Profile, SessionKey as RustSessionKey};
 
 use crate::{
     crypto::{
-        DataEncoding, DetachedSignatureVariant, Encryptor, EncryptorAsync,
+        DataEncoding, DetachedMessageData, DetachedSignatureVariant, Encryptor, EncryptorAsync,
         EncryptorDetachedSignatureWriter, EncryptorSync, EncryptorWriter, PGPKeyPackets,
-        PGPMessage, RawDetachedSignature, RawEncryptedMessage,
+        PGPMessage, RawDetachedSignature, RawEncryptedMessage, SigningMode, WritingMode,
     },
     rust::pgp::{RustPrivateKey, RustPublicKey, RustSigningContext, INIT_BUFFER_SIZE},
     CryptoInfoError,
@@ -257,6 +257,33 @@ impl<'a, T: io::Write + 'a> EncryptorDetachedSignatureWriter<'a, T>
     }
 }
 
+fn convert_to_detached_data(
+    key_packets: Option<Vec<u8>>,
+    message: EncryptedMessageInfo,
+    data_encoding: DataEncoding,
+) -> crate::Result<DetachedMessageData> {
+    let (_, detached_signature) = message.split_detached_signature();
+
+    match detached_signature {
+        Some(signature) => {
+            let detached = match data_encoding {
+                DataEncoding::Armor => signature.armored().map_err(crate::Error::from),
+                DataEncoding::Bytes | DataEncoding::Auto => {
+                    signature.unarmored().map_err(Into::into)
+                }
+            }?;
+            Ok(DetachedMessageData {
+                key_packets,
+                detached_signature: Some(detached),
+            })
+        }
+        None => Ok(DetachedMessageData {
+            key_packets,
+            detached_signature: None,
+        }),
+    }
+}
+
 pub struct RustEncryptor<'a> {
     pub(super) inner: proton_rpgp::Encryptor<'a>,
 }
@@ -414,7 +441,7 @@ impl<'a> EncryptorSync<'a> for RustEncryptor<'a> {
         RustEncryptorWriter::init_split(self, output_writer)
     }
 
-    fn encrypt_stream_with_detached_signature<T: io::Write + 'a>(
+    fn encrypt_stream_with_detached_signature<T: io::Write>(
         self,
         output_writer: T,
         variant: DetachedSignatureVariant,
@@ -435,6 +462,31 @@ impl<'a> EncryptorSync<'a> for RustEncryptor<'a> {
         variant: DetachedSignatureVariant,
     ) -> crate::Result<(Vec<u8>, Self::EncryptorDetachedSignatureWriter<'a, T>)> {
         RustEncryptorDetachedSignatureWriter::init_split(self, output_writer, variant)
+    }
+
+    fn encrypt_to_writer<R: io::Read, W: io::Write>(
+        mut self,
+        source: R,
+        data_encoding: DataEncoding,
+        signing_mode: SigningMode,
+        writing_mode: WritingMode,
+        dest: W,
+    ) -> crate::Result<DetachedMessageData> {
+        if let SigningMode::Detached(variant) = signing_mode {
+            self.inner = self.inner.using_detached_signature(variant.is_encrypted());
+        }
+        match writing_mode {
+            WritingMode::All => {
+                let message_info = self
+                    .inner
+                    .encrypt_stream(source, data_encoding.into(), dest)?;
+                convert_to_detached_data(None, message_info, data_encoding)
+            }
+            WritingMode::SplitKeyPackets => {
+                let (key_packets, message_info) = self.inner.encrypt_stream_split(source, dest)?;
+                convert_to_detached_data(Some(key_packets), message_info, DataEncoding::Bytes)
+            }
+        }
     }
 }
 
