@@ -1,11 +1,9 @@
-use std::io::Write;
-
 use derive_more::derive::TryFrom;
 use proton_crypto::{
     crypto::{
         AsPublicKeyRef, DataEncoding, Decryptor, DecryptorSync, DetachedSignatureVariant,
-        Encryptor, EncryptorDetachedSignatureWriter, EncryptorSync, PGPProviderSync, Signer,
-        SignerSync, VerifiedData, Verifier, VerifierSync,
+        Encryptor, EncryptorSync, PGPProviderSync, Signer, SignerSync, SigningMode, VerifiedData,
+        Verifier, VerifierSync, WritingMode,
     },
     utils::remove_trailing_spaces,
 };
@@ -152,24 +150,22 @@ pub trait EncryptableAndSignableCard {
         user_key: &UnlockedUserKey<T>,
     ) -> Result<(EncryptedCard, CardSignature), CardCryptoError> {
         let mut result_data: Vec<u8> = Vec::new();
-        let mut encryptor_writer = provider
+        let detached_data = provider
             .new_encryptor()
             .with_encryption_key(user_key.as_public_key())
             .with_signing_key(user_key.as_ref())
             .with_utf8()
-            .encrypt_stream_with_detached_signature(
-                &mut result_data,
-                DetachedSignatureVariant::Plaintext,
+            .encrypt_to_writer(
+                self.plaintext_card_data(),
                 DataEncoding::Armor,
+                SigningMode::Detached(DetachedSignatureVariant::Plaintext),
+                WritingMode::All,
+                &mut result_data,
             )
             .map_err(CardCryptoError::EncryptionError)?;
 
-        encryptor_writer
-            .write_all(self.plaintext_card_data())
-            .map_err(CardCryptoError::WriteError)?;
-
-        let detached_signature = encryptor_writer
-            .finalize_with_detached_signature()
+        let detached_signature = detached_data
+            .try_into_detached_signature()
             .map_err(CardCryptoError::EncryptionError)?;
 
         Ok((

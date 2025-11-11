@@ -1,10 +1,8 @@
-use std::io::Write;
-
 use proton_crypto::{
     crypto::{
-        AsPublicKeyRef, DataEncoding, DetachedSignatureVariant, Encryptor,
-        EncryptorDetachedSignatureWriter, EncryptorSync, KeyGenerator, KeyGeneratorAlgorithm,
-        KeyGeneratorSync, PGPProviderSync,
+        AsPublicKeyRef, DataEncoding, DetachedSignatureVariant, Encryptor, EncryptorSync,
+        KeyGenerator, KeyGeneratorAlgorithm, KeyGeneratorSync, PGPProviderSync, SigningMode,
+        WritingMode,
     },
     generate_secure_random_bytes,
 };
@@ -71,18 +69,17 @@ pub fn generate_token_values<Provider: PGPProviderSync>(
     if let Some(enc_context) = context {
         encryptor = encryptor.with_signing_context(enc_context);
     }
-    let mut encryptor_writer = encryptor
-        .encrypt_stream_with_detached_signature(
-            &mut encrypted_token,
-            DetachedSignatureVariant::Plaintext,
+    let detached_data = encryptor
+        .encrypt_to_writer(
+            token.as_bytes(),
             DataEncoding::Armor,
+            SigningMode::Detached(DetachedSignatureVariant::Plaintext),
+            WritingMode::All,
+            &mut encrypted_token,
         )
         .map_err(AccountCryptoError::TokenEncryption)?;
-    encryptor_writer
-        .write_all(token.as_bytes())
-        .map_err(|err| AccountCryptoError::TokenEncryption(err.into()))?;
-    let detached_signature = encryptor_writer
-        .finalize_with_detached_signature()
+    let detached_signature = detached_data
+        .try_into_detached_signature()
         .map_err(AccountCryptoError::TokenEncryption)?;
     // Interpret the outputs as UTF-8 encoded.
     let encrypted_token_type = EncryptedKeyToken(String::from_utf8(encrypted_token)?);
