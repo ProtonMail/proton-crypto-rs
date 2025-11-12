@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2024-00-00
 
+### Added
+- Add SRP API with a custom random number generator. 
+
+### Changed
+- pgp bumped to `0.17.0`.
+
 ## 0.7.1 2025-09-02
 
 ### Changed
