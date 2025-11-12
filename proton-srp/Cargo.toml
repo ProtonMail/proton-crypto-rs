@@ -20,6 +20,7 @@ pgp = { version = "0.16.0", optional = true }
 [features]
 default = ["pgpinternal"]
 pgpinternal = ["dep:pgp"]
+custom_csprng = []
 
 [profile.test]
 opt-level = 3
