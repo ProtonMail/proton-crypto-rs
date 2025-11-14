@@ -72,6 +72,7 @@ registry = "proton"
 
 [workspace.dependencies.proton-srp]
 path     = "proton-srp"
+default-features = false
 version  = "0.7.1"
 registry = "proton"
 
