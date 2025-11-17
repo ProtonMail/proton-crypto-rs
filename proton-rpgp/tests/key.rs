@@ -291,3 +291,18 @@ fn key_can_verify_revoked_based_on_time() {
     let can_verify = key.check_can_verify(&profile, UnixTime::new(1_751_984_424).into());
     assert!(can_verify.is_ok());
 }
+
+#[test]
+fn key_is_forwarding_key() {
+    const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
+    const FORWARDEE_KEY: &str = include_str!("../test-data/keys/private_key_v4_forwardee.asc");
+    let profile = Profile::default();
+
+    let key = PrivateKey::import_unlocked(FORWARDEE_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+    assert!(key.is_forwarding_key(&profile));
+
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+    assert!(!key.is_forwarding_key(&profile));
+}

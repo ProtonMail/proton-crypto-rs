@@ -14,7 +14,7 @@ use zeroize::Zeroizing;
 
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    DataEncoding, EncryptionError, KeyOperationError, Profile, ResolvedDataEncoding,
+    CheckUnixTime, DataEncoding, EncryptionError, KeyOperationError, Profile, ResolvedDataEncoding,
 };
 
 mod certifications;
@@ -212,6 +212,11 @@ impl LockedPrivateKey {
         // The key is already locked.
         self.0.export_unlocked(encoding)
     }
+
+    /// Checks if the secret key is a `Proton` forwarding key.
+    pub fn is_forwarding_key(&self, profile: &Profile) -> bool {
+        self.0.is_forwarding_key(profile)
+    }
 }
 
 /// A generic unlocked `OpenPGP` secret key.
@@ -352,6 +357,19 @@ impl PrivateKey {
                 .map_err(|e| KeyOperationError::Lock(self.key_id(), e))?;
         }
         Ok(LockedPrivateKey::new(secret_copy))
+    }
+
+    /// Checks if the secret key is a `Proton` forwarding key.
+    pub fn is_forwarding_key(&self, profile: &Profile) -> bool {
+        let Ok(decryption_keys) =
+            self.secret
+                .decryption_keys(CheckUnixTime::disable(), None, profile)
+        else {
+            return false;
+        };
+        decryption_keys
+            .iter()
+            .all(PrivateComponentKey::is_forwarding_key)
     }
 }
 

@@ -2,7 +2,7 @@ use std::io::Read;
 
 use pgp::{
     composed::{Message, PlainSessionKey},
-    crypto::{hash::HashAlgorithm, public_key::PublicKeyAlgorithm},
+    crypto::{ecc_curve::ECCCurve, hash::HashAlgorithm, public_key::PublicKeyAlgorithm},
     packet::{self, PublicKeyEncryptedSessionKey, Signature},
     types::{
         Fingerprint, KeyDetails, KeyId, KeyVersion, Password, PkeskVersion, PublicKeyTrait,
@@ -138,6 +138,27 @@ impl<'a> PrivateComponentKey<'a> {
         config
             .sign(&self.private_key, &Password::default(), data.as_ref())
             .map_err(SigningError::Sign)
+    }
+
+    pub fn is_primary_key(&self) -> bool {
+        matches!(self.private_key, AnySecretKey::PrimarySecretKey(_))
+    }
+
+    pub fn is_subkey(&self) -> bool {
+        matches!(self.private_key, AnySecretKey::SecretSubKey(_))
+    }
+
+    pub fn is_forwarding_key(&self) -> bool {
+        let has_forward_flag = self
+            .self_certification
+            .key_flags()
+            .draft_decrypt_forwarded();
+        let key_check = self.private_key.version() == KeyVersion::V4 && self.is_subkey();
+        let curve_check = matches!(
+            self.private_key.public_params(),
+            PublicParams::ECDH(params) if params.curve() == ECCCurve::Curve25519
+        );
+        key_check && curve_check && has_forward_flag
     }
 }
 
