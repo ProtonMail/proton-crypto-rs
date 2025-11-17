@@ -377,3 +377,24 @@ pub fn decrypt_and_verify_encrypted_message_with_detached_signature() {
     assert_eq!(verified_data.data, b"Hello World :)");
     assert!(verified_data.verification_result.is_ok());
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_encrypted_message_v4_forwarding() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v4_forwarded.asc");
+    const FORWARDEE_KEY: &str = include_str!("../test-data/keys/private_key_v4_forwardee.asc");
+    let date = UnixTime::new(1_679_044_110);
+
+    let key = PrivateKey::import_unlocked(FORWARDEE_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let verified_data = Decryptor::default()
+        .with_decryption_key(&key)
+        .at_date(date.into())
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"Message for Bob");
+    assert!(verified_data.verification_result.is_err());
+}

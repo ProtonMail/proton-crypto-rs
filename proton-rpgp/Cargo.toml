@@ -6,7 +6,7 @@ license = "MIT"
 authors.workspace = true
 
 [dependencies]
-pgp = { version = "0.17.0", default-features = false, features = ["draft-pqc", "malformed-artifact-compat"]}
+pgp = { version = "0.18.0", default-features = false, features = ["draft-pqc", "malformed-artifact-compat", "draft-wussler-openpgp-forwarding"]}
 thiserror = "2"
 chrono = { version = "0.4.39", default-features = false, features = [
     "clock",

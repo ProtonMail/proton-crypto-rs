@@ -256,7 +256,6 @@ mod tests {
 
         assert_eq!(key.version(), 4);
         assert_eq!(UnixTime::from(key.public.inner.created_at()), date);
-        assert_eq!(key.secret.expires_at(), None);
 
         let exported = key
             .export_unlocked(DataEncoding::Unarmored)
@@ -309,7 +308,6 @@ mod tests {
 
         assert_eq!(key.version(), 6);
         assert_eq!(UnixTime::from(key.public.inner.created_at()), date);
-        assert_eq!(key.secret.expires_at(), None);
 
         let exported = key
             .export_unlocked(DataEncoding::Unarmored)
