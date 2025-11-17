@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use proton_rpgp::{
     AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, Error, ExternalDetachedSignature,
-    PrivateKey, UnixTime, VerificationContext, VerificationError,
+    PrivateKey, Profile, ProfileSettings, UnixTime, VerificationContext, VerificationError,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -478,4 +478,39 @@ pub fn decrypt_and_verify_encrypted_message_with_detached_signature_stream() {
 
     assert_eq!(buffer, b"Hello World :)");
     assert!(verification_result.is_ok());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_encrypted_message_v4_sign_only_key() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v4_sign_only.asc");
+    const SIGN_ONLY: &str = include_str!("../test-data/keys/private_key_v4_sign_only.asc");
+    let key = PrivateKey::import_unlocked(SIGN_ONLY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let enabled = Profile::new(
+        ProfileSettings::builder()
+            .allow_insecure_decryption_with_signing_keys(true)
+            .build(),
+    );
+
+    let verified_data = Decryptor::new(enabled)
+        .with_decryption_key(&key)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    assert_eq!(verified_data.data, b"hi");
+    assert!(verified_data.verification_result.is_err());
+
+    let disabled = Profile::new(
+        ProfileSettings::builder()
+            .allow_insecure_decryption_with_signing_keys(false)
+            .build(),
+    );
+
+    Decryptor::new(disabled)
+        .with_decryption_key(&key)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect_err("Should not decrypt with signing key.");
 }

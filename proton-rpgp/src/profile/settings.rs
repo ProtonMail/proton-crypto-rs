@@ -52,6 +52,7 @@ pub type KeyGenerationForType = Box<dyn Fn(KeyGenerationType) -> KeyGenerationPr
 /// used throughout the library. The default configuration matches the recommended Proton profile,
 /// but all options can be customized to suit specific requirements or interoperability needs.
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ProfileSettings {
     /// Candidate hash algorithms, in descending order of preference.
     ///
@@ -137,6 +138,15 @@ pub struct ProfileSettings {
 
     /// If true, allows encryption to expired or not yet valid keys.
     pub allow_encryption_with_future_or_expired_keys: bool,
+
+    /// If true, allows decryption with keys that are only marked as signing keys.
+    pub allow_insecure_decryption_with_signing_keys: bool,
+}
+
+impl ProfileSettings {
+    pub fn builder() -> ProfileSettingsBuilder {
+        ProfileSettingsBuilder::new()
+    }
 }
 
 impl Default for ProfileSettings {
@@ -179,6 +189,7 @@ impl Default for ProfileSettings {
             known_notation_names: HashSet::from([PROTON_CONTEXT_NOTATION_NAME.to_string()]),
             allow_insecure_verification_with_reformatted_keys: true,
             allow_encryption_with_future_or_expired_keys: true,
+            allow_insecure_decryption_with_signing_keys: true,
         }
     }
 }
@@ -381,6 +392,14 @@ impl ProfileSettingsBuilder {
     /// If true, no time checks are performed for encryption key selection.
     pub fn allow_encryption_with_future_and_expired_keys(mut self, allow: bool) -> Self {
         self.settings.allow_encryption_with_future_or_expired_keys = allow;
+        self
+    }
+
+    /// Sets whether to allow decryption with signing keys.
+    ///
+    /// If true, decryption will allow using keys that are only marked as signing keys.
+    pub fn allow_insecure_decryption_with_signing_keys(mut self, allow: bool) -> Self {
+        self.settings.allow_insecure_decryption_with_signing_keys = allow;
         self
     }
 

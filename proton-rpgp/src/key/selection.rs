@@ -528,7 +528,9 @@ fn check_valid_encryption_key(
     }
 
     // Check the key flags if the profile does not ignore them.
-    if profile.ignore_key_flags() {
+    if profile.ignore_key_flags()
+        || (for_decryption && profile.allow_insecure_decryption_with_signing_keys())
+    {
         return Ok(());
     }
 
