@@ -6,19 +6,23 @@ use std::{
 use pgp::{
     bytes::{Buf, BufMut, BytesMut},
     composed::Message,
+    normalize_lines::NormalizedReader,
     packet::{Signature, SignatureType, SignatureVersionSpecific},
 };
 
 use crate::{
-    CustomNormalizedReader, MessageSignatureError, MessageVerificationExt, NormalizingHasher,
-    SignatureError, VerificationError, VerificationInput, VerificationResult,
+    MessageSignatureError, MessageVerificationExt, NormalizingHasher, ReaderReference,
+    ReferencedReader, SignatureError, VerificationError, VerificationInput, VerificationResult,
     VerificationResultCreator, VerifiedSignature, Verifier,
 };
 
 const BUFFER_SIZE: usize = 8 * 1024;
 
 pub enum VerifyingReader<'a> {
-    InlineNormalizedLineEndings(Box<CustomNormalizedReader<MessageVerifyingReader<'a>>>),
+    InlineNormalizedLineEndings {
+        referenced_inner_reader: ReaderReference<MessageVerifyingReader<'a>>,
+        normalized_reader: Box<NormalizedReader<ReferencedReader<MessageVerifyingReader<'a>>>>,
+    },
     Inline(MessageVerifyingReader<'a>),
     Detached(DetachedVerifyingReader<'a>),
 }
@@ -32,7 +36,9 @@ impl VerifyingReader<'_> {
 impl Read for VerifyingReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
-            Self::InlineNormalizedLineEndings(reader) => reader.read(buf),
+            Self::InlineNormalizedLineEndings {
+                normalized_reader, ..
+            } => normalized_reader.read(buf),
             Self::Inline(reader) => reader.read(buf),
             Self::Detached(reader) => reader.read(buf),
         }
@@ -42,7 +48,7 @@ impl Read for VerifyingReader<'_> {
 impl fmt::Debug for VerifyingReader<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InlineNormalizedLineEndings(_) => {
+            Self::InlineNormalizedLineEndings { .. } => {
                 f.write_str("inline signature verification reader with normalized line endings")
             }
             Self::Inline(_) => f.write_str("inline signature verification reader"),
@@ -54,7 +60,10 @@ impl fmt::Debug for VerifyingReader<'_> {
 impl VerifyingReader<'_> {
     pub fn verification_result(self) -> VerificationResult {
         match self {
-            Self::InlineNormalizedLineEndings(reader) => reader.into_inner().verification_result(),
+            Self::InlineNormalizedLineEndings {
+                referenced_inner_reader: inner_referenced_reader,
+                ..
+            } => inner_referenced_reader.borrow().verification_result(),
             Self::Inline(reader) => reader.verification_result(),
             Self::Detached(reader) => reader.verification_result(),
         }
@@ -79,14 +88,14 @@ pub struct MessageVerifyingReader<'a> {
 }
 
 impl<'a> MessageVerifyingReader<'a> {
-    pub fn new(verifier: Verifier<'a>, message: Message<'a>) -> Self {
+    pub(crate) fn new(verifier: Verifier<'a>, message: Message<'a>) -> Self {
         Self {
             verifier,
             message: Box::new(message),
         }
     }
 
-    pub fn verification_result(self) -> VerificationResult {
+    pub fn verification_result(&self) -> VerificationResult {
         let verified_signatures = self
             .message
             .verify_nested_to_verified_signatures(
@@ -113,7 +122,7 @@ pub struct DetachedVerifyingReader<'a> {
 }
 
 impl<'a> DetachedVerifyingReader<'a> {
-    pub fn new(
+    pub(crate) fn new(
         verifier: Verifier<'a>,
         sig: impl IntoIterator<Item = Signature>,
         source: Box<dyn BufRead + 'a>,
@@ -161,7 +170,7 @@ impl Read for DetachedVerifyingReader<'_> {
 type HashResult = Result<Box<[u8]>, pgp::errors::Error>;
 
 /// Low level reader to compute the hash for detached signatures.
-/// Similar to the `SignatureBodyReader` in rPGP.
+/// Similar to the [`pgp::composed::SignatureBodyReader`] in rPGP.
 pub enum DetachedSignaturesBodyReader<'a> {
     Init {
         source: Box<dyn BufRead + 'a>,
@@ -391,6 +400,7 @@ impl Read for DetachedSignaturesBodyReader<'_> {
     }
 }
 
+/// Copied code from rPGP for [`DetachedSignaturesBodyReader`].
 pub(crate) fn fill_buffer_bytes<R: BufRead>(
     mut source: R,
     buffer: &mut BytesMut,

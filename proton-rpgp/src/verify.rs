@@ -7,6 +7,8 @@ use std::{
 use pgp::{
     armor::BlockType,
     composed::{CleartextSignedMessage, Message},
+    line_writer::LineBreak,
+    normalize_lines::NormalizedReader,
     packet::{Packet, PacketParser, Signature},
 };
 
@@ -15,9 +17,9 @@ use crate::{
     signature::{
         VerificationError, VerificationResult, VerificationResultCreator, VerifiedSignature,
     },
-    ArmorError, CheckUnixTime, CustomNormalizedReader, DataEncoding, Error, MessageProcessingError,
-    MessageVerificationError, MessageVerificationExt, Profile, PublicKey, ResolvedDataEncoding,
-    VerificationContext, VerificationInput, DEFAULT_PROFILE,
+    ArmorError, CheckUnixTime, DataEncoding, Error, MessageProcessingError,
+    MessageVerificationError, MessageVerificationExt, Profile, PublicKey, ReferencedReader,
+    ResolvedDataEncoding, VerificationContext, VerificationInput, DEFAULT_PROFILE,
 };
 
 mod reader;
@@ -427,10 +429,14 @@ impl<'a> Verifier<'a> {
         let normalize = self.native_newlines_utf8;
         let message_reader = MessageVerifyingReader::new(self, message);
         if normalize {
-            let reader = CustomNormalizedReader::new_lf(message_reader);
-            return Ok(VerifyingReader::InlineNormalizedLineEndings(Box::new(
-                reader,
-            )));
+            let inner_reader = ReferencedReader::new(message_reader);
+            let referenced_inner_reader = inner_reader.reference();
+            let reader = NormalizedReader::new(inner_reader, LineBreak::Lf);
+
+            return Ok(VerifyingReader::InlineNormalizedLineEndings {
+                referenced_inner_reader,
+                normalized_reader: Box::new(reader),
+            });
         }
         Ok(message_reader.into())
     }
