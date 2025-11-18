@@ -37,6 +37,7 @@ crate::string_id! {
 
 /// The data of an address key encoded in the Signed Key List (SKL).
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[serde(rename_all = "PascalCase")]
 #[allow(clippy::module_name_repetitions)]
 pub struct SKLKeyData {
@@ -111,6 +112,7 @@ impl SKLData {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[serde(rename_all = "PascalCase")]
 /// Represents a signed key list fetched from the API.
 pub struct SignedKeyList {
@@ -223,6 +225,7 @@ impl SignedKeyList {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[serde(rename_all = "PascalCase")]
 #[allow(clippy::module_name_repetitions)]
 /// Represents a locally generated signed key list not yet synced with the backend.

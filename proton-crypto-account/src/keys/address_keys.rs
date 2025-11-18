@@ -247,6 +247,7 @@ impl<Priv: PrivateKey, Pub: PublicKey> PrimaryUnlockedAddressKey<Priv, Pub> {
 
 /// Represents locked address keys of a user retrieved from the API.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 pub struct AddressKeys(pub Vec<LockedKey>);
 
 impl AsRef<[LockedKey]> for AddressKeys {

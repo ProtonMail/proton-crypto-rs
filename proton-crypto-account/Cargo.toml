@@ -25,7 +25,7 @@ rusqlite = { version = "0.32.1", features = [
     "trace",
     "uuid",
 ], optional = true}
-
+facet = { workspace = true, optional = true}
 
 [lints]
 workspace = true
@@ -35,3 +35,4 @@ default = ["rustpgp"]
 sql = ["dep:rusqlite"]
 rustpgp = ["proton-crypto/rustpgp"]
 gopgp = ["proton-crypto/gopgp"]
+facet = ["dep:facet", "proton-crypto/facet"]

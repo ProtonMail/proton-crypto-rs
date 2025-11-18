@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[derive(Serialize_repr, Deserialize_repr, PartialEq, Eq, Debug, Hash, Clone, Copy)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[repr(u32)]
 pub enum AccessToOrgKey {
     /// The member does not and should not have access to the org key (e.g. not an admin).
@@ -16,6 +17,7 @@ pub enum AccessToOrgKey {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[serde(rename_all = "PascalCase")]
 pub struct LockedOrganizationKey {
     /// `OpenPGP` organization private key.

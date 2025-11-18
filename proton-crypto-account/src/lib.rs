@@ -19,6 +19,7 @@ macro_rules! string_id {
         $name:ident
     ) => {
         #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
+        #[cfg_attr(feature = "facet", derive(facet::Facet))]
         $(#[$meta])*
         pub struct $name(pub String);
 

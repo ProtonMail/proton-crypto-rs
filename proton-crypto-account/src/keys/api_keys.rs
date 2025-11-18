@@ -9,6 +9,7 @@ use super::SignedKeyList;
 use crate::{FLAG_EMAIL_NO_ENCRYPT, FLAG_EMAIL_NO_SIGN, FLAG_NOT_COMPROMISED, FLAG_NOT_OBSOLETE};
 
 #[derive(Serialize_repr, Deserialize_repr, PartialEq, Eq, Debug, Hash, Clone, Copy)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[repr(u32)]
 pub enum APIPublicKeySource {
     Proton = 0,
@@ -23,6 +24,7 @@ crate::string_id! {
 
 /// Represent a flag of a key containing a bit map.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Clone, Copy)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 pub struct KeyFlag(u32);
 
 impl Display for KeyFlag {
@@ -133,6 +135,7 @@ crate::string_id! {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[serde(rename_all = "PascalCase")]
 /// Represents a locked jey retrieved from the API.
 pub struct LockedKey {
@@ -178,6 +181,7 @@ pub struct LockedKey {
 /// another proton user.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[serde(rename_all = "PascalCase")]
 pub struct APIPublicKey {
     /// Origin of the public key.
@@ -191,6 +195,7 @@ pub struct APIPublicKey {
     pub primary: bool,
 }
 #[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[serde(rename_all = "PascalCase")]
 pub struct APIPublicAddressKeyGroup {
     pub keys: Vec<APIPublicKey>,
@@ -198,6 +203,7 @@ pub struct APIPublicAddressKeyGroup {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[serde(rename_all = "PascalCase")]
 pub struct APIUnverifiedPublicAddressKeyGroup {
     pub keys: Vec<APIPublicKey>,
@@ -211,6 +217,7 @@ impl AsRef<[APIPublicKey]> for APIPublicAddressKeyGroup {
 
 /// Represents the public keys returned from the `keys/all` route.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[serde(rename_all = "PascalCase")]
 #[allow(clippy::module_name_repetitions)]
 pub struct APIPublicAddressKeys {
