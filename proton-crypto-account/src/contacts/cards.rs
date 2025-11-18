@@ -33,6 +33,7 @@ crate::string_id! {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Deserialize_repr, Serialize_repr, TryFrom)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 #[try_from(repr)]
 #[repr(u8)]
 pub enum ContactCardType {

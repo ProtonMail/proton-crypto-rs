@@ -87,6 +87,7 @@ impl<Provider: PGPProviderSync> UnlockedUserKeys<Provider> {
 
 /// Represents locked user keys retrieved from the API.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 pub struct UserKeys(pub Vec<LockedKey>);
 
 impl AsRef<[LockedKey]> for UserKeys {

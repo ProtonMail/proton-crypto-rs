@@ -30,6 +30,7 @@ pub enum SaltError {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 pub struct Salt {
     #[serde(rename = "ID")]
     pub id: KeyId,
@@ -113,6 +114,7 @@ impl KeySalt {
 
 /// A list of salts retrieved from the API.
 #[derive(Deserialize, Debug)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
 pub struct Salts(Vec<Salt>);
 
 impl Salts {
