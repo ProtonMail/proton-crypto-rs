@@ -450,6 +450,8 @@ pub fn decrypt_encrypted_message_v4_forwarding() {
     assert!(verified_data.verification_result.is_err());
 }
 
+#[test]
+#[allow(clippy::missing_panics_doc)]
 pub fn decrypt_and_verify_encrypted_message_with_detached_signature_stream() {
     const INPUT_DATA: &str =
         include_str!("../test-data/messages/encrypted_message_v6_detached_signature.asc");
