@@ -17,6 +17,7 @@ parking_lot = "0.12"
 subtle = "2.5.0"
 rand = { workspace = true }
 web-time = { workspace = true }
+facet = { workspace = true, optional = true}
 
 [dev-dependencies]
 smol = "2.0.0"
@@ -27,6 +28,7 @@ rustpgp = ["dep:proton-rpgp"]
 gopgp = ["dep:gopenpgp-sys"]
 rustpgp_wasm = ["rustpgp", "proton-rpgp/wasm"]
 rustpgp_asm = ["rustpgp", "proton-rpgp/asm"]
+facet = ["dep:facet"]
 
 [lints]
 workspace = true

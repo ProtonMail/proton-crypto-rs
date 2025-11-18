@@ -192,6 +192,7 @@ macro_rules! lowercase_string_id {
         $name:ident
     ) => {
         #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Default)]
+        #[cfg_attr(feature = "facet", derive(facet::Facet))]
         $(#[$meta])*
         pub struct $name(String);
 

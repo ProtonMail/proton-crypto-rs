@@ -55,6 +55,7 @@ thiserror = "1"
 zeroize = { version="1.7.0", features = ["zeroize_derive"]}
 serde = { version="1", features = ["derive"]}
 web-time = "1.1.0"
+facet = { version = "0.31.3" }
 
 # --- Workspace crates ---
 [workspace.dependencies.gopenpgp-sys]
