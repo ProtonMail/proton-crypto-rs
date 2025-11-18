@@ -15,6 +15,7 @@ hex = { workspace = true }
 parking_lot = "0.12"
 subtle = "2.5.0"
 rand = { workspace = true }
+facet = { workspace = true, optional = true}
 
 [dev-dependencies]
 smol = "2.0.0"
@@ -22,6 +23,7 @@ smol = "2.0.0"
 [features]
 default = ["gopgp"]
 gopgp = ["dep:gopenpgp-sys"]
+facet = ["dep:facet"]
 
 [lints]
 workspace = true
