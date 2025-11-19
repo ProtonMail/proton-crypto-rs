@@ -17,7 +17,7 @@ parking_lot = "0.12"
 subtle = "2.5.0"
 rand = { workspace = true }
 web-time = { workspace = true }
-facet = { workspace = true, optional = true}
+facet = { workspace = true, optional = true }
 
 [dev-dependencies]
 smol = "2.0.0"
