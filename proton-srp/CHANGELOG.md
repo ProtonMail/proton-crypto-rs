@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - use the `web-time` crate to support time usage under WebAssembly environments
 
+### Added
+- Add SRP API with a custom random number generator. 
+
+### Changed
+- pgp bumped to `0.17.0`.
+
 ## 0.7.1 2025-09-02
 
 ### Changed

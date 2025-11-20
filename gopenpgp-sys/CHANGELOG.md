@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.3.3] - 2025-11-07
+
+### Changed
+
+- A more robust platform evaluation mechanism within the build script.
+
+### Fixed
+
+- Handle nil pointers in `pgp_verification_result_all_signatures`.
+
 ## [0.3.2] - 2025-09-02
 
 ### Changed

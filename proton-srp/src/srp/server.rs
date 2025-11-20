@@ -1,9 +1,11 @@
 use std::ops::Deref;
 
 use base64::{prelude::BASE64_STANDARD as BASE_64, Engine as _};
+use rand::{CryptoRng, RngCore};
+
 use zeroize::Zeroizing;
 
-use crate::{ModulusSignatureVerifier, SRPError};
+use crate::{srp_default_csprng, ModulusSignatureVerifier, SRPError};
 
 use crate::core::{ServerInteraction as CoreServerInteraction, SRP_LEN_BYTES};
 
@@ -302,6 +304,29 @@ impl ServerInteraction {
         raw_modulus: &RawSRPModulus,
         verifier: &ServerClientVerifier,
     ) -> Result<Self, SRPError> {
+        Self::inner_new_with_rng(raw_modulus, verifier, &mut srp_default_csprng())
+    }
+
+    /// Starts a new server interaction with a client.
+    ///
+    /// # Parameters
+    ///
+    /// * `raw_modulus`      - The base64 encoded modulus to use.
+    /// * `verifier`         - The SRP verifier of the client to start the interaction with.
+    /// * `rng`              - A cryptographically secure randomness source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if input decoding fails or if the input is invalid
+    #[cfg(feature = "custom_csprng")]
+    pub fn new_with_rng<Rand>(
+        raw_modulus: &RawSRPModulus,
+        verifier: &ServerClientVerifier,
+        rng: &mut Rand,
+    ) -> Result<Self, SRPError>
+    where
+        Rand: CryptoRng + RngCore,
+    {
         let modulus_bytes: &[u8; SRP_LEN_BYTES] = raw_modulus
             .0
             .as_slice()
@@ -315,7 +340,7 @@ impl ServerInteraction {
             .map_err(|_err| SRPError::InvalidVerifier)?;
 
         Ok(Self {
-            core_interaction: CoreServerInteraction::new(modulus_bytes, verifier_bytes)?,
+            core_interaction: CoreServerInteraction::new(modulus_bytes, verifier_bytes, rng)?,
         })
     }
 
@@ -340,7 +365,37 @@ impl ServerInteraction {
             include_str!("../../resources/server_public_key.asc"),
         )?;
         let raw_modulus = RawSRPModulus::new(&modulus_b64)?;
-        Self::new(&raw_modulus, verifier)
+        Self::inner_new_with_rng(&raw_modulus, verifier, &mut srp_default_csprng())
+    }
+
+    /// Starts a new server interaction with a client.
+    ///
+    /// # Parameters
+    ///
+    /// * `modulus_verifier` - The extractor that should be used to extract and verify the modulus.
+    /// * `signed_modulus`   - The signed modulus to use encoded as a cleartext `OpenPGP` message.
+    /// * `verifier`         - The SRP verifier of the client to start the interaction with.
+    /// * `rng`              - A cryptographically secure randomness source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if input decoding fails or if the input is invalid
+    #[cfg(feature = "custom_csprng")]
+    pub fn new_with_modulus_extractor_and_rng<Rand>(
+        modulus_verifier: &impl ModulusSignatureVerifier,
+        signed_modulus: &str,
+        verifier: &ServerClientVerifier,
+        rng: &mut Rand,
+    ) -> Result<Self, SRPError>
+    where
+        Rand: CryptoRng + RngCore,
+    {
+        let modulus_b64 = modulus_verifier.verify_and_extract_modulus(
+            signed_modulus,
+            include_str!("../../resources/server_public_key.asc"),
+        )?;
+        let raw_modulus = RawSRPModulus::new(&modulus_b64)?;
+        Self::inner_new_with_rng(&raw_modulus, verifier, rng)
     }
 
     /// Restores a server interaction from an existing state.
@@ -445,5 +500,30 @@ impl ServerInteraction {
             server_ephemeral,
             server_ephemeral_secret,
         }
+    }
+
+    fn inner_new_with_rng<Rand>(
+        raw_modulus: &RawSRPModulus,
+        verifier: &ServerClientVerifier,
+        rng: &mut Rand,
+    ) -> Result<Self, SRPError>
+    where
+        Rand: CryptoRng + RngCore,
+    {
+        let modulus_bytes: &[u8; SRP_LEN_BYTES] = raw_modulus
+            .0
+            .as_slice()
+            .try_into()
+            .map_err(|_err| SRPError::InvalidModulus("wrong byte size"))?;
+
+        let verifier_bytes: &[u8; SRP_LEN_BYTES] = verifier
+            .0
+            .as_slice()
+            .try_into()
+            .map_err(|_err| SRPError::InvalidVerifier)?;
+
+        Ok(Self {
+            core_interaction: CoreServerInteraction::new(modulus_bytes, verifier_bytes, rng)?,
+        })
     }
 }

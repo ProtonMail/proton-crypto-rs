@@ -1,7 +1,8 @@
 use base64::{prelude::BASE64_STANDARD as BASE_64, Engine as _};
 use crypto_bigint::subtle::ConstantTimeEq;
+use rand::{CryptoRng, RngCore};
 
-use crate::{ModulusSignatureVerifier, SRPError, PROTON_SRP_VERSION};
+use crate::{srp_default_csprng, ModulusSignatureVerifier, SRPError, PROTON_SRP_VERSION};
 
 use crate::core::{self, SRPAuthData, SALT_LEN_BYTES, SRP_LEN_BYTES};
 
@@ -188,7 +189,20 @@ impl SRPAuth {
     ///
     /// Returns `Err` if the srp client proof generation fails with the given state.
     pub fn generate_proofs(&self) -> Result<SRPProof, SRPError> {
-        self.0.generate_client_proof()
+        self.0.generate_client_proof(&mut srp_default_csprng())
+    }
+
+    /// Generate the SRP client proofs with the given randomness source.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the srp client proof generation fails with the given state.
+    #[cfg(feature = "custom_csprng")]
+    pub fn generate_proofs_with_rng<Rand>(&self, rng: &mut Rand) -> Result<SRPProof, SRPError>
+    where
+        Rand: CryptoRng + RngCore,
+    {
+        self.0.generate_client_proof(rng)
     }
 
     /// Generates an SRP verifier to register with the server.
@@ -213,29 +227,44 @@ impl SRPAuth {
         salt_opt: Option<&str>,
         modulus: &str,
     ) -> Result<SRPVerifier, SRPError> {
-        let modulus_b64 = modulus_verifier.verify_and_extract_modulus(
+        Self::inner_generate_verifier_with_rng(
+            modulus_verifier,
+            password,
+            salt_opt,
             modulus,
-            include_str!("../../resources/server_public_key.asc"),
-        )?;
+            &mut srp_default_csprng(),
+        )
+    }
 
-        let decoded_modulus = BASE_64.decode(modulus_b64.trim())?;
-        let modulus_bytes: &[u8; SRP_LEN_BYTES] = decoded_modulus
-            .as_slice()
-            .try_into()
-            .map_err(|_err| SRPError::InvalidModulus("length does not match"))?;
-
-        // Either use the provided salt or generate a fresh one.
-        let decoded_salt = if let Some(salt) = salt_opt {
-            BASE_64.decode(salt)?
-        } else {
-            core::generate_random_salt()
-        };
-        let salt_bytes: &[u8; SALT_LEN_BYTES] = decoded_salt
-            .as_slice()
-            .try_into()
-            .map_err(|_err| SRPError::InvalidSalt("wrong size"))?;
-
-        core::generate_srp_verifier(PROTON_SRP_VERSION, password, salt_bytes, modulus_bytes)
+    /// Generates an SRP verifier to register with the server.
+    ///
+    /// The SRP verifier is required for example if a new account is created or
+    /// on a password change request.
+    ///
+    /// # Parameters
+    ///
+    /// * `verifier`         - A type that implements `ModulusSignatureVerifier` using PGP (if feature `pgpinternal` is enabled use `&RPGPVerifier::default()`)
+    /// * `password`         - The user password.
+    /// * `salt_opt`         - Some SRP salt for hashing the password, or None if a fresh salt should be generated.
+    /// * `modulus`          - A pgp message including the SRP modulus signed by the server.
+    /// * `rng`              - A cryptographically secure randomness source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if modulus extraction or verification fails, or something
+    /// goes wrong in the computation of the verifier.
+    #[cfg(feature = "custom_csprng")]
+    pub fn generate_verifier_with_rng<Rand>(
+        modulus_verifier: &impl ModulusSignatureVerifier,
+        password: &str,
+        salt_opt: Option<&str>,
+        modulus: &str,
+        rng: &mut Rand,
+    ) -> Result<SRPVerifier, SRPError>
+    where
+        Rand: CryptoRng + RngCore,
+    {
+        Self::inner_generate_verifier_with_rng(modulus_verifier, password, salt_opt, modulus, rng)
     }
 
     /// Generates an SRP verifier to register with the server using rPGP as the server modulus verifier.
@@ -303,5 +332,40 @@ impl SRPAuth {
             password,
         )
         .map(SRPAuth)
+    }
+
+    fn inner_generate_verifier_with_rng<Rand>(
+        modulus_verifier: &impl ModulusSignatureVerifier,
+        password: &str,
+        salt_opt: Option<&str>,
+        modulus: &str,
+        rng: &mut Rand,
+    ) -> Result<SRPVerifier, SRPError>
+    where
+        Rand: CryptoRng + RngCore,
+    {
+        let modulus_b64 = modulus_verifier.verify_and_extract_modulus(
+            modulus,
+            include_str!("../../resources/server_public_key.asc"),
+        )?;
+
+        let decoded_modulus = BASE_64.decode(modulus_b64.trim())?;
+        let modulus_bytes: &[u8; SRP_LEN_BYTES] = decoded_modulus
+            .as_slice()
+            .try_into()
+            .map_err(|_err| SRPError::InvalidModulus("length does not match"))?;
+
+        // Either use the provided salt or generate a fresh one.
+        let decoded_salt = if let Some(salt) = salt_opt {
+            BASE_64.decode(salt)?
+        } else {
+            core::generate_random_salt(rng)
+        };
+        let salt_bytes: &[u8; SALT_LEN_BYTES] = decoded_salt
+            .as_slice()
+            .try_into()
+            .map_err(|_err| SRPError::InvalidSalt("wrong size"))?;
+
+        core::generate_srp_verifier(PROTON_SRP_VERSION, password, salt_bytes, modulus_bytes)
     }
 }

@@ -42,7 +42,7 @@
 use crypto_bigint::modular::runtime_mod::{DynResidue, DynResidueParams};
 use crypto_bigint::subtle::ConstantTimeEq;
 use crypto_bigint::{Encoding, Integer, NonZero, RandomMod, Zero, U2048};
-use rand::RngCore;
+use rand::{CryptoRng, RngCore};
 use zeroize::Zeroizing;
 
 use crate::pmhash::expand_hash;
@@ -139,7 +139,10 @@ impl SRPAuthData {
         })
     }
 
-    pub(crate) fn generate_client_proof(&self) -> Result<SRPProof, SRPError> {
+    pub(crate) fn generate_client_proof<R>(&self, rng: &mut R) -> Result<SRPProof, SRPError>
+    where
+        R: CryptoRng + RngCore,
+    {
         let g = &self.g;
         let n = &self.n;
         let n_minus_one = self.n_minus_one;
@@ -160,7 +163,7 @@ impl SRPAuthData {
                 return Err(SRPError::InvalidScramblingParameter);
             }
             // Client secret a
-            let client_secret = self.generate_client_secret()?;
+            let client_secret = self.generate_client_secret(rng)?;
 
             // Compute public client ephemeral A = g^a
             let a_pub = g_res.pow(&client_secret).retrieve();
@@ -205,7 +208,10 @@ impl SRPAuthData {
     }
 
     // Helper function to generate or retrieve the client secret
-    fn generate_client_secret(&self) -> Result<BigUint, SRPError> {
+    fn generate_client_secret<R>(&self, rng: &mut R) -> Result<BigUint, SRPError>
+    where
+        R: CryptoRng + RngCore,
+    {
         #[cfg(test)]
         {
             if let Some(client_item) = &self.override_client_secret {
@@ -214,7 +220,7 @@ impl SRPAuthData {
                 return Ok(BigUint::from_le_slice(&extended));
             }
         }
-        generate_ephemeral_secret(self.n_minus_one)
+        generate_ephemeral_secret(self.n_minus_one, rng)
     }
 }
 
@@ -274,10 +280,15 @@ fn compute_server_proof(
 }
 
 /// Generate an ephemeral secret.
-fn generate_ephemeral_secret(modulus_minus_one: NonZero<BigUint>) -> Result<BigUint, SRPError> {
-    let mut rng = rand::thread_rng();
+fn generate_ephemeral_secret<R>(
+    modulus_minus_one: NonZero<BigUint>,
+    rng: &mut R,
+) -> Result<BigUint, SRPError>
+where
+    R: CryptoRng + RngCore,
+{
     for _ in 0..MAX_RETRIES {
-        let possible_client_item = BigUint::random_mod(&mut rng, &modulus_minus_one);
+        let possible_client_item = BigUint::random_mod(rng, &modulus_minus_one);
         if possible_client_item > BigUint::ONE {
             return Ok(possible_client_item);
         }
@@ -285,10 +296,12 @@ fn generate_ephemeral_secret(modulus_minus_one: NonZero<BigUint>) -> Result<BigU
     Err(SRPError::CannotFindClientSecret)
 }
 
-/// Generates a random srp salt using a [`rand::rngs::ThreadRng`] as `CSPRNG`.
-pub(crate) fn generate_random_salt() -> Vec<u8> {
+/// Generates a random srp salt.
+pub(crate) fn generate_random_salt<R>(rng: &mut R) -> Vec<u8>
+where
+    R: CryptoRng + RngCore,
+{
     let mut salt_bytes: Vec<u8> = vec![0; SALT_LEN_BYTES];
-    let mut rng = rand::thread_rng();
     rng.fill_bytes(&mut salt_bytes);
     salt_bytes
 }
@@ -350,10 +363,14 @@ pub struct ServerInteraction {
 }
 
 impl ServerInteraction {
-    pub(crate) fn new(
+    pub(crate) fn new<R>(
         modulus: &[u8; SRP_LEN_BYTES],  // N
         verifier: &[u8; SRP_LEN_BYTES], // v
-    ) -> Result<Self, SRPError> {
+        rng: &mut R,
+    ) -> Result<Self, SRPError>
+    where
+        R: CryptoRng + RngCore,
+    {
         // Generator g is hardcoded to 2
         let g = HARDCODED_GENERATOR;
         // Group modulus N
@@ -363,7 +380,7 @@ impl ServerInteraction {
             return Err(SRPError::InvalidMultiplier);
         };
         // b
-        let server_secret = generate_ephemeral_secret(n_minus_one)?;
+        let server_secret = generate_ephemeral_secret(n_minus_one, rng)?;
         // v
         let v = BigUint::from_le_slice(verifier);
 
