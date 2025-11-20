@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+### Changed
+
+- Ensure all errors are Send + 'static
+
 ## Added 
 
 - `facet` feature flag to derive Facet macro on API types.

@@ -60,4 +60,18 @@ macro_rules! string_id {
     };
 }
 
+macro_rules! assert_send_static {
+    ($($ty:ty),* $(,)?) => {
+        const _: () = {
+            const fn assert_send<T: Send>() {}
+            const fn assert_static<T: 'static>() {}
+            $(
+                assert_send::<$ty>();
+                assert_static::<$ty>();
+            )*
+        };
+    };
+}
+
+pub(crate) use assert_send_static;
 pub(crate) use string_id;

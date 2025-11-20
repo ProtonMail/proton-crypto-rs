@@ -3,6 +3,7 @@ use std::{io::Error, str::Utf8Error};
 
 use proton_crypto::{crypto::VerificationError, CryptoError};
 
+use crate::assert_send_static;
 use crate::keys::KeyId;
 
 #[derive(Debug, thiserror::Error)]
@@ -60,7 +61,7 @@ pub enum SKLError {
     #[error("Failed get primary address key")]
     NoPrimaryKey,
     #[error("Failed to parse the SKL data: {0}")]
-    ParseError(Box<dyn std::error::Error>),
+    ParseError(String),
     #[error("Failed to verify SKL signature: {0}")]
     SignatureVerification(#[from] VerificationError),
     #[error("No SKL data present")]
@@ -92,3 +93,14 @@ pub enum CardCryptoError {
     #[error("Failed to decode card as utf-8")]
     DecodeCard(#[from] Utf8Error),
 }
+
+// Ensure all error types to be Send and 'static.
+assert_send_static!(
+    CardCryptoError,
+    SKLError,
+    CryptoError,
+    AccountCryptoError,
+    KeyError,
+    KeySerializationError,
+    AddressKeySelectionError,
+);

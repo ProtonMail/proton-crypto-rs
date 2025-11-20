@@ -160,7 +160,7 @@ impl SignedKeyList {
     pub fn signed_key_list_data(&self) -> Result<SKLData, SKLError> {
         let data = self.data.as_ref().ok_or(SKLError::NoSKLData)?;
         let skl_data: Vec<SKLKeyData> = serde_json::from_str(data.0.as_str())
-            .map_err(|err| SKLError::ParseError(err.into()))?;
+            .map_err(|err| SKLError::ParseError(err.to_string()))?;
         Ok(SKLData(skl_data))
     }
 
