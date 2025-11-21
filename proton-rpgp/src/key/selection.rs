@@ -153,9 +153,12 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
                 };
 
             // Check if the subkey is a valid encryption key.
-            if let Err(err) =
-                check_valid_encryption_key(sub_key, sub_key_self_certification, profile, false)
-            {
+            if let Err(err) = check_valid_encryption_key(
+                sub_key,
+                sub_key_self_certification,
+                profile,
+                CheckMode::Encryption,
+            ) {
                 subkey_errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
@@ -188,9 +191,12 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
         }
 
         // Check if the primary key is a valid encryption key.
-        if let Err(err) =
-            check_valid_encryption_key(primary_key, primary_self_certification, profile, false)
-        {
+        if let Err(err) = check_valid_encryption_key(
+            primary_key,
+            primary_self_certification,
+            profile,
+            CheckMode::Encryption,
+        ) {
             subkey_errors.push(KeyValidationError::PrimaryRequirement(
                 primary_key.key_id(),
                 err,
@@ -426,6 +432,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
         &self,
         date: CheckUnixTime,
         key_id: Option<GenericKeyIdentifier>,
+        allow_forwarding_decryption: bool,
         profile: &Profile,
     ) -> Result<Vec<PrivateComponentKey<'_>>, KeyValidationError> {
         let primary_key = self.primary_key();
@@ -433,6 +440,10 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
 
         let mut errors = Vec::new();
         let mut decryption_keys = Vec::new();
+
+        let mode = CheckMode::Decryption {
+            allow_forwarding_decryption,
+        };
 
         for sub_key in self.iter_private_subkeys() {
             // Filter by key-id if present.
@@ -461,7 +472,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 sub_key.key.public_key(),
                 subkey_self_certification,
                 profile,
-                true,
+                mode,
             ) {
                 errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
@@ -476,7 +487,7 @@ pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
 
         // Check if we can decrypt with the primary key for compatibility.
         if let Err(err) =
-            check_valid_encryption_key(primary_key, primary_self_certification, profile, true)
+            check_valid_encryption_key(primary_key, primary_self_certification, profile, mode)
         {
             errors.push(KeyValidationError::PrimaryRequirement(
                 primary_key.key_id(),
@@ -514,11 +525,32 @@ fn check_signing_key_flags(
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum CheckMode {
+    Encryption,
+    Decryption { allow_forwarding_decryption: bool },
+}
+
+impl CheckMode {
+    fn allow_forwarding_keys(self) -> bool {
+        match self {
+            CheckMode::Encryption => false,
+            CheckMode::Decryption {
+                allow_forwarding_decryption,
+            } => allow_forwarding_decryption,
+        }
+    }
+
+    fn is_decryption(self) -> bool {
+        matches!(self, CheckMode::Decryption { .. })
+    }
+}
+
 fn check_valid_encryption_key(
     public_key: &impl PublicKeyTrait,
     signature: &packet::Signature,
     profile: &Profile,
-    for_decryption: bool,
+    mode: CheckMode,
 ) -> Result<(), KeyRequirementError> {
     // Check the key algorithm.
     if !public_key.is_encryption_key() {
@@ -528,18 +560,19 @@ fn check_valid_encryption_key(
     }
 
     // Check the key flags if the profile does not ignore them.
-    if profile.ignore_key_flags()
-        || (for_decryption && profile.allow_insecure_decryption_with_signing_keys())
-    {
+    if profile.ignore_key_flags() {
         return Ok(());
     }
 
     // Check the key flags.
     let key_flags = signature.key_flags();
-    // Only allow forwarding flag for decryption.
+    let allow_signing_flags =
+        mode.is_decryption() && profile.allow_insecure_decryption_with_signing_keys();
+
     let valid_for_encryption = key_flags.encrypt_comms()
         || key_flags.encrypt_storage()
-        || (for_decryption && key_flags.draft_decrypt_forwarded());
+        || (allow_signing_flags && key_flags.sign())
+        || (mode.allow_forwarding_keys() && key_flags.draft_decrypt_forwarded());
     if !valid_for_encryption {
         return Err(KeyRequirementError::InvalidEncryptionKeyFlags(
             key_flags.into(),

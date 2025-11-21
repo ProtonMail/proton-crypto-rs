@@ -363,7 +363,7 @@ impl PrivateKey {
     pub fn is_forwarding_key(&self, profile: &Profile) -> bool {
         let Ok(decryption_keys) =
             self.secret
-                .decryption_keys(CheckUnixTime::disable(), None, profile)
+                .decryption_keys(CheckUnixTime::disable(), None, true, profile)
         else {
             return false;
         };
@@ -767,7 +767,7 @@ mod tests {
 
         let selection_result = private_key
             .secret
-            .decryption_keys(date.into(), None, &profile)
+            .decryption_keys(date.into(), None, false, &profile)
             .expect("key selected");
 
         let selected = selection_result.into_iter().next().unwrap();

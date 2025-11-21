@@ -39,6 +39,9 @@ pub struct Decryptor<'a> {
     ///
     /// When supplied only this signature is consider and message signatures are ignored.
     detached_signature: Option<ExternalDetachedSignature<'a>>,
+
+    /// Indicates wether forwading decryption is allowed.
+    allow_forwarding_decryption: bool,
 }
 
 impl<'a> Decryptor<'a> {
@@ -50,6 +53,7 @@ impl<'a> Decryptor<'a> {
             session_keys: Vec::new(),
             verifier: Verifier::new(profile),
             detached_signature: None,
+            allow_forwarding_decryption: false,
         }
     }
 
@@ -145,6 +149,14 @@ impl<'a> Decryptor<'a> {
     /// Further, the decryptor replaces canonical newlines (`\r\n`) with native newlines (`\n`).
     pub fn output_utf8(mut self) -> Self {
         self.verifier = self.verifier.output_utf8();
+        self
+    }
+
+    /// If enabled, allows to use `OpenPGP` keys marked as forwarding keys for decryption.
+    ///
+    /// Forwading key decryption is disabled by default.
+    pub fn allow_forwarding_decryption(mut self, allow: bool) -> Self {
+        self.allow_forwarding_decryption = allow;
         self
     }
 
@@ -284,6 +296,7 @@ impl<'a> Decryptor<'a> {
                     match handle_pkesk_decryption(
                         &pkesk,
                         self.decryption_keys.iter().copied(),
+                        self.allow_forwarding_decryption,
                         self.profile(),
                     ) {
                         Ok(session_key) => return Ok(session_key.into()),

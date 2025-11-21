@@ -26,9 +26,9 @@ pub struct RustDecryptor<'a> {
 
 impl RustDecryptor<'_> {
     pub fn new(profile: Profile) -> Self {
-        Self {
-            inner: proton_rpgp::Decryptor::new(profile),
-        }
+        // Enabled forwarding decryption by default to be compatible with the Go API.
+        let inner = proton_rpgp::Decryptor::new(profile).allow_forwarding_decryption(true);
+        Self { inner }
     }
 }
 

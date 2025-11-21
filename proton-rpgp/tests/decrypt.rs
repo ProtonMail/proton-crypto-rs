@@ -443,11 +443,18 @@ pub fn decrypt_encrypted_message_v4_forwarding() {
     let verified_data = Decryptor::default()
         .with_decryption_key(&key)
         .at_date(date.into())
+        .allow_forwarding_decryption(true)
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect("Failed to decrypt");
 
     assert_eq!(verified_data.data, b"Message for Bob");
     assert!(verified_data.verification_result.is_err());
+
+    Decryptor::default()
+        .with_decryption_key(&key)
+        .at_date(date.into())
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect_err("Forwarding decryption must fail if not explicelty allowed");
 }
 
 #[test]

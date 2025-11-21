@@ -45,6 +45,7 @@ impl<'a> MessageDecryptionExt<'a> for Message<'a> {
                     match handle_pkesk_decryption(
                         pkesk,
                         decryptor.decryption_keys.iter().copied(),
+                        decryptor.allow_forwarding_decryption,
                         decryptor.profile(),
                     ) {
                         Ok(session_key) => session_keys.push(session_key),
@@ -107,6 +108,7 @@ impl PkeskExt for PublicKeyEncryptedSessionKey {
 pub(crate) fn handle_pkesk_decryption<'a>(
     pkesk: &PublicKeyEncryptedSessionKey,
     decryption_keys: impl Iterator<Item = &'a PrivateKey>,
+    allow_forwarding_decryption: bool,
     profile: &Profile,
 ) -> Result<PlainSessionKey, DecryptionError> {
     let Some(generic_identifier) = pkesk.generic_identifier() else {
@@ -121,6 +123,7 @@ pub(crate) fn handle_pkesk_decryption<'a>(
         let decryption_keys_result = decryption_key.secret.decryption_keys(
             CheckUnixTime::disable(), // disable time checks for decryption keys.
             Some(generic_identifier.clone()),
+            allow_forwarding_decryption,
             profile,
         );
 
