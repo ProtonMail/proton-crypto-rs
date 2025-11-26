@@ -137,10 +137,6 @@ impl<'a> InnerDetachedHashingReader<'a> {
     pub(crate) fn external_hash_tracker(&self) -> ExternalHashTracker {
         self.hash_tracker.clone()
     }
-
-    pub(crate) fn discard_all_data(&mut self) -> io::Result<()> {
-        io::copy(self, &mut io::sink()).map(|_| ())
-    }
 }
 
 impl Read for InnerDetachedHashingReader<'_> {

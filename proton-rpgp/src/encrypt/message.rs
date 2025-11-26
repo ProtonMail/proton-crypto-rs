@@ -254,10 +254,6 @@ impl<R: BufRead> ExternalCountingReader<R> {
             bytes_read: size,
         }
     }
-
-    pub(super) fn bytes_read(&self) -> usize {
-        *self.bytes_read.borrow()
-    }
 }
 
 impl<R: BufRead> Read for ExternalCountingReader<R> {

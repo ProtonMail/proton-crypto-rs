@@ -1,7 +1,3 @@
-// Allow dead code for now.
-// TODO: Remove this once we have a proper API.
-#![allow(dead_code)]
-
 mod decrypt;
 mod encrypt;
 mod errors;

@@ -22,6 +22,7 @@ use crate::{
 /// select one. A public component key represents such a selected key.
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub(crate) struct PublicComponentKey<'a> {
     /// The public key part of the component key (either a primary or subkey).
     pub(crate) public_key: AnyPublicKey<'a>,
@@ -173,10 +174,6 @@ impl<'a> PrivateComponentKey<'a> {
         config
             .sign(&self.private_key, &Password::default(), data.as_ref())
             .map_err(SigningError::Sign)
-    }
-
-    pub fn is_primary_key(&self) -> bool {
-        matches!(self.private_key, AnySecretKey::PrimarySecretKey(_))
     }
 
     pub fn is_subkey(&self) -> bool {

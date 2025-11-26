@@ -10,8 +10,6 @@ use sha2::digest::DynDigest;
 
 use crate::TextSanitizationError;
 
-const BUF_SIZE: usize = 1024;
-
 /// Checks that the input is utf-8 encoded and
 /// replaces canonical newlines (`\r\n`) with native newlines (`\n`).
 pub(crate) fn check_and_sanitize_text(cleartext: &[u8]) -> Result<Vec<u8>, TextSanitizationError> {
@@ -162,10 +160,6 @@ where
 impl<R: Read> Utf8CheckReader<R> {
     pub(crate) fn new(source: R) -> Self {
         Self { source, rest: None }
-    }
-
-    pub(crate) fn into_inner(self) -> R {
-        self.source
     }
 }
 

@@ -17,6 +17,7 @@ use crate::{
 use rsa::traits::PublicKeyParts;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum SignatureUsage {
     /// The key can be used to certify other keys.
     Certify,
