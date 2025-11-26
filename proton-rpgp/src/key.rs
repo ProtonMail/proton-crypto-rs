@@ -65,8 +65,23 @@ impl AsRef<PublicKey> for PublicKey {
     }
 }
 
+impl From<PublicKey> for SignedPublicKey {
+    fn from(public_key: PublicKey) -> Self {
+        public_key.inner
+    }
+}
+
+impl From<SignedPublicKey> for PublicKey {
+    fn from(signed_public_key: SignedPublicKey) -> Self {
+        Self {
+            inner: signed_public_key,
+        }
+    }
+}
+
 impl PublicKey {
-    pub(crate) fn as_signed_public_key(&self) -> &SignedPublicKey {
+    /// Exposes the underlying rPGP signed public key.
+    pub fn as_signed_public_key(&self) -> &SignedPublicKey {
         &self.inner
     }
 
@@ -157,7 +172,8 @@ impl LockedPrivateKey {
         Self(PrivateKey::new(secret))
     }
 
-    fn as_signed_public_key(&self) -> &SignedPublicKey {
+    /// Exposes the underlying rPGP signed public key.
+    pub fn as_signed_public_key(&self) -> &SignedPublicKey {
         &self.0.public.inner
     }
 
@@ -255,7 +271,8 @@ impl PrivateKey {
         }
     }
 
-    pub(crate) fn as_signed_public_key(&self) -> &SignedPublicKey {
+    /// Exposes the underlying rPGP signed public key.
+    pub fn as_signed_public_key(&self) -> &SignedPublicKey {
         &self.public.inner
     }
 
