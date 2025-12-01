@@ -1,8 +1,8 @@
 use std::io::{self};
 
 use proton_rpgp::{
-    AccessKeyInfo, AsPublicKeyRef, DataEncoding, PrivateKey, Profile, ProfileSettingsBuilder,
-    PublicKey, UnixTime, VerificationError, Verifier,
+    AccessKeyInfo, AsPublicKeyRef, DataEncoding, PrivateKey, ProfileSettings, PublicKey, UnixTime,
+    VerificationError, Verifier,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
@@ -134,7 +134,9 @@ pub fn verify_detached_signature_v4_fails_rsa_512() {
         Err(VerificationError::NoVerifier(_, _))
     ));
 
-    let profile = Profile::new(ProfileSettingsBuilder::new().min_rsa_bits(512).build());
+    let profile = ProfileSettings::builder()
+        .min_rsa_bits(512)
+        .build_into_profile();
 
     let verification_result = Verifier::new(profile)
         .with_verification_key(verification_key.as_public_key())
@@ -447,11 +449,9 @@ pub fn verify_inline_signed_message_v4_with_reformatted_key() {
     let key = PrivateKey::import_unlocked(REFORMATTED_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let profile = Profile::new(
-        ProfileSettingsBuilder::new()
-            .allow_insecure_verification_with_reformatted_keys(true)
-            .build(),
-    );
+    let profile = ProfileSettings::builder()
+        .allow_insecure_verification_with_reformatted_keys(true)
+        .build_into_profile();
 
     let verified_data = Verifier::new(profile)
         .with_verification_key(key.as_public_key())
@@ -462,11 +462,9 @@ pub fn verify_inline_signed_message_v4_with_reformatted_key() {
     assert_eq!(verified_data.data, b"plaintext");
     assert!(verified_data.verification_result.is_ok());
 
-    let profile = Profile::new(
-        ProfileSettingsBuilder::new()
-            .allow_insecure_verification_with_reformatted_keys(false)
-            .build(),
-    );
+    let profile = ProfileSettings::builder()
+        .allow_insecure_verification_with_reformatted_keys(false)
+        .build_into_profile();
 
     let verified_data = Verifier::new(profile)
         .with_verification_key(key.as_public_key())
@@ -484,11 +482,9 @@ pub fn verify_inline_signed_message_v4_compressed() {
     const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4_compressed.asc");
     let date = UnixTime::new(1_764_579_580);
 
-    let profile_with_limit = Profile::new(
-        ProfileSettingsBuilder::new()
-            .max_reading_size(Some(2 * 1024))
-            .build(),
-    );
+    let profile_with_limit = ProfileSettings::builder()
+        .max_reading_size(Some(2 * 1024))
+        .build_into_profile();
 
     let key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");

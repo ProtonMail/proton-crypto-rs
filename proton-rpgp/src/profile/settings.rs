@@ -12,7 +12,7 @@ use pgp::{
 };
 
 use super::{KeyGenerationProfile, KeyGenerationType};
-use crate::{StringToKeyOption, PROTON_CONTEXT_NOTATION_NAME};
+use crate::{Profile, StringToKeyOption, PROTON_CONTEXT_NOTATION_NAME};
 
 use super::Ciphersuite;
 
@@ -210,7 +210,7 @@ pub struct ProfileSettingsBuilder {
 }
 
 impl ProfileSettingsBuilder {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
@@ -429,5 +429,10 @@ impl ProfileSettingsBuilder {
             .rejected_message_hashes
             .extend(self.settings.rejected_hashes.iter());
         self.settings
+    }
+
+    /// Directly builds the `Profile` based on `ProfileSettings` from the builder.
+    pub fn build_into_profile(self) -> Profile {
+        self.build().into()
     }
 }

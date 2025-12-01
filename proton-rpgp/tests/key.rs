@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use pgp::crypto::{hash::HashAlgorithm, sym::SymmetricKeyAlgorithm};
 use proton_rpgp::{
     AccessKeyInfo, DataEncoding, Error, KeyGenerationType, KeyGenerator, KeyOperationError,
-    LockedPrivateKey, PrivateKey, Profile, ProfileSettingsBuilder, PublicKey, SessionKey,
+    LockedPrivateKey, PrivateKey, Profile, ProfileSettings, PublicKey, SessionKey,
     StringToKeyOption, UnixTime,
 };
 
@@ -17,10 +17,9 @@ pub static KEY_TEST_PROFILE: LazyLock<Profile> = LazyLock::new(|| {
         hash_alg: HashAlgorithm::Sha256,
         count: 0,
     };
-    ProfileSettingsBuilder::new()
+    ProfileSettings::builder()
         .key_encryption_s2k_params(s2k)
-        .build()
-        .into()
+        .build_into_profile()
 });
 
 #[test]

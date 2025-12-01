@@ -4,7 +4,7 @@ use pgp::crypto::{aead::AeadAlgorithm, hash::HashAlgorithm, sym::SymmetricKeyAlg
 use proton_rpgp::{
     AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, EncryptedMessage,
     EncryptedMessageInfo, EncryptionError, Encryptor, Error, KeyGenerator, PrivateKey, Profile,
-    ProfileSettingsBuilder, SessionKey, StringToKeyOption, UnixTime, VerificationError,
+    ProfileSettings, SessionKey, StringToKeyOption, UnixTime, VerificationError,
 };
 
 mod utils;
@@ -18,10 +18,9 @@ pub static TEST_PW_PROFILE: LazyLock<Profile> = LazyLock::new(|| {
         hash_alg: HashAlgorithm::Sha256,
         count: 0,
     };
-    ProfileSettingsBuilder::new()
+    ProfileSettings::builder()
         .message_encryption_s2k_params(s2k)
-        .build()
-        .into()
+        .build_into_profile()
 });
 
 #[test]
@@ -547,11 +546,9 @@ pub fn encrypt_session_key_v6_seipdv2() {
     let key = PrivateKey::import_unlocked(TEST_KEY_V6.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let profile = Profile::new(
-        ProfileSettingsBuilder::new()
-            .preferred_aead_ciphersuite(Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)))
-            .build(),
-    );
+    let profile = ProfileSettings::builder()
+        .preferred_aead_ciphersuite(Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)))
+        .build_into_profile();
 
     let key_packets = Encryptor::new(profile)
         .with_encryption_key(key.as_public_key())
@@ -601,11 +598,9 @@ pub fn encrypt_session_key_passphrase_seipdv2() {
     let session_key = dummy_session_key(true);
     let passphrase: &'static str = "password";
 
-    let profile = Profile::new(
-        ProfileSettingsBuilder::new()
-            .preferred_aead_ciphersuite(Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)))
-            .build(),
-    );
+    let profile = ProfileSettings::builder()
+        .preferred_aead_ciphersuite(Some((SymmetricKeyAlgorithm::AES128, AeadAlgorithm::Gcm)))
+        .build_into_profile();
 
     let key_packets = Encryptor::new(profile)
         .with_passphrase(passphrase)
@@ -1027,11 +1022,9 @@ pub fn encrypt_with_future_key() {
         Err(VerificationError::NotSigned)
     ));
 
-    let disabled_profile = Profile::new(
-        ProfileSettingsBuilder::new()
-            .allow_encryption_with_future_and_expired_keys(false)
-            .build(),
-    );
+    let disabled_profile = ProfileSettings::builder()
+        .allow_encryption_with_future_and_expired_keys(false)
+        .build_into_profile();
 
     Encryptor::new(disabled_profile)
         .with_encryption_key(future_key.as_public_key())
@@ -1065,11 +1058,9 @@ pub fn encrypt_with_future_key_stream() {
         Err(VerificationError::NotSigned)
     ));
 
-    let disabled_profile = Profile::new(
-        ProfileSettingsBuilder::new()
-            .allow_encryption_with_future_and_expired_keys(false)
-            .build(),
-    );
+    let disabled_profile = ProfileSettings::builder()
+        .allow_encryption_with_future_and_expired_keys(false)
+        .build_into_profile();
 
     let mut dst = Vec::new();
     Encryptor::new(disabled_profile)

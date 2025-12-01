@@ -3,8 +3,7 @@ use std::{fs, path::PathBuf};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use proton_rpgp::{
     AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, Error, ExternalDetachedSignature,
-    PrivateKey, Profile, ProfileSettings, ProfileSettingsBuilder, UnixTime, VerificationContext,
-    VerificationError,
+    PrivateKey, Profile, ProfileSettings, UnixTime, VerificationContext, VerificationError,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -534,17 +533,13 @@ pub fn decrypt_encrypted_message_v4_compressed() {
     let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
         .expect("Failed to import key");
 
-    let profile_with_limit_pass = Profile::new(
-        ProfileSettingsBuilder::new()
-            .max_reading_size(Some(4 * 1024))
-            .build(),
-    );
+    let profile_with_limit_pass = ProfileSettings::builder()
+        .max_reading_size(Some(4 * 1024))
+        .build_into_profile();
 
-    let profile_with_limit = Profile::new(
-        ProfileSettingsBuilder::new()
-            .max_reading_size(Some(2 * 1024))
-            .build(),
-    );
+    let profile_with_limit = ProfileSettings::builder()
+        .max_reading_size(Some(2 * 1024))
+        .build_into_profile();
 
     // Non-streaming
     Decryptor::new(profile_with_limit_pass.clone())
