@@ -3,7 +3,8 @@ use std::{fs, path::PathBuf};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use proton_rpgp::{
     AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, Error, ExternalDetachedSignature,
-    PrivateKey, Profile, ProfileSettings, UnixTime, VerificationContext, VerificationError,
+    PrivateKey, Profile, ProfileSettings, ProfileSettingsBuilder, UnixTime, VerificationContext,
+    VerificationError,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -522,4 +523,52 @@ pub fn decrypt_encrypted_message_v4_sign_only_key() {
         .with_decryption_key(&key)
         .decrypt(INPUT_DATA, DataEncoding::Armored)
         .expect_err("Should not decrypt with signing key.");
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_encrypted_message_v4_compressed() {
+    // Message decompressed is 4 KB long
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v4_compressed.asc");
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let profile_with_limit_pass = Profile::new(
+        ProfileSettingsBuilder::new()
+            .max_reading_size(Some(4 * 1024))
+            .build(),
+    );
+
+    let profile_with_limit = Profile::new(
+        ProfileSettingsBuilder::new()
+            .max_reading_size(Some(2 * 1024))
+            .build(),
+    );
+
+    // Non-streaming
+    Decryptor::new(profile_with_limit_pass.clone())
+        .with_decryption_key(&key)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to decrypt");
+
+    Decryptor::new(profile_with_limit.clone())
+        .with_decryption_key(&key)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect_err("should fail as message is too large");
+
+    // Streaming
+    let mut reader = Decryptor::new(profile_with_limit_pass)
+        .with_decryption_key(&key)
+        .decrypt_stream(INPUT_DATA.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to decrypt stream");
+    reader.discard_all_data().expect("Failed to read all data");
+
+    let mut reader = Decryptor::new(profile_with_limit)
+        .with_decryption_key(&key)
+        .decrypt_stream(INPUT_DATA.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to decrypt stream");
+    reader
+        .discard_all_data()
+        .expect_err("should fail as message is too large");
 }

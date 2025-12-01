@@ -387,7 +387,15 @@ impl<'a> Verifier<'a> {
             }
         }
 
-        let mut cleartext = message.as_data_vec()?;
+        let (mut cleartext, message) =
+            if let Some(max_reading_size) = self.profile.max_reading_size() {
+                let mut reader = LimitingReader::new(message, Some(max_reading_size));
+                let mut cleartext = Vec::new();
+                reader.read_to_end(&mut cleartext)?;
+                (cleartext, reader.into_inner())
+            } else {
+                (message.as_data_vec()?, message)
+            };
 
         let verified_signatures = message.verify_nested_to_verified_signatures(
             self.date,
@@ -427,7 +435,9 @@ impl<'a> Verifier<'a> {
         }
 
         let normalize = self.native_newlines_utf8;
-        let message_reader = MessageVerifyingReader::new(self, message);
+        let max_reading_size = self.profile.max_reading_size();
+        let message_reader =
+            LimitingReader::new(MessageVerifyingReader::new(self, message), max_reading_size);
         if normalize {
             let inner_reader = ReferencedReader::new(message_reader);
             let referenced_inner_reader = inner_reader.reference();

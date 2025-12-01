@@ -152,6 +152,10 @@ impl Profile {
     pub fn allow_insecure_decryption_with_signing_keys(&self) -> bool {
         self.settings.allow_insecure_decryption_with_signing_keys
     }
+
+    pub fn max_reading_size(&self) -> Option<usize> {
+        self.settings.max_reading_size
+    }
 }
 
 impl Default for Profile {

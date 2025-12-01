@@ -477,3 +477,31 @@ pub fn verify_inline_signed_message_v4_with_reformatted_key() {
     assert_eq!(verified_data.data, b"plaintext");
     assert!(verified_data.verification_result.is_err());
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_inline_signed_message_v4_compressed() {
+    const INPUT_DATA: &str = include_str!("../test-data/messages/signed_message_v4_compressed.asc");
+    let date = UnixTime::new(1_764_579_580);
+
+    let profile_with_limit = Profile::new(
+        ProfileSettingsBuilder::new()
+            .max_reading_size(Some(2 * 1024))
+            .build(),
+    );
+
+    let key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    Verifier::default()
+        .with_verification_key(key.as_public_key())
+        .at_date(date.into())
+        .verify(INPUT_DATA, DataEncoding::Armored)
+        .expect("Failed to verify");
+
+    Verifier::new(profile_with_limit)
+        .with_verification_key(key.as_public_key())
+        .at_date(date.into())
+        .verify(INPUT_DATA, DataEncoding::Armored)
+        .expect_err("should fail as message is too large");
+}

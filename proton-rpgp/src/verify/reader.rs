@@ -20,10 +20,11 @@ const BUFFER_SIZE: usize = 8 * 1024;
 
 pub enum VerifyingReader<'a> {
     InlineNormalizedLineEndings {
-        referenced_inner_reader: ReaderReference<MessageVerifyingReader<'a>>,
-        normalized_reader: Box<NormalizedReader<ReferencedReader<MessageVerifyingReader<'a>>>>,
+        referenced_inner_reader: ReaderReference<LimitingReader<MessageVerifyingReader<'a>>>,
+        normalized_reader:
+            Box<NormalizedReader<ReferencedReader<LimitingReader<MessageVerifyingReader<'a>>>>>,
     },
-    Inline(MessageVerifyingReader<'a>),
+    Inline(LimitingReader<MessageVerifyingReader<'a>>),
     Detached(DetachedVerifyingReader<'a>),
 }
 
@@ -63,15 +64,18 @@ impl VerifyingReader<'_> {
             Self::InlineNormalizedLineEndings {
                 referenced_inner_reader: inner_referenced_reader,
                 ..
-            } => inner_referenced_reader.borrow().verification_result(),
-            Self::Inline(reader) => reader.verification_result(),
+            } => inner_referenced_reader
+                .borrow()
+                .as_inner()
+                .verification_result(),
+            Self::Inline(reader) => reader.into_inner().verification_result(),
             Self::Detached(reader) => reader.verification_result(),
         }
     }
 }
 
-impl<'a> From<MessageVerifyingReader<'a>> for VerifyingReader<'a> {
-    fn from(reader: MessageVerifyingReader<'a>) -> Self {
+impl<'a> From<LimitingReader<MessageVerifyingReader<'a>>> for VerifyingReader<'a> {
+    fn from(reader: LimitingReader<MessageVerifyingReader<'a>>) -> Self {
         Self::Inline(reader)
     }
 }
@@ -419,4 +423,41 @@ pub(crate) fn fill_buffer_bytes<R: BufRead>(
         }
     }
     Ok(read_total)
+}
+
+pub struct LimitingReader<R: Read> {
+    inner: R,
+    bytes_read: usize,
+    limit: Option<usize>,
+}
+
+impl<R: Read> LimitingReader<R> {
+    pub(crate) fn new(inner: R, limit: Option<usize>) -> Self {
+        Self {
+            inner,
+            bytes_read: 0,
+            limit,
+        }
+    }
+
+    pub(crate) fn into_inner(self) -> R {
+        self.inner
+    }
+
+    pub(crate) fn as_inner(&self) -> &R {
+        &self.inner
+    }
+}
+
+impl<R: Read> Read for LimitingReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let bytes_read = self.inner.read(buf)?;
+        self.bytes_read += bytes_read;
+        if let Some(limit) = self.limit {
+            if self.bytes_read > limit {
+                return Err(io::Error::other(format!("limit of {limit} bytes exceeded")));
+            }
+        }
+        Ok(bytes_read)
+    }
 }

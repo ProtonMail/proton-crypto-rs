@@ -44,6 +44,8 @@ pub const PREFERRED_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
     CompressionAlgorithm::ZIP,
 ];
 
+pub const DEFAULT_MAX_READING_SIZE: usize = 50 * 1024 * 1024; // 50MB
+
 pub type KeyGenerationForType = Box<dyn Fn(KeyGenerationType) -> KeyGenerationProfile>;
 
 /// Represents the configuration options for `OpenPGP` operations.
@@ -141,6 +143,12 @@ pub struct ProfileSettings {
 
     /// If true, allows decryption with keys that are only marked as signing keys.
     pub allow_insecure_decryption_with_signing_keys: bool,
+
+    /// The maximum reading size in bytes for reading messages in decryption and verification.
+    ///
+    /// This allow to prevent denial of service attacks by limiting the amount of data that can be read from a message.
+    /// E.g., via compressed messages.
+    pub max_reading_size: Option<usize>,
 }
 
 impl ProfileSettings {
@@ -190,6 +198,7 @@ impl Default for ProfileSettings {
             allow_insecure_verification_with_reformatted_keys: true,
             allow_encryption_with_future_or_expired_keys: true,
             allow_insecure_decryption_with_signing_keys: true,
+            max_reading_size: Some(DEFAULT_MAX_READING_SIZE),
         }
     }
 }
@@ -400,6 +409,15 @@ impl ProfileSettingsBuilder {
     /// If true, decryption will allow using keys that are only marked as signing keys.
     pub fn allow_insecure_decryption_with_signing_keys(mut self, allow: bool) -> Self {
         self.settings.allow_insecure_decryption_with_signing_keys = allow;
+        self
+    }
+
+    /// Sets the maximum reading size in bytes for reading messages in decryption and verification.
+    ///
+    /// This allows to prevent denial of service attacks by limiting the amount of data that can be read from a message.
+    /// E.g., via compressed messages.
+    pub fn max_reading_size(mut self, size: Option<usize>) -> Self {
+        self.settings.max_reading_size = size;
         self
     }
 
