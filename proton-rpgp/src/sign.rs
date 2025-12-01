@@ -40,6 +40,9 @@ pub struct Signer<'a> {
     /// The date to use for the signatures.
     pub(crate) date: CheckUnixTime,
 
+    /// Message compression preference.
+    pub(crate) inline_message_compression: CompressionAlgorithm,
+
     /// The signature type to use for the signatures.
     ///
     /// Either binary or text.
@@ -55,6 +58,7 @@ pub struct Signer<'a> {
 impl<'a> Signer<'a> {
     /// Create a new verifier with the given profile.
     pub fn new(profile: Profile) -> Self {
+        let message_compression = profile.message_compression();
         Self {
             profile,
             signing_keys: Vec::new(),
@@ -62,6 +66,7 @@ impl<'a> Signer<'a> {
             signature_type: SignatureMode::default(),
             signature_context: None,
             data_mode: DataMode::Binary,
+            inline_message_compression: message_compression,
         }
     }
 
@@ -88,6 +93,14 @@ impl<'a> Signer<'a> {
     /// Sets the application signature context to use for the message signatures.
     pub fn with_signature_context(mut self, context: impl Into<Cow<'a, SignatureContext>>) -> Self {
         self.signature_context = Some(context.into());
+        self
+    }
+
+    /// Enables compression for inline signing.
+    ///
+    /// The default is determined by the profile (most likely uncompressed).
+    pub fn compress(mut self) -> Self {
+        self.inline_message_compression = CompressionAlgorithm::ZLIB;
         self
     }
 
@@ -328,9 +341,8 @@ impl<'a> Signer<'a> {
             .select_signing_keys()
             .map_err(SigningError::KeySelection)?;
 
-        // Compression is determined by the profile.
-        if self.profile.message_compression() != CompressionAlgorithm::Uncompressed {
-            message_builder.compression(self.profile.message_compression());
+        if self.inline_message_compression != CompressionAlgorithm::Uncompressed {
+            message_builder.compression(self.inline_message_compression);
         }
 
         let signed_builder = self.sign_message(message_builder, &signing_keys, None)?;
