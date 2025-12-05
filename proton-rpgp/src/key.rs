@@ -129,6 +129,7 @@ impl PublicKey {
 /// A generic locked `OpenPGP` secret key.
 /// An `OpenPGP` key consists of a primary key and zero or more subkeys.
 /// The secret key's private key material might be encrypted with a password.
+#[derive(Debug, Clone)]
 pub struct LockedPrivateKey(PrivateKey);
 
 impl AsRef<PublicKey> for LockedPrivateKey {
