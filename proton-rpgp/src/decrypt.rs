@@ -6,7 +6,7 @@ use std::{
 };
 
 use pgp::{
-    composed::decrypt_session_key_with_password,
+    composed::{decrypt_session_key_with_password, Esk},
     packet::{Packet, PacketParser},
     types::Password,
 };
@@ -29,8 +29,8 @@ pub struct Decryptor<'a> {
     /// The passphrases to decrypt the message with.
     passphrases: CloneablePasswords,
 
-    /// The session keys to decrypt the message with.
-    session_keys: Vec<Cow<'a, SessionKey>>,
+    /// The session key to decrypt the message with.
+    session_key: Option<Cow<'a, SessionKey>>,
 
     /// The verifier to use for verifying the message.
     verifier: Verifier<'a>,
@@ -50,7 +50,7 @@ impl<'a> Decryptor<'a> {
         Self {
             decryption_keys: Vec::new(),
             passphrases: CloneablePasswords::default(),
-            session_keys: Vec::new(),
+            session_key: None,
             verifier: Verifier::new(profile),
             detached_signature: None,
             allow_forwarding_decryption: false,
@@ -100,13 +100,7 @@ impl<'a> Decryptor<'a> {
 
     /// Adds a session key to the decryptor to decrypt the message with.
     pub fn with_session_key(mut self, key: impl Into<Cow<'a, SessionKey>>) -> Self {
-        self.session_keys.push(key.into());
-        self
-    }
-
-    /// Adds multiple session keys to the decryptor to decrypt the message with.
-    pub fn with_session_keys(mut self, keys: impl IntoIterator<Item = &'a SessionKey>) -> Self {
-        self.session_keys.extend(keys.into_iter().map(Into::into));
+        self.session_key = Some(key.into());
         self
     }
 
@@ -287,39 +281,17 @@ impl<'a> Decryptor<'a> {
     ///
     /// The key packets are encoded as raw bytes.
     pub fn decrypt_session_key(self, key_packets: impl AsRef<[u8]>) -> crate::Result<SessionKey> {
-        let packet_parser = PacketParser::new(key_packets.as_ref());
-
-        let mut errors = Vec::new();
-        for packet in packet_parser.flatten() {
-            match packet {
-                Packet::PublicKeyEncryptedSessionKey(pkesk) => {
-                    match handle_pkesk_decryption(
-                        &pkesk,
-                        self.decryption_keys.iter().copied(),
-                        self.allow_forwarding_decryption,
-                        self.profile(),
-                    ) {
-                        Ok(session_key) => return Ok(session_key.into()),
-                        Err(err) => errors.push(err),
-                    }
+        let esk_packets =
+            PacketParser::new(key_packets.as_ref()).filter_map(|packet| match packet {
+                Ok(Packet::PublicKeyEncryptedSessionKey(pkesk)) => {
+                    Some(Cow::Owned(Esk::PublicKeyEncryptedSessionKey(pkesk)))
                 }
-                Packet::SymKeyEncryptedSessionKey(skesk) => {
-                    for passphrase in &*self.passphrases {
-                        match decrypt_session_key_with_password(&skesk, passphrase) {
-                            Ok(session_key) => return Ok(session_key.into()),
-                            Err(err) => errors.push(DecryptionError::SkeskDecryption(err)),
-                        }
-                    }
+                Ok(Packet::SymKeyEncryptedSessionKey(skesk)) => {
+                    Some(Cow::Owned(Esk::SymKeyEncryptedSessionKey(skesk)))
                 }
-                _ => (),
-            }
-        }
-
-        if errors.is_empty() {
-            errors.push(DecryptionError::NoKeyPackets);
-        }
-
-        Err(DecryptionError::SessionKeyDecryption(errors.into()).into())
+                _ => None,
+            });
+        self.decrypt_session_key_inner(esk_packets)
     }
 
     pub(crate) fn profile(&self) -> &Profile {
@@ -370,6 +342,52 @@ impl<'a> Decryptor<'a> {
             }
         };
         Ok(reader?)
+    }
+
+    pub(crate) fn decrypt_session_key_inner<'b>(
+        &self,
+        esk_packets: impl IntoIterator<Item = Cow<'b, Esk>>,
+    ) -> crate::Result<SessionKey> {
+        let mut errors = Vec::new();
+        let mut passphrase_decryption_trials = 0;
+        for esk_packet in esk_packets {
+            match esk_packet.as_ref() {
+                Esk::PublicKeyEncryptedSessionKey(pkesk) => {
+                    match handle_pkesk_decryption(
+                        pkesk,
+                        self.decryption_keys.iter().copied(),
+                        self.allow_forwarding_decryption,
+                        self.profile(),
+                    ) {
+                        Ok(session_key) => return Ok(session_key.into()),
+                        Err(err) => errors.push(err),
+                    }
+                }
+                Esk::SymKeyEncryptedSessionKey(skesk) => {
+                    if let Some(max_s2k_trials_per_passphrase) =
+                        self.profile().max_s2k_trials_per_passphrase()
+                    {
+                        if passphrase_decryption_trials >= max_s2k_trials_per_passphrase {
+                            errors.push(DecryptionError::MaxS2KTrialsPerPassphraseExceeded);
+                            continue;
+                        }
+                    }
+                    for passphrase in &*self.passphrases {
+                        match decrypt_session_key_with_password(skesk, passphrase) {
+                            Ok(session_key) => return Ok(session_key.into()),
+                            Err(err) => errors.push(DecryptionError::SkeskDecryption(err)),
+                        }
+                    }
+                    passphrase_decryption_trials += 1;
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            errors.push(DecryptionError::NoKeyPackets);
+        }
+
+        Err(DecryptionError::SessionKeyDecryption(errors.into()).into())
     }
 }
 

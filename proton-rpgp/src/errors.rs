@@ -318,6 +318,9 @@ pub enum DecryptionError {
     #[error("No valid key packets found")]
     NoKeyPackets,
 
+    #[error("Maximum number of S2K trials per passphrase exceeded")]
+    MaxS2KTrialsPerPassphraseExceeded,
+
     #[error("Unexpected error: {0}")]
     Unexpected(Box<Error>),
 }

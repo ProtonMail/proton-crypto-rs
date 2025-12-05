@@ -567,3 +567,20 @@ pub fn decrypt_encrypted_message_v4_compressed() {
         .discard_all_data()
         .expect_err("should fail as message is too large");
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_message_v4_with_password_limit_fails() {
+    const INPUT_DATA: &str =
+        include_str!("../test-data/messages/encrypted_message_v4_password.asc");
+    let password = "password";
+
+    let profile = ProfileSettings::builder()
+        .max_s2k_trials_per_passphrase(0)
+        .build_into_profile();
+
+    Decryptor::new(profile)
+        .with_passphrase(password)
+        .decrypt(INPUT_DATA, DataEncoding::Armored)
+        .expect_err("should fail");
+}

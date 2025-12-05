@@ -156,6 +156,10 @@ impl Profile {
     pub fn max_reading_size(&self) -> Option<usize> {
         self.settings.max_reading_size
     }
+
+    pub fn max_s2k_trials_per_passphrase(&self) -> Option<usize> {
+        self.settings.max_s2k_trials_per_passphrase
+    }
 }
 
 impl Default for Profile {

@@ -1,5 +1,7 @@
+use std::borrow::Cow;
+
 use pgp::{
-    composed::{DecryptionOptions, Esk, Message, PlainSessionKey, TheRing},
+    composed::{DecryptionOptions, Message, PlainSessionKey, TheRing},
     packet::PublicKeyEncryptedSessionKey,
     types::PkeskVersion,
 };
@@ -28,46 +30,25 @@ impl<'a> MessageDecryptionExt<'a> for Message<'a> {
             return Err(DecryptionError::UnexpectedPlaintext);
         };
 
-        // Try to extract session keys to decrypt the message;
-        let mut session_keys = Vec::new();
-        // Add the session keys from the decryptor.
-        session_keys.extend(
-            decryptor
-                .session_keys
-                .iter()
-                .map(|sk| sk.clone().into_owned().into()),
-        );
+        // Try to extract the session key to decrypt the message with.
+        // The first decryptable session key is used.
+        let mut session_keys = Vec::with_capacity(1);
 
-        let mut errors = Vec::new();
-        for esk_packet in esk {
-            match esk_packet {
-                Esk::PublicKeyEncryptedSessionKey(pkesk) => {
-                    match handle_pkesk_decryption(
-                        pkesk,
-                        decryptor.decryption_keys.iter().copied(),
-                        decryptor.allow_forwarding_decryption,
-                        decryptor.profile(),
-                    ) {
-                        Ok(session_key) => session_keys.push(session_key),
-                        Err(e) => errors.push(e),
-                    }
-                }
-                Esk::SymKeyEncryptedSessionKey(_skesk) => (),
-            }
+        if let Some(session_key) = &decryptor.session_key {
+            session_keys.push(session_key.clone().into_owned().into());
         }
 
-        if decryptor.passphrases.is_empty() && session_keys.is_empty() {
-            return Err(DecryptionError::SessionKeyDecryption(errors.into()));
+        if session_keys.is_empty() {
+            let session_key = decryptor.decrypt_session_key_inner(esk.iter().map(Cow::Borrowed))?;
+            session_keys.push(session_key.into());
         }
 
         // Use the session keys to decrypt the message with
         // `the ring`
         let the_ring = TheRing {
-            secret_keys: Vec::new(),
-            key_passwords: Vec::new(),
-            message_password: decryptor.passphrases.iter().collect(),
             session_keys,
             decrypt_options: DecryptionOptions::default().enable_gnupg_aead(),
+            ..Default::default()
         };
 
         let (message, _) = self.decrypt_the_ring(the_ring, false)?;

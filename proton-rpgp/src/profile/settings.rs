@@ -149,6 +149,11 @@ pub struct ProfileSettings {
     /// This allow to prevent denial of service attacks by limiting the amount of data that can be read from a message.
     /// E.g., via compressed messages.
     pub max_reading_size: Option<usize>,
+
+    /// The maximum number of S2K trials per passphrase.
+    ///
+    /// This allows to limit resource usage by limiting the number of S2K trials per passphrase.
+    pub max_s2k_trials_per_passphrase: Option<usize>,
 }
 
 impl ProfileSettings {
@@ -199,6 +204,7 @@ impl Default for ProfileSettings {
             allow_encryption_with_future_or_expired_keys: true,
             allow_insecure_decryption_with_signing_keys: true,
             max_reading_size: Some(DEFAULT_MAX_READING_SIZE),
+            max_s2k_trials_per_passphrase: Some(5),
         }
     }
 }
@@ -418,6 +424,14 @@ impl ProfileSettingsBuilder {
     /// E.g., via compressed messages.
     pub fn max_reading_size(mut self, size: Option<usize>) -> Self {
         self.settings.max_reading_size = size;
+        self
+    }
+
+    /// Sets the maximum number of S2K trials per passphrase.
+    ///
+    /// This allows to limit resource usage by limiting the number of S2K trials per passphrase.
+    pub fn max_s2k_trials_per_passphrase(mut self, trials: usize) -> Self {
+        self.settings.max_s2k_trials_per_passphrase = Some(trials);
         self
     }
 
