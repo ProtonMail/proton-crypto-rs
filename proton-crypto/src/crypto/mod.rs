@@ -561,7 +561,7 @@ impl OpenPGPKeyID {
 }
 
 lowercase_string_id!(
-    /// Represents an OpenPGP fingerprint encoded in lower-case hexadecimal format.
+    /// Represents an `OpenPGP` fingerprint encoded in lower-case hexadecimal format.
     OpenPGPFingerprint
 );
 
@@ -652,7 +652,7 @@ impl DetachedMessageData {
 
     pub fn try_into_detached_signature(self) -> crate::Result<RawDetachedSignature> {
         self.detached_signature
-            .ok_or(CryptoInfoError::new("no key packets").into())
+            .ok_or(CryptoInfoError::new("no detached signature").into())
     }
 
     pub fn try_as_key_packets(&self) -> crate::Result<&PGPKeyPackets> {
