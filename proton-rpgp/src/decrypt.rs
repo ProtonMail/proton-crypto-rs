@@ -339,9 +339,9 @@ impl<'a> Decryptor<'a> {
             ExternalDetachedSignature::Encrypted(signature, signature_data_encoding) => {
                 let profile = self.verifier.profile.clone();
                 let verifier = mem::replace(&mut self.verifier, Verifier::new(profile));
-                let decrypted_siganture =
+                let decrypted_signature =
                     self.decrypt(signature.as_ref(), signature_data_encoding.into())?;
-                verifier.verify_detached(data, &decrypted_siganture.data, DataEncoding::Unarmored)
+                verifier.verify_detached(data, &decrypted_signature.data, DataEncoding::Unarmored)
             }
         };
         Ok(verification_result)
@@ -360,11 +360,11 @@ impl<'a> Decryptor<'a> {
             ExternalDetachedSignature::Encrypted(signature, signature_data_encoding) => {
                 let profile = self.verifier.profile.clone();
                 let verifier = mem::replace(&mut self.verifier, Verifier::new(profile));
-                let decrypted_siganture =
+                let decrypted_signature =
                     self.decrypt(signature.as_ref(), signature_data_encoding.into())?;
                 verifier.verify_detached_stream(
                     data,
-                    &decrypted_siganture.data,
+                    &decrypted_signature.data,
                     DataEncoding::Unarmored,
                 )
             }

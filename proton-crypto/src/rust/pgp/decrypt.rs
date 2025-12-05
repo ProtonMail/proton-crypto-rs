@@ -127,11 +127,11 @@ impl<'a> Decryptor<'a> for RustDecryptor<'a> {
         variant: DetachedSignatureVariant,
         armored: bool,
     ) -> Self {
-        let detached_siganture =
+        let detached_signature =
             new_external_detached_signature(detached_signature, variant, armored);
         self.inner = self
             .inner
-            .with_external_detached_signature(detached_siganture);
+            .with_external_detached_signature(detached_signature);
         self
     }
 
@@ -141,11 +141,11 @@ impl<'a> Decryptor<'a> for RustDecryptor<'a> {
         variant: DetachedSignatureVariant,
         armored: bool,
     ) -> Self {
-        let detached_siganture =
+        let detached_signature =
             new_external_detached_signature(detached_signature, variant, armored);
         self.inner = self
             .inner
-            .with_external_detached_signature(detached_siganture);
+            .with_external_detached_signature(detached_signature);
         self
     }
 }

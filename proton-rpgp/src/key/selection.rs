@@ -137,7 +137,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
             .map_err(|err| KeyValidationError::PrimaryRequirement(primary_key.key_id(), err))?;
 
         // Select the best subkey that is a valid encryption key.
-        let mut subkey_errors = Vec::new();
+        let mut errors = Vec::new();
         let mut subkey_selection = None;
         let mut is_pq = false;
         let mut max_time = None;
@@ -148,7 +148,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
                 match sub_key.check_validity(primary_key, encryption_date, profile) {
                     Ok(self_certification) => self_certification,
                     Err(err) => {
-                        subkey_errors.push(KeyValidationError::KeySelfCertification(err));
+                        errors.push(KeyValidationError::KeySelfCertification(err));
                         continue;
                     }
                 };
@@ -160,13 +160,13 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
                 profile,
                 CheckMode::Encryption,
             ) {
-                subkey_errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
             // Check key requirements enforced by the profile.
             if let Err(err) = check_key_requirements(&sub_key.key, profile) {
-                subkey_errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
                 continue;
             }
 
@@ -198,13 +198,13 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
             profile,
             CheckMode::Encryption,
         ) {
-            subkey_errors.push(KeyValidationError::PrimaryRequirement(
+            errors.push(KeyValidationError::PrimaryRequirement(
                 primary_key.key_id(),
                 err,
             ));
             return Err(KeyValidationError::NoEncryptionKey(
                 primary_key.key_id(),
-                subkey_errors.into(),
+                errors.into(),
             ));
         }
 

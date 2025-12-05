@@ -13,7 +13,7 @@ mod utils;
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v4() {
-    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v4.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_v4.asc");
 
     let date = UnixTime::new(1_752_153_651);
 
@@ -23,7 +23,7 @@ pub fn verify_detached_signature_v4() {
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(date.into())
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
+        .verify_detached(b"hello world", SIGNATURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
         Ok(verification_information) => {
@@ -42,7 +42,7 @@ pub fn verify_detached_signature_v4() {
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v4_stream() {
-    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v4.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_v4.asc");
 
     let data = b"hello world";
 
@@ -54,7 +54,7 @@ pub fn verify_detached_signature_v4_stream() {
     let mut reader = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(test_date.into())
-        .verify_detached_stream(&data[..], SIGANTURE.as_bytes(), DataEncoding::Armored)
+        .verify_detached_stream(&data[..], SIGNATURE.as_bytes(), DataEncoding::Armored)
         .expect("Failed to create verifying reader");
 
     reader.discard_all_data().expect("Failed to discard data");
@@ -78,7 +78,7 @@ pub fn verify_detached_signature_v4_stream() {
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v4_fails() {
-    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v4_corrupt.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_v4_corrupt.asc");
 
     let date = UnixTime::new(1_752_153_651);
 
@@ -88,7 +88,7 @@ pub fn verify_detached_signature_v4_fails() {
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(date.into())
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
+        .verify_detached(b"hello world", SIGNATURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
         Ok(_) => {
@@ -112,7 +112,7 @@ pub fn verify_detached_signature_v4_fails() {
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v4_fails_rsa_512() {
-    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v4_rsa_512.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_v4_rsa_512.asc");
     const KEY: &str = include_str!("../test-data/keys/private_key_rsa_512.asc");
 
     let date = UnixTime::new(1_752_153_651);
@@ -125,7 +125,7 @@ pub fn verify_detached_signature_v4_fails_rsa_512() {
         .at_date(date.into())
         .verify_detached(
             b"Hello World :)",
-            SIGANTURE.as_bytes(),
+            SIGNATURE.as_bytes(),
             DataEncoding::Armored,
         );
 
@@ -143,7 +143,7 @@ pub fn verify_detached_signature_v4_fails_rsa_512() {
         .at_date(date.into())
         .verify_detached(
             b"Hello World :)",
-            SIGANTURE.as_bytes(),
+            SIGNATURE.as_bytes(),
             DataEncoding::Armored,
         );
 
@@ -154,7 +154,7 @@ pub fn verify_detached_signature_v4_fails_rsa_512() {
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_multiple_signatures() {
     // Contains 3 signatures: random v6 key, random v4 key, and the test key.
-    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_multiple.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_multiple.asc");
 
     let date = UnixTime::new(1_752_648_785);
 
@@ -164,7 +164,7 @@ pub fn verify_detached_signature_multiple_signatures() {
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(date.into())
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
+        .verify_detached(b"hello world", SIGNATURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
         Ok(verification_information) => {
@@ -184,7 +184,7 @@ pub fn verify_detached_signature_multiple_signatures() {
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_multiple_signatures_stream() {
     // Contains 3 signatures: random v6 key, random v4 key, and the test key.
-    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_multiple.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_multiple.asc");
 
     let date = UnixTime::new(1_752_648_785);
 
@@ -196,7 +196,7 @@ pub fn verify_detached_signature_multiple_signatures_stream() {
         .at_date(date.into())
         .verify_detached_stream(
             "hello world".as_bytes(),
-            SIGANTURE.as_bytes(),
+            SIGNATURE.as_bytes(),
             DataEncoding::Armored,
         )
         .expect("Failed to create verifying reader");
@@ -222,7 +222,7 @@ pub fn verify_detached_signature_multiple_signatures_stream() {
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v4_text() {
-    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v4_text.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_v4_text.asc");
     const TEXT: &[u8] = b"hello world\n with line endings.   \n";
 
     let date = UnixTime::new(1_752_223_468);
@@ -233,7 +233,7 @@ pub fn verify_detached_signature_v4_text() {
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(date.into())
-        .verify_detached(TEXT, SIGANTURE.as_bytes(), DataEncoding::Armored);
+        .verify_detached(TEXT, SIGNATURE.as_bytes(), DataEncoding::Armored);
 
     match verification_result {
         Ok(verification_information) => {
@@ -252,7 +252,7 @@ pub fn verify_detached_signature_v4_text() {
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v6() {
-    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v6.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_v6.asc");
 
     let date = UnixTime::new(1_752_648_785);
 
@@ -262,7 +262,7 @@ pub fn verify_detached_signature_v6() {
     let verification_result = Verifier::default()
         .with_verification_key(&verification_key)
         .at_date(date.into())
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
+        .verify_detached(b"hello world", SIGNATURE.as_bytes(), DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
 }
@@ -270,7 +270,7 @@ pub fn verify_detached_signature_v6() {
 #[test]
 #[allow(clippy::missing_panics_doc)]
 pub fn verify_detached_signature_v6_pqc() {
-    const SIGANTURE: &str = include_str!("../test-data/signatures/signature_v6_pqc.asc");
+    const SIGNATURE: &str = include_str!("../test-data/signatures/signature_v6_pqc.asc");
     const KEY: &str = include_str!("../test-data/keys/private_key_v6_pqc.asc");
 
     let date = UnixTime::new(1_752_237_138);
@@ -281,7 +281,7 @@ pub fn verify_detached_signature_v6_pqc() {
     let verification_result = Verifier::default()
         .with_verification_key(verification_key.as_public_key())
         .at_date(date.into())
-        .verify_detached(b"hello world", SIGANTURE.as_bytes(), DataEncoding::Armored);
+        .verify_detached(b"hello world", SIGNATURE.as_bytes(), DataEncoding::Armored);
 
     assert!(verification_result.is_ok());
 }
