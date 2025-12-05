@@ -280,6 +280,7 @@ impl<'a> Decryptor<'a> {
     /// Decrypts the session key from the given key packets.
     ///
     /// The key packets are encoded as raw bytes.
+    /// Returns the first successfully decrypted session key, otherwise, returns an error.
     pub fn decrypt_session_key(self, key_packets: impl AsRef<[u8]>) -> crate::Result<SessionKey> {
         let esk_packets =
             PacketParser::new(key_packets.as_ref()).filter_map(|packet| match packet {
@@ -364,6 +365,10 @@ impl<'a> Decryptor<'a> {
                     }
                 }
                 Esk::SymKeyEncryptedSessionKey(skesk) => {
+                    if self.passphrases.is_empty() {
+                        errors.push(DecryptionError::NoPassphraseForSkesk);
+                        continue;
+                    }
                     if let Some(max_s2k_trials_per_passphrase) =
                         self.profile().max_s2k_trials_per_passphrase()
                     {

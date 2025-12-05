@@ -321,6 +321,9 @@ pub enum DecryptionError {
     #[error("Maximum number of S2K trials per passphrase exceeded")]
     MaxS2KTrialsPerPassphraseExceeded,
 
+    #[error("No passphrase found to decrypt SKESK packet")]
+    NoPassphraseForSkesk,
+
     #[error("Unexpected error: {0}")]
     Unexpected(Box<Error>),
 }
