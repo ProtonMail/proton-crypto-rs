@@ -718,7 +718,7 @@ fn check_key_requirements(
             let curve = match public_key.public_params() {
                 PublicParams::EdDSALegacy(params) => Some(params.curve()),
                 PublicParams::ECDH(params) => Some(params.curve()),
-                PublicParams::ECDSA(_params) => None, // TODO: Access curve here once EcdsaPublicParams exposes `curve()`
+                PublicParams::ECDSA(params) => Some(params.curve()),
                 _ => None,
             };
 
