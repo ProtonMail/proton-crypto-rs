@@ -1,6 +1,6 @@
 use pgp::{
     crypto::public_key::PublicKeyAlgorithm,
-    types::{Fingerprint, Imprint, KeyDetails, KeyId, KeyVersion},
+    types::{Fingerprint, Imprint, KeyDetails, KeyId},
 };
 use sha2::Sha256;
 
@@ -58,15 +58,7 @@ pub trait AccessKeyInfo {
 impl<T: AsPublicKeyRef> AccessKeyInfo for T {
     /// Returns the `OpenPGP` key version.
     fn version(&self) -> u8 {
-        let version = self.as_public_key().as_signed_public_key().version();
-        match version {
-            KeyVersion::V2 => 2,
-            KeyVersion::V3 => 3,
-            KeyVersion::V4 => 4,
-            KeyVersion::V5 => 5,
-            KeyVersion::V6 => 6,
-            KeyVersion::Other(other) => other,
-        }
+        self.as_public_key().as_signed_public_key().version().into()
     }
 
     /// Returns the key id of the `OpenPGP` primary key.

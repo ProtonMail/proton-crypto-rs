@@ -461,3 +461,27 @@ impl<'a> ExternalDetachedSignature<'a> {
         }
     }
 }
+
+/// Fingerprint extension to extract the key id from a fingerprint.
+pub trait FingerprintExt {
+    /// Returns the key id of the fingerprint if extractable.
+    fn key_id(&self) -> Option<KeyId>;
+}
+
+impl FingerprintExt for Fingerprint {
+    fn key_id(&self) -> Option<KeyId> {
+        match self {
+            Fingerprint::V4(fp) => {
+                // last 64 bits of fingerprint
+                let key_id_bytes: Option<[u8; 8]> = fp[12..].try_into().ok();
+                key_id_bytes.map(KeyId::new)
+            }
+            Fingerprint::V6(fp) => {
+                // first 64 bits of fingerprint
+                let key_id_bytes: Option<[u8; 8]> = fp[..8].try_into().ok();
+                key_id_bytes.map(KeyId::new)
+            }
+            _ => None,
+        }
+    }
+}

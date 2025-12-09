@@ -43,6 +43,8 @@ pub fn message_v6_check() {
     )
     .unwrap();
 
+    let expected_key_id = KeyId::new(hex::decode("f4e92ff0c9fc045f").unwrap().try_into().unwrap());
+
     let message =
         EncryptedMessage::from_armor(MESSAGE_ARMORED.as_bytes()).expect("Failed to decode");
 
@@ -63,4 +65,6 @@ pub fn message_v6_check() {
         message.encryption_fingerprints(),
         vec![expected_fingerprint]
     );
+
+    assert_eq!(message.encryption_key_ids(), vec![expected_key_id]);
 }

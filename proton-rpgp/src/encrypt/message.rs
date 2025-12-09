@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::{armor, ExternalDetachedSignature};
+use crate::{armor, ExternalDetachedSignature, FingerprintExt};
 
 use pgp::{
     armor::{self as pgp_armor, BlockType},
@@ -111,7 +111,8 @@ impl EncryptedMessage {
 
     /// Returns the `OpenPGP KeyIds` of the keys the data was encrypted to.
     ///
-    /// This method only considers `PKESKv3` packets, because `PKESKv6` only contain key fingerprints.
+    /// This method considers `PKESKv3` and `PKESKv6` packets.
+    /// For `PKESKv6` packets, the key id is extracted from the fingerprint.
     pub fn encryption_key_ids(&self) -> Vec<KeyId> {
         encyption_key_ids(&self.encrypted_data)
     }
@@ -216,7 +217,15 @@ fn split_pgp_message(encrypted_message: &[u8]) -> Result<(&[u8], &[u8]), Encrypt
 fn encyption_key_ids(encrypted_message: &[u8]) -> Vec<KeyId> {
     PacketParser::new(encrypted_message)
         .filter_map(|packet| match packet {
-            Ok(Packet::PublicKeyEncryptedSessionKey(pkesk)) => pkesk.id().ok().copied(),
+            Ok(Packet::PublicKeyEncryptedSessionKey(pkesk)) => {
+                pkesk.id().ok().copied().or_else(|| {
+                    pkesk
+                        .fingerprint()
+                        .ok()
+                        .flatten()
+                        .and_then(FingerprintExt::key_id)
+                })
+            }
             _ => None,
         })
         .collect()
