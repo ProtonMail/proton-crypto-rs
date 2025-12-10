@@ -129,6 +129,9 @@ impl CryptoClockProvider for LocalTimeProvider {
 
 /// Factory function to create a synchronous `PGPProvider`.
 pub fn new_pgp_provider() -> impl PGPProviderSync {
+    #[cfg(all(feature = "rustpgp", feature = "gopgp", not(feature = "multi_be")))]
+    compile_error!("Multiple crypto backends enabled, but 'multi_be' feature is not set.");
+
     #[cfg(feature = "rustpgp")]
     return new_rust_pgp_provider();
 
@@ -141,6 +144,9 @@ pub fn new_pgp_provider() -> impl PGPProviderSync {
 
 /// Factory function to create a asynchronous `PGPProvider`.
 pub fn new_pgp_provider_async() -> impl PGPProviderAsync {
+    #[cfg(all(feature = "rustpgp", feature = "gopgp", not(feature = "multi_be")))]
+    compile_error!("Multiple crypto backends enabled, but 'multi_be' feature is not set.");
+
     #[cfg(feature = "rustpgp")]
     return new_rust_pgp_provider_async();
 
