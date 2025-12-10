@@ -8,10 +8,15 @@ use pgp::{
 };
 use smallvec::SmallVec;
 
-use crate::{
-    KeyDetailsConfig, PREFERRED_COMPRESSION_ALGORITHMS, PREFERRED_HASH_ALGORITHMS,
-    PREFERRED_SYMMETRIC_KEY_ALGORITHMS,
-};
+use crate::{KeyDetailsConfig, PREFERRED_SYMMETRIC_KEY_ALGORITHMS};
+
+pub const PREFERRED_KEY_GEN_HASH_ALGORITHMS: &[HashAlgorithm] =
+    &[HashAlgorithm::Sha512, HashAlgorithm::Sha256];
+
+pub const PREFERRED_KEY_GEN_COMPRESSION_ALGORITHMS: &[CompressionAlgorithm] = &[
+    CompressionAlgorithm::Uncompressed,
+    CompressionAlgorithm::ZLIB,
+];
 
 /// The algorithm type to use for the key generation.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -81,8 +86,8 @@ impl Default for KeyGenerationProfile {
         Self {
             key_version: KeyVersion::V4,
             preferred_symmetric_algorithms: PREFERRED_SYMMETRIC_KEY_ALGORITHMS.into(),
-            preferred_hash_algorithms: PREFERRED_HASH_ALGORITHMS.into(),
-            preferred_compression_algorithms: PREFERRED_COMPRESSION_ALGORITHMS.into(),
+            preferred_hash_algorithms: PREFERRED_KEY_GEN_HASH_ALGORITHMS.into(),
+            preferred_compression_algorithms: PREFERRED_KEY_GEN_COMPRESSION_ALGORITHMS.into(),
             preferred_aead_ciphersuites: SmallVec::new(),
             support_seipd_v2: false,
         }
