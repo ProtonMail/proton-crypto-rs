@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use proton_srp::{
     MailboxHashError, ModulusSignatureVerifier, ModulusVerifyError, SRPAuth, SRPError, SRPProof,
-    SRPProofB64, SRPVerifierB64,
+    SRPProofB64, SRPVerifierB64, SrpVersion,
 };
 
 use crate::crypto::{DataEncoding, VerifiedData, Verifier, VerifierSync};
@@ -61,7 +61,7 @@ impl From<SRPProof> for ClientProof {
 impl From<SRPVerifierB64> for ClientVerifier {
     fn from(value: SRPVerifierB64) -> Self {
         Self {
-            version: value.version,
+            version: value.version.into(),
             salt: value.salt,
             verifier: value.verifier,
         }
@@ -119,14 +119,23 @@ impl<T: PGPProviderSync + Send> SRPProvider for RustSRP<T> {
 
     fn generate_client_proof(
         &self,
-        _username: &str,
+        username: &str,
         password: &str,
         version: u8,
         salt: &str,
         modulus: &str,
         server_ephemeral: &str,
     ) -> crate::Result<ClientProof> {
-        let auth = SRPAuth::new(&self.0, password, version, salt, modulus, server_ephemeral)?;
+        let srp_version = SrpVersion::try_from(version)?;
+        let auth = SRPAuth::new(
+            &self.0,
+            Some(username),
+            password,
+            srp_version,
+            salt,
+            modulus,
+            server_ephemeral,
+        )?;
         auth.generate_proofs()
             .map(ClientProof::from)
             .map_err(Into::into)

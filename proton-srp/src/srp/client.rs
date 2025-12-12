@@ -2,7 +2,7 @@ use base64::{prelude::BASE64_STANDARD as BASE_64, Engine as _};
 use crypto_bigint::subtle::ConstantTimeEq;
 use rand::{CryptoRng, RngCore};
 
-use crate::{srp_default_csprng, ModulusSignatureVerifier, SRPError, PROTON_SRP_VERSION};
+use crate::{srp_default_csprng, ModulusSignatureVerifier, SRPError, SrpVersion};
 
 use crate::core::{self, SRPAuthData, SALT_LEN_BYTES, SRP_LEN_BYTES};
 
@@ -69,7 +69,7 @@ impl SRPProofB64 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SRPVerifier {
     /// The Proton SRP protocol version.
-    pub version: u8,
+    pub version: SrpVersion,
 
     /// The randomly generated salt.
     pub salt: [u8; SALT_LEN_BYTES],
@@ -85,7 +85,7 @@ pub struct SRPVerifier {
 #[derive(Debug, Clone)]
 pub struct SRPVerifierB64 {
     /// The Proton SRP protocol version.
-    pub version: u8,
+    pub version: SrpVersion,
 
     /// The randomly generated salt encoded as a base64 string.
     pub salt: String,
@@ -121,6 +121,7 @@ impl SRPAuth {
     /// # Parameters
     ///
     /// * `verifier`         - A type that implements `ModulusSignatureVerifier` using PGP (if feature `pgpinternal` is enabled use `&RPGPVerifier::default()`)
+    /// * `username`         - The user username. (Only used for protocol version 0, 1, and 2, obsolete since version 3)
     /// * `password`         - The user password.
     /// * `version`          - The Proton SRP version.
     /// * `salt       `      - The SRP salt for hashing the password.
@@ -132,14 +133,16 @@ impl SRPAuth {
     /// Returns `Err` if one of the input arguments is not valid or SRP password hashing fails.
     pub fn new(
         modulus_verifier: &impl ModulusSignatureVerifier,
+        username: Option<&str>,
         password: &str,
-        version: u8,
+        version: SrpVersion,
         salt: &str,
         modulus: &str,
         server_ephemeral: &str,
     ) -> Result<Self, SRPError> {
         Self::new_with_modulus_verifier(
             modulus_verifier,
+            username,
             password,
             version,
             salt,
@@ -156,6 +159,7 @@ impl SRPAuth {
     ///
     /// # Parameters
     ///
+    /// * `username`         - The user username. (Only used for protocol version 0, 1, and 2, obsolete since version 3)
     /// * `password`         - The user password.
     /// * `version`          - The Proton SRP version.
     /// * `salt       `      - The SRP salt for hashing the password.
@@ -167,14 +171,16 @@ impl SRPAuth {
     /// Returns `Err` if one of the input arguments is not valid or SRP password hashing fails.
     #[cfg(feature = "pgpinternal")]
     pub fn with_pgp(
+        username: Option<&str>,
         password: &str,
-        version: u8,
+        version: SrpVersion,
         salt: &str,
         modulus: &str,
         server_ephemeral: &str,
     ) -> Result<Self, SRPError> {
         Self::new(
             &crate::RPGPVerifier::default(),
+            username,
             password,
             version,
             salt,
@@ -293,8 +299,9 @@ impl SRPAuth {
 
     pub(crate) fn new_with_modulus_verifier<Verifier: ModulusSignatureVerifier>(
         verifier: &Verifier,
+        username: Option<&str>,
         password: &str,
-        version: u8,
+        version: SrpVersion,
         salt: &str,
         modulus: &str,
         server_ephemeral: &str,
@@ -326,6 +333,7 @@ impl SRPAuth {
 
         SRPAuthData::new(
             version,
+            username,
             modulus_bytes,
             salt_bytes,
             server_ephemeral_bytes,
@@ -366,6 +374,6 @@ impl SRPAuth {
             .try_into()
             .map_err(|_err| SRPError::InvalidSalt("wrong size"))?;
 
-        core::generate_srp_verifier(PROTON_SRP_VERSION, password, salt_bytes, modulus_bytes)
+        core::generate_srp_verifier(SrpVersion::V4, None, password, salt_bytes, modulus_bytes)
     }
 }

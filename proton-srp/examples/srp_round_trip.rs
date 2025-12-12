@@ -1,8 +1,9 @@
 use proton_srp::{
     SRPAuth, SRPProofB64, SRPVerifierB64, ServerClientProof, ServerClientVerifier,
-    ServerInteraction,
+    ServerInteraction, SrpVersion,
 };
 
+const CLIENT_USERNAME: Option<&str> = None;
 const CLIENT_PASSWORD: &str = "password";
 
 const MODULUS: &str = "-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\nW2z5HBi8RvsfYzZTS7qBaUxxPhsfHJFZpu3Kd6s1JafNrCCH9rfvPLrfuqocxWPgWDH2R8neK7PkNvjxto9TStuY5z7jAzWRvFWN9cQhAKkdWgy0JY6ywVn22+HFpF4cYesHrqFIKUPDMSSIlWjBVmEJZ/MusD44ZT29xcPrOqeZvwtCffKtGAIjLYPZIEbZKnDM1Dm3q2K/xS5h+xdhjnndhsrkwm9U9oyA2wxzSXFL+pdfj2fOdRwuR5nW0J2NFrq3kJjkRmpO/Genq1UW+TEknIWAb6VzJJJA244K/H8cnSx2+nSNZO3bbo6Ys228ruV9A8m6DhxmS+bihN3ttQ==\n-----BEGIN PGP SIGNATURE-----\nVersion: ProtonMail\nComment: https://protonmail.com\n\nwl4EARYIABAFAlwB1j0JEDUFhcTpUY8mAAD8CgEAnsFnF4cF0uSHKkXa1GIa\nGO86yMV4zDZEZcDSJo0fgr8A/AlupGN9EdHlsrZLmTA1vhIx+rOgxdEff28N\nkvNM7qIK\n=q6vu\n-----END PGP SIGNATURE-----";
@@ -40,8 +41,9 @@ fn main() {
     // Client login
     let client = SRPAuth::new(
         &modulus_verifier,
+        CLIENT_USERNAME,
         CLIENT_PASSWORD,
-        4,
+        SrpVersion::V4,
         &client_verifier.salt,
         MODULUS,
         &server_challenge.encode_b64(),

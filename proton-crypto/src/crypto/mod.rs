@@ -561,7 +561,7 @@ impl OpenPGPKeyID {
 }
 
 lowercase_string_id!(
-    /// Represents an OpenPGP fingerprint encoded in lower-case hexadecimal format.
+    /// Represents an `OpenPGP` fingerprint encoded in lower-case hexadecimal format.
     OpenPGPFingerprint
 );
 

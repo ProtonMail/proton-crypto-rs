@@ -46,7 +46,7 @@ use rand::{CryptoRng, RngCore};
 use zeroize::Zeroizing;
 
 use crate::pmhash::expand_hash;
-use crate::{srp_password_hash, MAX_SUPPORTED_VERSION, MIN_SUPPORTED_VERSION};
+use crate::{srp_password_hash, SrpVersion};
 
 use super::{SRPError, SRPProof, SRPVerifier};
 
@@ -94,15 +94,13 @@ pub struct SRPAuthData {
 
 impl SRPAuthData {
     pub(crate) fn new(
-        version: u8,                            // protocol version
+        version: SrpVersion,                    // protocol version
+        username: Option<&str>,                 // username for version 0, 1, and 2
         modulus: &[u8; SRP_LEN_BYTES],          // N
         salt: &[u8; SALT_LEN_BYTES],            // s
         server_ephemeral: &[u8; SRP_LEN_BYTES], // B
         password: &str,                         // p
     ) -> Result<SRPAuthData, SRPError> {
-        if version < MIN_SUPPORTED_VERSION || version > MAX_SUPPORTED_VERSION {
-            return Err(SRPError::UnsupportedVersion);
-        }
         // Generator g is hardcoded to 2
         let g = HARDCODED_GENERATOR;
         // Group modulus N
@@ -125,8 +123,9 @@ impl SRPAuthData {
         }
 
         // hashed_pass x = H(H_pw(password || s) || N)
-        let hashed_pass =
-            BigUint::from_le_slice(srp_password_hash(version, password, salt, modulus)?.as_bytes());
+        let hashed_pass = BigUint::from_le_slice(
+            srp_password_hash(version, username, password, salt, modulus)?.as_bytes(),
+        );
 
         Ok(SRPAuthData {
             g,
@@ -308,7 +307,8 @@ where
 
 /// Generates an srp verifier.
 pub(crate) fn generate_srp_verifier(
-    version: u8,
+    version: SrpVersion,
+    username: Option<&str>,
     password: &str,
     salt_bytes: &[u8; SALT_LEN_BYTES],
     modulus_bytes: &[u8; SRP_LEN_BYTES],
@@ -322,7 +322,7 @@ pub(crate) fn generate_srp_verifier(
 
     // hashed_pass x = H(H_pw(password || s) || N)
     let hashed_pass = BigUint::from_le_slice(
-        srp_password_hash(version, password, salt_bytes, modulus_bytes)?.as_bytes(),
+        srp_password_hash(version, username, password, salt_bytes, modulus_bytes)?.as_bytes(),
     );
     // verifier = g^x
     let verifier = g_res.pow(&hashed_pass).retrieve();
