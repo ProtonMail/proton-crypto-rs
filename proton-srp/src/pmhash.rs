@@ -3,7 +3,7 @@ use sha2::{Digest, Sha512};
 
 use crate::{
     srp::{SALT_LEN_BYTES, SRP_LEN_BYTES},
-    MailboxHashError, SRPError, SrpVersion,
+    MailboxHashError, SRPError, SrpHashVersion,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
@@ -152,7 +152,7 @@ pub fn mailbox_password_hash(
 ///
 /// Will return `Err` if the `version` is not supported, `modulus` is invalid, or hashing fails.
 pub fn srp_password_hash(
-    version: SrpVersion,
+    version: SrpHashVersion,
     username: Option<&str>,
     password: &str,
     salt: &[u8],
@@ -163,10 +163,10 @@ pub fn srp_password_hash(
         .try_into()
         .map_err(|_err| SRPError::InvalidModulus("invalid modulus length"))?;
     match version {
-        SrpVersion::V0 => srp_password_hash_version_zero(password, username, modulus_bytes),
-        SrpVersion::V1 => srp_password_hash_version_one(password, username, modulus_bytes),
-        SrpVersion::V2 => srp_password_hash_version_two(password, username, modulus_bytes),
-        SrpVersion::V3 | SrpVersion::V4 => srp_password_hash_version_three_and_four(
+        SrpHashVersion::V0 => srp_password_hash_version_zero(password, username, modulus_bytes),
+        SrpHashVersion::V1 => srp_password_hash_version_one(password, username, modulus_bytes),
+        SrpHashVersion::V2 => srp_password_hash_version_two(password, username, modulus_bytes),
+        SrpHashVersion::V3 | SrpHashVersion::V4 => srp_password_hash_version_three_and_four(
             password,
             salt.try_into()
                 .map_err(|_err| SRPError::InvalidSalt("wrong size"))?,

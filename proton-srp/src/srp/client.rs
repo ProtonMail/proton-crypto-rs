@@ -2,7 +2,7 @@ use base64::{prelude::BASE64_STANDARD as BASE_64, Engine as _};
 use crypto_bigint::subtle::ConstantTimeEq;
 use rand::{CryptoRng, RngCore};
 
-use crate::{srp_default_csprng, ModulusSignatureVerifier, SRPError, SrpVersion};
+use crate::{srp_default_csprng, ModulusSignatureVerifier, SRPError, SrpHashVersion};
 
 use crate::core::{self, SRPAuthData, SALT_LEN_BYTES, SRP_LEN_BYTES};
 
@@ -69,7 +69,7 @@ impl SRPProofB64 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SRPVerifier {
     /// The Proton SRP protocol version.
-    pub version: SrpVersion,
+    pub version: SrpHashVersion,
 
     /// The randomly generated salt.
     pub salt: [u8; SALT_LEN_BYTES],
@@ -85,7 +85,7 @@ pub struct SRPVerifier {
 #[derive(Debug, Clone)]
 pub struct SRPVerifierB64 {
     /// The Proton SRP protocol version.
-    pub version: SrpVersion,
+    pub version: SrpHashVersion,
 
     /// The randomly generated salt encoded as a base64 string.
     pub salt: String,
@@ -135,7 +135,7 @@ impl SRPAuth {
         modulus_verifier: &impl ModulusSignatureVerifier,
         username: Option<&str>,
         password: &str,
-        version: SrpVersion,
+        version: SrpHashVersion,
         salt: &str,
         modulus: &str,
         server_ephemeral: &str,
@@ -173,7 +173,7 @@ impl SRPAuth {
     pub fn with_pgp(
         username: Option<&str>,
         password: &str,
-        version: SrpVersion,
+        version: SrpHashVersion,
         salt: &str,
         modulus: &str,
         server_ephemeral: &str,
@@ -301,7 +301,7 @@ impl SRPAuth {
         verifier: &Verifier,
         username: Option<&str>,
         password: &str,
-        version: SrpVersion,
+        version: SrpHashVersion,
         salt: &str,
         modulus: &str,
         server_ephemeral: &str,
@@ -374,6 +374,12 @@ impl SRPAuth {
             .try_into()
             .map_err(|_err| SRPError::InvalidSalt("wrong size"))?;
 
-        core::generate_srp_verifier(SrpVersion::V4, None, password, salt_bytes, modulus_bytes)
+        core::generate_srp_verifier(
+            SrpHashVersion::V4,
+            None,
+            password,
+            salt_bytes,
+            modulus_bytes,
+        )
     }
 }

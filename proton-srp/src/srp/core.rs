@@ -46,7 +46,7 @@ use rand::{CryptoRng, RngCore};
 use zeroize::Zeroizing;
 
 use crate::pmhash::expand_hash;
-use crate::{srp_password_hash, SrpVersion};
+use crate::{srp_password_hash, SrpHashVersion};
 
 use super::{SRPError, SRPProof, SRPVerifier};
 
@@ -94,7 +94,7 @@ pub struct SRPAuthData {
 
 impl SRPAuthData {
     pub(crate) fn new(
-        version: SrpVersion,                    // protocol version
+        version: SrpHashVersion,                // protocol version
         username: Option<&str>,                 // username for version 0, 1, and 2
         modulus: &[u8; SRP_LEN_BYTES],          // N
         salt: &[u8; SALT_LEN_BYTES],            // s
@@ -307,7 +307,7 @@ where
 
 /// Generates an srp verifier.
 pub(crate) fn generate_srp_verifier(
-    version: SrpVersion,
+    version: SrpHashVersion,
     username: Option<&str>,
     password: &str,
     salt_bytes: &[u8; SALT_LEN_BYTES],

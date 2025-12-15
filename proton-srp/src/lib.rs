@@ -21,7 +21,7 @@ pub use srp::*;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u8)]
-pub enum SrpVersion {
+pub enum SrpHashVersion {
     V0 = 0,
     V1 = 1,
     V2 = 2,
@@ -30,31 +30,31 @@ pub enum SrpVersion {
     V4 = 4,
 }
 
-impl TryFrom<u8> for SrpVersion {
+impl TryFrom<u8> for SrpHashVersion {
     type Error = SRPError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(SrpVersion::V0),
-            1 => Ok(SrpVersion::V1),
-            2 => Ok(SrpVersion::V2),
-            3 => Ok(SrpVersion::V3),
-            4 => Ok(SrpVersion::V4),
+            0 => Ok(SrpHashVersion::V0),
+            1 => Ok(SrpHashVersion::V1),
+            2 => Ok(SrpHashVersion::V2),
+            3 => Ok(SrpHashVersion::V3),
+            4 => Ok(SrpHashVersion::V4),
             _ => Err(SRPError::UnsupportedVersion),
         }
     }
 }
 
-impl From<SrpVersion> for u8 {
-    fn from(version: SrpVersion) -> Self {
+impl From<SrpHashVersion> for u8 {
+    fn from(version: SrpHashVersion) -> Self {
         version as u8
     }
 }
 
-impl SrpVersion {
+impl SrpHashVersion {
     pub(crate) fn unpack_username(self, username: Option<&str>) -> Result<&str, SRPError> {
         match self {
-            SrpVersion::V0 | SrpVersion::V1 | SrpVersion::V2 => {
+            SrpHashVersion::V0 | SrpHashVersion::V1 | SrpHashVersion::V2 => {
                 if let Some(username) = username {
                     Ok(username)
                 } else {
@@ -66,5 +66,5 @@ impl SrpVersion {
     }
 }
 
-/// The Proton version of the protocol.
-pub const PROTON_SRP_VERSION: SrpVersion = SrpVersion::V4;
+/// The Proton srp password hash version used in the protocol.
+pub const PROTON_SRP_VERSION: SrpHashVersion = SrpHashVersion::V4;

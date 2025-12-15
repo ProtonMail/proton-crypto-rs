@@ -1,6 +1,6 @@
 use proton_srp::{
     SRPAuth, SRPProofB64, SRPVerifierB64, ServerClientProof, ServerClientVerifier,
-    ServerInteraction, SrpVersion,
+    ServerInteraction, SrpHashVersion,
 };
 
 const CLIENT_USERNAME: Option<&str> = None;
@@ -43,7 +43,7 @@ fn main() {
         &modulus_verifier,
         CLIENT_USERNAME,
         CLIENT_PASSWORD,
-        SrpVersion::V4,
+        SrpHashVersion::V4,
         &client_verifier.salt,
         MODULUS,
         &server_challenge.encode_b64(),

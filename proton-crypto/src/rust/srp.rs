@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use proton_srp::{
     MailboxHashError, ModulusSignatureVerifier, ModulusVerifyError, SRPAuth, SRPError, SRPProof,
-    SRPProofB64, SRPVerifierB64, SrpVersion,
+    SRPProofB64, SRPVerifierB64, SrpHashVersion,
 };
 
 use crate::crypto::{DataEncoding, VerifiedData, Verifier, VerifierSync};
@@ -126,7 +126,7 @@ impl<T: PGPProviderSync + Send> SRPProvider for RustSRP<T> {
         modulus: &str,
         server_ephemeral: &str,
     ) -> crate::Result<ClientProof> {
-        let srp_version = SrpVersion::try_from(version)?;
+        let srp_version = SrpHashVersion::try_from(version)?;
         let auth = SRPAuth::new(
             &self.0,
             Some(username),
