@@ -12,8 +12,8 @@ use pgp::{
 
 use crate::{
     MessageSignatureError, MessageVerificationExt, NormalizingHasher, ReaderReference,
-    ReferencedReader, SignatureError, VerificationError, VerificationInput, VerificationResult,
-    VerificationResultCreator, VerifiedSignature, Verifier,
+    ReferencedReader, SignatureError, SignatureVerificationResult, VerificationError,
+    VerificationInput, VerificationResult, VerificationResultCreator, Verifier,
 };
 
 const BUFFER_SIZE: usize = 8 * 1024;
@@ -143,7 +143,7 @@ impl<'a> DetachedVerifyingReader<'a> {
             .into_hashes()
             .into_iter()
             .map(|(result_hash, signature)| match result_hash {
-                Ok(hash) => VerifiedSignature::create_by_verifying(
+                Ok(hash) => SignatureVerificationResult::create_by_verifying(
                     self.verifier.date,
                     signature,
                     &self.verifier.verification_keys,
@@ -151,7 +151,7 @@ impl<'a> DetachedVerifyingReader<'a> {
                     self.verifier.verification_context.as_deref(),
                     &self.verifier.profile,
                 ),
-                Err(err) => VerifiedSignature {
+                Err(err) => SignatureVerificationResult {
                     signature,
                     verified_by: None,
                     verification_result: Err(MessageSignatureError::Failed(

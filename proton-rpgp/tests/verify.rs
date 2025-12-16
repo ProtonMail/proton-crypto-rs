@@ -1,9 +1,8 @@
-use std::io::{self};
-
 use proton_rpgp::{
     AccessKeyInfo, AsPublicKeyRef, DataEncoding, PrivateKey, ProfileSettings, PublicKey, UnixTime,
-    VerificationError, Verifier,
+    VerificationError, VerificationInformation, Verifier,
 };
+use std::io::{self};
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/public_key_v4.asc");
 pub const TEST_KEY_V6: &str = include_str!("../test-data/keys/public_key_v6.asc");
@@ -32,6 +31,7 @@ pub fn verify_detached_signature_v4() {
                 verification_information.signature_creation_time,
                 UnixTime::new(1_752_153_549)
             );
+            check_signatures(&verification_information, 1);
         }
         Err(verification_error) => {
             panic!("Verification failed: {verification_error}");
@@ -68,6 +68,7 @@ pub fn verify_detached_signature_v4_stream() {
                 verification_information.signature_creation_time,
                 UnixTime::new(1_752_153_549)
             );
+            check_signatures(&verification_information, 1);
         }
         Err(verification_error) => {
             panic!("Verification failed: {verification_error}");
@@ -101,6 +102,7 @@ pub fn verify_detached_signature_v4_fails() {
                     verification_information.signature_creation_time,
                     UnixTime::new(1_752_153_549)
                 );
+                check_signatures(&verification_information, 1);
             }
             _ => {
                 panic!("Wrong verification error: {verification_error:?}");
@@ -173,6 +175,7 @@ pub fn verify_detached_signature_multiple_signatures() {
                 verification_information.signature_creation_time,
                 UnixTime::new(1_752_220_880)
             );
+            check_signatures(&verification_information, 3);
         }
         Err(verification_error) => {
             panic!("Verification failed: {verification_error}");
@@ -212,6 +215,7 @@ pub fn verify_detached_signature_multiple_signatures_stream() {
                 verification_information.signature_creation_time,
                 UnixTime::new(1_752_220_880)
             );
+            check_signatures(&verification_information, 3);
         }
         Err(verification_error) => {
             panic!("Verification failed: {verification_error}");
@@ -242,6 +246,7 @@ pub fn verify_detached_signature_v4_text() {
                 verification_information.signature_creation_time,
                 UnixTime::new(1_752_223_419)
             );
+            check_signatures(&verification_information, 1);
         }
         Err(verification_error) => {
             panic!("Verification failed: {verification_error}");
@@ -500,4 +505,20 @@ pub fn verify_inline_signed_message_v4_compressed() {
         .at_date(date.into())
         .verify(INPUT_DATA, DataEncoding::Armored)
         .expect_err("should fail as message is too large");
+}
+
+fn check_signatures(info: &VerificationInformation, expected_number: usize) {
+    let signature_bytes = info
+        .all_signature_bytes()
+        .expect("Failed to get signature bytes");
+    let count = pgp::packet::PacketParser::new(&signature_bytes[..])
+        .filter_map(|parse_result| match parse_result {
+            Ok(pgp::packet::Packet::Signature(signature)) => Some(signature),
+            _ => None,
+        })
+        .count();
+    assert_eq!(
+        count, expected_number,
+        "Expected {expected_number} signatures, got {count}"
+    );
 }

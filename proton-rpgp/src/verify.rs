@@ -15,7 +15,8 @@ use pgp::{
 use crate::{
     armor, check_and_sanitize_text,
     signature::{
-        VerificationError, VerificationResult, VerificationResultCreator, VerifiedSignature,
+        SignatureVerificationResult, VerificationError, VerificationResult,
+        VerificationResultCreator,
     },
     ArmorError, CheckUnixTime, DataEncoding, Error, MessageProcessingError,
     MessageVerificationError, MessageVerificationExt, Profile, PublicKey, ReferencedReader,
@@ -128,7 +129,7 @@ impl<'a> Verifier<'a> {
         self,
         data: impl AsRef<[u8]>,
         data_encoding: DataEncoding,
-    ) -> crate::Result<VerifiedData> {
+    ) -> crate::Result<DataVerificationResult> {
         let resolved_data_encoding = data_encoding.resolve_for_read(data.as_ref());
         let message = armor::decode_to_message(data.as_ref(), resolved_data_encoding)
             .map_err(MessageVerificationError::MessageProcessing)?;
@@ -180,7 +181,7 @@ impl<'a> Verifier<'a> {
                 _ => None,
             })
             .map(|signature| {
-                VerifiedSignature::create_by_verifying(
+                SignatureVerificationResult::create_by_verifying(
                     self.date,
                     signature,
                     &self.verification_keys,
@@ -228,7 +229,7 @@ impl<'a> Verifier<'a> {
     pub fn verify_cleartext(
         self,
         cleartext_message: impl AsRef<[u8]>,
-    ) -> crate::Result<VerifiedData> {
+    ) -> crate::Result<DataVerificationResult> {
         let (parsed_message, _) =
             CleartextSignedMessage::from_armor(cleartext_message.as_ref().trim_ascii_end())
                 .map_err(|err| {
@@ -243,7 +244,7 @@ impl<'a> Verifier<'a> {
             .signatures()
             .iter()
             .map(|signature| {
-                VerifiedSignature::create_by_verifying(
+                SignatureVerificationResult::create_by_verifying(
                     self.date,
                     signature.clone(),
                     &self.verification_keys,
@@ -259,7 +260,7 @@ impl<'a> Verifier<'a> {
             .map_err(MessageVerificationError::MessageProcessing)?;
 
         let verification_result = VerificationResultCreator::with_signatures(verified_signatures);
-        Ok(VerifiedData {
+        Ok(DataVerificationResult {
             data: output_sanitized,
             verification_result,
         })
@@ -373,7 +374,7 @@ impl<'a> Verifier<'a> {
     pub(crate) fn verify_message(
         &self,
         mut message: Message<'_>,
-    ) -> Result<VerifiedData, MessageProcessingError> {
+    ) -> Result<DataVerificationResult, MessageProcessingError> {
         if message.is_encrypted() {
             return Err(MessageProcessingError::Encrypted);
         }
@@ -410,7 +411,7 @@ impl<'a> Verifier<'a> {
 
         let verification_result = VerificationResultCreator::with_signatures(verified_signatures);
 
-        Ok(VerifiedData {
+        Ok(DataVerificationResult {
             data: cleartext,
             verification_result,
         })
@@ -460,12 +461,54 @@ impl Default for Verifier<'_> {
 
 /// The result of verifying signed data in an `OpenPGP` message.
 #[derive(Debug, Clone)]
-pub struct VerifiedData {
-    /// The verified data.
+pub struct DataVerificationResult {
+    /// The data against which the signature was verified.
+    ///
+    /// WARNING: Accessing this data directly ignores the result of the verification.
+    /// Thus, it could have been maliciously modified.
+    /// Check [`Self::verification_result`] for the result.
     pub data: Vec<u8>,
 
-    /// The verification result of verifying the underlying signature.
+    /// The verification result of verifying the underlying signature against the data.
     pub verification_result: VerificationResult,
+}
+
+impl DataVerificationResult {
+    pub fn as_unverified_data(&self) -> &[u8] {
+        &self.data
+    }
+
+    pub fn try_as_verified_data(&self) -> Result<&[u8], VerificationError> {
+        if let Err(err) = &self.verification_result {
+            return Err(err.clone());
+        }
+        Ok(&self.data)
+    }
+
+    pub fn into_unverified_data(self) -> Vec<u8> {
+        self.data
+    }
+
+    pub fn into_verified_data(self) -> Result<Vec<u8>, VerificationError> {
+        self.verification_result?;
+        Ok(self.data)
+    }
+
+    pub fn verification_succeeded(&self) -> bool {
+        self.verification_result.is_ok()
+    }
+
+    pub fn verification_failed(&self) -> bool {
+        self.verification_result.is_err()
+    }
+}
+
+impl TryFrom<DataVerificationResult> for Vec<u8> {
+    type Error = VerificationError;
+
+    fn try_from(value: DataVerificationResult) -> Result<Self, Self::Error> {
+        value.into_verified_data()
+    }
 }
 
 fn handle_signature_decoding<'a>(

@@ -3,7 +3,7 @@ use std::{
     marker::PhantomData,
 };
 
-use proton_rpgp::Profile;
+use proton_rpgp::{Profile, VerificationResultUtility};
 
 use crate::{
     crypto::{
@@ -15,15 +15,15 @@ use crate::{
     CryptoInfoError, UnixTimestamp,
 };
 
-pub struct RustVerifiedData(pub(super) proton_rpgp::VerifiedData);
+pub struct RustVerificationResult(pub(super) proton_rpgp::DataVerificationResult);
 
-impl AsRef<[u8]> for RustVerifiedData {
+impl AsRef<[u8]> for RustVerificationResult {
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
-impl VerifiedData for RustVerifiedData {
+impl VerifiedData for RustVerificationResult {
     fn as_bytes(&self) -> &[u8] {
         &self.0.data
     }
@@ -41,12 +41,17 @@ impl VerifiedData for RustVerifiedData {
     }
 
     fn signatures(&self) -> crate::Result<Vec<u8>> {
-        Err(CryptoInfoError::new("not implemented").into())
+        VerificationResultUtility::from(&self.0.verification_result)
+            .verification_information()
+            .map_or(Ok(Vec::new()), |info| {
+                info.all_signature_bytes()
+                    .ok_or(CryptoInfoError::new("Failed to get signature bytes").into())
+            })
     }
 }
 
-impl From<proton_rpgp::VerifiedData> for RustVerifiedData {
-    fn from(value: proton_rpgp::VerifiedData) -> Self {
+impl From<proton_rpgp::DataVerificationResult> for RustVerificationResult {
+    fn from(value: proton_rpgp::DataVerificationResult) -> Self {
         Self(value)
     }
 }
@@ -185,7 +190,7 @@ impl RustVerifier<'_> {
 
 impl<'a> Verifier<'a> for RustVerifier<'a> {
     type PublicKey = RustPublicKey;
-    type VerifiedData = RustVerifiedData;
+    type VerifiedData = RustVerificationResult;
     type VerificationContext = RustVerificationContext;
 
     fn with_verification_key(mut self, verification_key: &'a Self::PublicKey) -> Self {

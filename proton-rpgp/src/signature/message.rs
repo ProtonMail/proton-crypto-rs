@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use pgp::{
     composed::Message,
     packet::{PacketTrait, Signature, Subpacket, SubpacketData},
@@ -5,10 +7,10 @@ use pgp::{
 };
 
 use crate::{
-    check_signature_details, types::CheckUnixTime, AsPublicKeyRef, GenericKeyIdentifierList,
-    KeyInfo, MessageProcessingError, MessageSignatureError, Profile, PublicComponentKey,
-    PublicKeySelectionExt, SignatureContextError, SignatureError, SignatureExt, SignatureUsage,
-    UnixTime, VerificationContext, FUTURE_SIGNATUTRE_ERROR_MESSAGE, LIB_ERROR_PREFIX,
+    check_signature_details, types::CheckUnixTime, AsPublicKeyRef, KeyInfo, MessageProcessingError,
+    MessageSignatureError, Profile, PublicComponentKey, PublicKeySelectionExt,
+    SignatureContextError, SignatureError, SignatureExt, SignatureUsage, UnixTime,
+    VerificationContext, FUTURE_SIGNATUTRE_ERROR_MESSAGE, LIB_ERROR_PREFIX,
 };
 
 /// The result of verifying signature in an `OpenPGP` message.
@@ -25,16 +27,23 @@ pub struct VerificationInformation {
 
     /// The `OpenPGP` signature that has been verified.
     pub signature: Signature,
+
+    /// The `OpenPGP` signature that have not been verified.
+    pub unverified_signatures: Vec<Signature>,
 }
 
 impl From<Signature> for VerificationInformation {
     fn from(signature: Signature) -> Self {
-        Self::new(signature, None)
+        Self::new(signature, Vec::new(), None)
     }
 }
 
 impl VerificationInformation {
-    pub fn new(signature: Signature, info: Option<KeyInfo>) -> Self {
+    pub fn new(
+        signature: Signature,
+        unverified_signatures: Vec<Signature>,
+        info: Option<KeyInfo>,
+    ) -> Self {
         let key_id = if let Some(info) = info {
             info.key_id
         } else {
@@ -51,6 +60,7 @@ impl VerificationInformation {
             key_id,
             signature_creation_time: signature.unix_created_at().unwrap_or_default(),
             signature,
+            unverified_signatures,
         }
     }
 
@@ -61,6 +71,18 @@ impl VerificationInformation {
         }
         Some(bytes)
     }
+
+    pub fn all_signature_bytes(&self) -> Option<Vec<u8>> {
+        let mut signatures = Vec::new();
+
+        let all_signatures =
+            std::iter::once(&self.signature).chain(self.unverified_signatures.iter());
+
+        for signature in all_signatures {
+            signature.to_writer_with_header(&mut signatures).ok()?;
+        }
+        Some(signatures)
+    }
 }
 
 /// Errors that can occur when verifying a signature.
@@ -69,8 +91,8 @@ pub enum VerificationError {
     #[error("{LIB_ERROR_PREFIX}: No signature found")]
     NotSigned,
 
-    #[error("{LIB_ERROR_PREFIX}: No valid verification keys found for signature {0}: {1}")]
-    NoVerifier(GenericKeyIdentifierList, String),
+    #[error("{LIB_ERROR_PREFIX}: No valid verification keys found for signature {}: {}", .0.key_id, .1)]
+    NoVerifier(Box<VerificationInformation>, String),
 
     #[error("{LIB_ERROR_PREFIX}: Signature verification failed: {1}")]
     Failed(Box<VerificationInformation>, String),
@@ -84,6 +106,65 @@ pub enum VerificationError {
     RuntimeError(String),
 }
 
+impl VerificationError {
+    pub fn verification_information(&self) -> Option<&VerificationInformation> {
+        match self {
+            VerificationError::NotSigned | VerificationError::RuntimeError(_) => None,
+            VerificationError::NoVerifier(info, _)
+            | VerificationError::Failed(info, _)
+            | VerificationError::BadContext(info, _) => Some(info),
+        }
+    }
+
+    pub fn into_verification_information(self) -> Option<VerificationInformation> {
+        match self {
+            VerificationError::NotSigned | VerificationError::RuntimeError(_) => None,
+            VerificationError::NoVerifier(info, _)
+            | VerificationError::Failed(info, _)
+            | VerificationError::BadContext(info, _) => Some(*info),
+        }
+    }
+}
+
+/// Provides utility functions for a signature verification result.
+#[derive(Debug, Clone)]
+pub struct VerificationResultUtility<'a>(Cow<'a, VerificationResult>);
+
+impl<'a> From<&'a VerificationResult> for VerificationResultUtility<'a> {
+    fn from(result: &'a VerificationResult) -> Self {
+        Self(Cow::Borrowed(result))
+    }
+}
+
+impl From<VerificationResult> for VerificationResultUtility<'static> {
+    fn from(result: VerificationResult) -> Self {
+        Self(Cow::Owned(result))
+    }
+}
+
+impl From<VerificationResultUtility<'_>> for VerificationResult {
+    fn from(result: VerificationResultUtility<'_>) -> Self {
+        result.0.into_owned()
+    }
+}
+
+impl VerificationResultUtility<'_> {
+    pub fn verification_success(&self) -> bool {
+        self.0.is_ok()
+    }
+
+    pub fn verification_failed(&self) -> bool {
+        self.0.is_err()
+    }
+
+    pub fn verification_information(&self) -> Option<&VerificationInformation> {
+        match self.0.as_ref() {
+            Ok(info) => Some(info),
+            Err(err) => err.verification_information(),
+        }
+    }
+}
+
 /// A creator for verification results.
 pub(crate) struct VerificationResultCreator {}
 
@@ -91,20 +172,52 @@ impl VerificationResultCreator {
     /// Create a verification result from a list of verified signatures.
     ///
     /// Selects result for the first signature that is valid or the last one if no valid signature is found.
-    pub fn with_signatures(verifications: Vec<VerifiedSignature>) -> VerificationResult {
-        let mut selected_signature = None;
-        for verification in verifications {
-            if verification.verification_result.is_ok() {
-                selected_signature = Some(verification);
-                break;
-            }
-            selected_signature = Some(verification);
+    pub fn with_signatures(verifications: Vec<SignatureVerificationResult>) -> VerificationResult {
+        if verifications.is_empty() {
+            return Err(VerificationError::NotSigned);
         }
 
-        if let Some(selected_signature) = selected_signature {
-            selected_signature.into_verification_result()
-        } else {
-            Err(VerificationError::NotSigned)
+        let selected_signature_index = verifications
+            .iter()
+            .position(|verification| verification.verification_result.is_ok())
+            .unwrap_or(verifications.len() - 1);
+
+        let mut selected_verification = None;
+        let unverified_signatures = verifications
+            .into_iter()
+            .enumerate()
+            .filter_map(|(id, verification)| {
+                if id == selected_signature_index {
+                    selected_verification = Some(verification);
+                    None
+                } else {
+                    Some(verification.signature.clone())
+                }
+            })
+            .collect();
+
+        let selected_verification = selected_verification.ok_or(VerificationError::NotSigned)?;
+
+        let verification_info = VerificationInformation::new(
+            selected_verification.signature,
+            unverified_signatures,
+            selected_verification.verified_by,
+        );
+
+        match selected_verification.verification_result {
+            Ok(()) => Ok(verification_info),
+            Err(MessageSignatureError::Failed(err)) => Err(VerificationError::Failed(
+                Box::new(verification_info),
+                err.to_string(),
+            )),
+            Err(MessageSignatureError::NoMatchingKey(err)) => Err(VerificationError::NoVerifier(
+                Box::new(verification_info),
+                err.to_string(),
+            )),
+            Err(MessageSignatureError::Context(err)) => Err(VerificationError::BadContext(
+                Box::new(verification_info),
+                err.to_string(),
+            )),
         }
     }
 }
@@ -118,7 +231,7 @@ pub enum VerificationInput<'a> {
 
 /// Represents an internal verified signature.
 #[derive(Debug)]
-pub(crate) struct VerifiedSignature {
+pub(crate) struct SignatureVerificationResult {
     /// The signature that has been verified.
     pub signature: Signature,
 
@@ -129,7 +242,7 @@ pub(crate) struct VerifiedSignature {
     pub verification_result: Result<(), MessageSignatureError>,
 }
 
-impl VerifiedSignature {
+impl SignatureVerificationResult {
     /// Create a verified signature by verifying the signature with the given public keys.
     pub fn create_by_verifying(
         date: CheckUnixTime,
@@ -240,34 +353,6 @@ impl VerifiedSignature {
         }
         Ok(verification_candidates)
     }
-
-    /// Convert the verified signature to a verification result.
-    pub fn into_verification_result(self) -> Result<VerificationInformation, VerificationError> {
-        match self.verification_result {
-            Ok(()) => Ok(VerificationInformation::new(
-                self.signature,
-                self.verified_by,
-            )),
-            Err(MessageSignatureError::Failed(err)) => Err(VerificationError::Failed(
-                Box::new(VerificationInformation::new(
-                    self.signature,
-                    self.verified_by,
-                )),
-                err.to_string(),
-            )),
-            Err(MessageSignatureError::NoMatchingKey(err)) => Err(VerificationError::NoVerifier(
-                self.signature.issuer_generic_identifier().into(),
-                err.to_string(),
-            )),
-            Err(MessageSignatureError::Context(err)) => Err(VerificationError::BadContext(
-                Box::new(VerificationInformation::new(
-                    self.signature,
-                    self.verified_by,
-                )),
-                err.to_string(),
-            )),
-        }
-    }
 }
 
 /// Additional checks for signatures that are verified in a message.
@@ -335,7 +420,7 @@ pub(crate) trait MessageVerificationExt {
         keys: &[impl AsPublicKeyRef],
         context: Option<&VerificationContext>,
         profile: &Profile,
-    ) -> Result<Vec<VerifiedSignature>, MessageProcessingError>;
+    ) -> Result<Vec<SignatureVerificationResult>, MessageProcessingError>;
 }
 
 impl MessageVerificationExt for Message<'_> {
@@ -346,7 +431,7 @@ impl MessageVerificationExt for Message<'_> {
         keys: &[impl AsPublicKeyRef],
         context: Option<&VerificationContext>,
         profile: &Profile,
-    ) -> Result<Vec<VerifiedSignature>, MessageProcessingError> {
+    ) -> Result<Vec<SignatureVerificationResult>, MessageProcessingError> {
         let mut verification_results = Vec::new();
 
         let mut current_message = self;
@@ -357,7 +442,7 @@ impl MessageVerificationExt for Message<'_> {
                     let Some(signature) = reader.signature() else {
                         return Err(MessageProcessingError::NotFullyRead);
                     };
-                    let result = VerifiedSignature::create_by_verifying(
+                    let result = SignatureVerificationResult::create_by_verifying(
                         date,
                         signature.clone(),
                         keys,
@@ -370,7 +455,7 @@ impl MessageVerificationExt for Message<'_> {
                 }
                 Message::Signed { reader, .. } => {
                     let signature = reader.signature();
-                    let result = VerifiedSignature::create_by_verifying(
+                    let result = SignatureVerificationResult::create_by_verifying(
                         date,
                         signature.clone(),
                         keys,

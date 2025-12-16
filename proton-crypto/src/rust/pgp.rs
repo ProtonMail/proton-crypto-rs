@@ -14,7 +14,7 @@ use crate::{
     rust::pgp::{
         RustArmorer, RustDecryptor, RustEncryptor, RustKeyGenerator, RustPGPMessage,
         RustPrivateKey, RustPublicKey, RustSigner, RustSigningContext, RustVerificationContext,
-        RustVerifiedData,
+        RustVerificationResult,
     },
     CryptoClock, CryptoError, CryptoInfoError,
 };
@@ -95,7 +95,7 @@ impl PGPProvider for RustPGPProvider {
     type SigningContext = RustSigningContext;
     type VerificationContext = RustVerificationContext;
     type PGPMessage = RustPGPMessage;
-    type VerifiedData = RustVerifiedData;
+    type VerifiedData = RustVerificationResult;
 
     fn provider_version(&self) -> String {
         format!("proton-rpgp {VERSION}")

@@ -12,9 +12,9 @@ use pgp::{
 };
 
 use crate::{
-    armor, CheckUnixTime, CloneablePasswords, DataEncoding, DecryptionError,
-    ExternalDetachedSignature, PrivateKey, Profile, PublicKey, SessionKey, VerificationContext,
-    VerificationResult, VerifiedData, Verifier, VerifyingReader, DEFAULT_PROFILE,
+    armor, CheckUnixTime, CloneablePasswords, DataEncoding, DataVerificationResult,
+    DecryptionError, ExternalDetachedSignature, PrivateKey, Profile, PublicKey, SessionKey,
+    VerificationContext, VerificationResult, Verifier, VerifyingReader, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -182,7 +182,7 @@ impl<'a> Decryptor<'a> {
         mut self,
         data: impl AsRef<[u8]>,
         data_encoding: DataEncoding,
-    ) -> crate::Result<VerifiedData> {
+    ) -> crate::Result<DataVerificationResult> {
         let resolved_data_encoding = data_encoding.resolve_for_read(data.as_ref());
         let message = armor::decode_to_message(data.as_ref(), resolved_data_encoding)
             .map_err(DecryptionError::MessageProcessing)?;
@@ -314,7 +314,7 @@ impl<'a> Decryptor<'a> {
                 let verifier = mem::replace(&mut self.verifier, Verifier::new(profile));
                 let decrypted_signature =
                     self.decrypt(signature.as_ref(), signature_data_encoding.into())?;
-                verifier.verify_detached(data, &decrypted_signature.data, DataEncoding::Unarmored)
+                verifier.verify_detached(data, decrypted_signature.data, DataEncoding::Unarmored)
             }
         };
         Ok(verification_result)

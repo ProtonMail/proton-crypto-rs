@@ -14,7 +14,7 @@ use crate::{
         DetachedSignatureVariant, UnixTimestamp,
     },
     rust::pgp::{
-        RustPrivateKey, RustPublicKey, RustVerificationContext, RustVerifiedData,
+        RustPrivateKey, RustPublicKey, RustVerificationContext, RustVerificationResult,
         RustVerifiedDataReader,
     },
 };
@@ -36,7 +36,7 @@ impl<'a> Decryptor<'a> for RustDecryptor<'a> {
     type SessionKey = RustSessionKey;
     type PrivateKey = RustPrivateKey;
     type PublicKey = RustPublicKey;
-    type VerifiedData = RustVerifiedData;
+    type VerifiedData = RustVerificationResult;
     type VerifiedDataReader<'b, T: io::Read + 'b> = RustVerifiedDataReader<'b, T>;
     type VerificationContext = RustVerificationContext;
 
