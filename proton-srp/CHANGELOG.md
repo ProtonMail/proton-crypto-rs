@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Add SRP API with a custom random number generator. 
-- **BREAKING** Added support for legacy protocol versions.
-- **BREAKING** Introduced a new `SrpVersion` type that replaces all previous usages of raw `u8` protocol version values.
+- **BREAKING** Added support for legacy SRP password hash versions.
+- **BREAKING** Introduced a new `SrpHashVersion` type that replaces all previous usages of raw `u8` hash version values.
 
 ### Changed
 - pgp bumped to `0.18.0`.

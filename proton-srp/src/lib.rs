@@ -66,5 +66,5 @@ impl SrpHashVersion {
     }
 }
 
-/// The Proton srp password hash version used in the protocol.
+/// The Proton SRP password hash version used in the protocol for new (or migrated) accounts.
 pub const PROTON_SRP_VERSION: SrpHashVersion = SrpHashVersion::V4;

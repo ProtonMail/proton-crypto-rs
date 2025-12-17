@@ -68,7 +68,7 @@ impl SRPProofB64 {
 /// A `SRPVerifier` is required for example on Proton account creation or password reset.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SRPVerifier {
-    /// The Proton SRP protocol version.
+    /// The Proton SRP password hash version.
     pub version: SrpHashVersion,
 
     /// The randomly generated salt.
@@ -121,7 +121,7 @@ impl SRPAuth {
     /// # Parameters
     ///
     /// * `verifier`         - A type that implements `ModulusSignatureVerifier` using PGP (if feature `pgpinternal` is enabled use `&RPGPVerifier::default()`)
-    /// * `username`         - The user username. (Only used for protocol version 0, 1, and 2, obsolete since version 3)
+    /// * `username`         - The user username. (Only used for SRP hash version 0, 1, and 2, obsolete since version 3)
     /// * `password`         - The user password.
     /// * `version`          - The Proton SRP version.
     /// * `salt       `      - The SRP salt for hashing the password.
