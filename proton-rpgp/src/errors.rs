@@ -46,6 +46,9 @@ pub enum Error {
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
     EncryptedMessage(#[from] EncryptedMessageError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
+    VerificationResultUtility(#[from] VerificationResultUtilityError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -455,6 +458,12 @@ pub enum EncryptedMessageError {
 pub enum TextSanitizationError {
     #[error("Failed to normalize line endings or encode as utf-8: {0}")]
     Normalization(#[from] io::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum VerificationResultUtilityError {
+    #[error("Failed to serialize signature bytes: {0}")]
+    SignatureBytes(#[from] pgp::errors::Error),
 }
 
 #[derive(Debug)]

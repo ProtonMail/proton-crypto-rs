@@ -12,7 +12,7 @@ use crate::{
         VerifierAsync, VerifierSync,
     },
     rust::pgp::RustPublicKey,
-    CryptoInfoError, UnixTimestamp,
+    UnixTimestamp,
 };
 
 pub struct RustVerificationResult(pub(super) proton_rpgp::DataVerificationResult);
@@ -42,11 +42,8 @@ impl VerifiedData for RustVerificationResult {
 
     fn signatures(&self) -> crate::Result<Vec<u8>> {
         VerificationResultUtility::from(&self.0.verification_result)
-            .verification_information()
-            .map_or(Ok(Vec::new()), |info| {
-                info.all_signature_bytes()
-                    .ok_or(CryptoInfoError::new("Failed to get signature bytes").into())
-            })
+            .all_signature_bytes()
+            .map_err(Into::into)
     }
 }
 

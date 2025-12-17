@@ -10,7 +10,8 @@ use crate::{
     check_signature_details, types::CheckUnixTime, AsPublicKeyRef, KeyInfo, MessageProcessingError,
     MessageSignatureError, Profile, PublicComponentKey, PublicKeySelectionExt,
     SignatureContextError, SignatureError, SignatureExt, SignatureUsage, UnixTime,
-    VerificationContext, FUTURE_SIGNATUTRE_ERROR_MESSAGE, LIB_ERROR_PREFIX,
+    VerificationContext, VerificationResultUtilityError, FUTURE_SIGNATUTRE_ERROR_MESSAGE,
+    LIB_ERROR_PREFIX,
 };
 
 /// The result of verifying signature in an `OpenPGP` message.
@@ -64,24 +65,26 @@ impl VerificationInformation {
         }
     }
 
-    pub fn signature_bytes(&self) -> Option<Vec<u8>> {
+    pub fn signature_bytes(&self) -> crate::Result<Vec<u8>> {
         let mut bytes = Vec::with_capacity(self.signature.write_len_with_header());
-        if self.signature.to_writer_with_header(&mut bytes).is_err() {
-            return None;
-        }
-        Some(bytes)
+        self.signature
+            .to_writer_with_header(&mut bytes)
+            .map_err(VerificationResultUtilityError::SignatureBytes)?;
+        Ok(bytes)
     }
 
-    pub fn all_signature_bytes(&self) -> Option<Vec<u8>> {
+    pub fn all_signature_bytes(&self) -> crate::Result<Vec<u8>> {
         let mut signatures = Vec::new();
 
         let all_signatures =
             std::iter::once(&self.signature).chain(self.unverified_signatures.iter());
 
         for signature in all_signatures {
-            signature.to_writer_with_header(&mut signatures).ok()?;
+            signature
+                .to_writer_with_header(&mut signatures)
+                .map_err(VerificationResultUtilityError::SignatureBytes)?;
         }
-        Some(signatures)
+        Ok(signatures)
     }
 }
 
@@ -162,6 +165,22 @@ impl VerificationResultUtility<'_> {
             Ok(info) => Some(info),
             Err(err) => err.verification_information(),
         }
+    }
+
+    /// Serialize the selected signature bytes.
+    ///
+    /// If there were no signatures, an empty vector is returned.
+    pub fn selected_signature_bytes(&self) -> crate::Result<Vec<u8>> {
+        self.verification_information()
+            .map_or(Ok(Vec::new()), VerificationInformation::all_signature_bytes)
+    }
+
+    /// Serialize all signature bytes.
+    ///
+    /// If there were no signatures, an empty vector is returned.
+    pub fn all_signature_bytes(&self) -> crate::Result<Vec<u8>> {
+        self.verification_information()
+            .map_or(Ok(Vec::new()), VerificationInformation::all_signature_bytes)
     }
 }
 
