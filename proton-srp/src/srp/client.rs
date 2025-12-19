@@ -84,7 +84,7 @@ pub struct SRPVerifier {
 /// Internally stores the values in base64 encoding as required by the API.
 #[derive(Debug, Clone)]
 pub struct SRPVerifierB64 {
-    /// The Proton SRP protocol version.
+    /// The Proton SRP password hash version.
     pub version: SrpHashVersion,
 
     /// The randomly generated salt encoded as a base64 string.
@@ -113,7 +113,7 @@ pub struct SRPAuth(pub(crate) SRPAuthData);
 impl SRPAuth {
     /// Create a new SRP authentication.
     ///
-    /// The protocol version, modulus, salt, and `server_ephemeral` should come from the `/auth/info` route
+    /// The SRP password hash version, modulus, salt, and `server_ephemeral` should come from the `/auth/info` route
     /// and the password from the user.
     /// The `verifier` provides a type that implements the `ModulusSignatureVerifier` trait
     /// to verify and extract the modulus.
@@ -123,7 +123,7 @@ impl SRPAuth {
     /// * `verifier`         - A type that implements `ModulusSignatureVerifier` using PGP (if feature `pgpinternal` is enabled use `&RPGPVerifier::default()`)
     /// * `username`         - The user username. (Only used for SRP hash version 0, 1, and 2, obsolete since version 3)
     /// * `password`         - The user password.
-    /// * `version`          - The Proton SRP version.
+    /// * `version`          - The Proton SRP password hash version.
     /// * `salt       `      - The SRP salt for hashing the password.
     /// * `modulus`          - A pgp message including the SRP modulus signed by the server.
     /// * `server_ephemeral` - The SRP server ephemeral retrieved from the server.
@@ -153,13 +153,13 @@ impl SRPAuth {
 
     /// Create a new SRP authentication using rPGP as the server modulus verifier.
     ///
-    /// The protocol version, modulus, salt, and `server_ephemeral` should come from the `/auth/info` route
+    /// The SRP password hash version, modulus, salt, and `server_ephemeral` should come from the `/auth/info` route
     /// and the password from the user.
     /// Internally uses rPGP to verify the signature of the modulus received from the server.
     ///
     /// # Parameters
     ///
-    /// * `username`         - The user username. (Only used for protocol version 0, 1, and 2, obsolete since version 3)
+    /// * `username`         - The user username. (Only used for SRP password hash version 0, 1, and 2, obsolete since version 3)
     /// * `password`         - The user password.
     /// * `version`          - The Proton SRP version.
     /// * `salt       `      - The SRP salt for hashing the password.

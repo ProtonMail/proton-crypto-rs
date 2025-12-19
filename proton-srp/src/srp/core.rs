@@ -94,7 +94,7 @@ pub struct SRPAuthData {
 
 impl SRPAuthData {
     pub(crate) fn new(
-        version: SrpHashVersion,                // protocol version
+        version: SrpHashVersion,                // SRP password hash version
         username: Option<&str>,                 // username for version 0, 1, and 2
         modulus: &[u8; SRP_LEN_BYTES],          // N
         salt: &[u8; SALT_LEN_BYTES],            // s
