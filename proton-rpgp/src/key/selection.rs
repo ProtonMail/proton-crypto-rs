@@ -26,7 +26,7 @@ pub enum SignatureUsage {
 }
 
 /// Extension trait for selecting a matching encryption/verification key from an `OpenPGP` key.
-pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
+pub trait PublicKeySelectionExt: CertificationSelectionExt {
     /// Returns a reference to the primary key of the `OpenPGP` key.
     fn primary_key(&self) -> &packet::PublicKey;
 
@@ -312,7 +312,7 @@ pub(crate) trait PublicKeySelectionExt: CertificationSelectionExt {
 }
 
 /// Extension trait for selecting a matching singning/decryption key from an `OpenPGP` key.
-pub(crate) trait PrivateKeySelectionExt: PublicKeySelectionExt {
+pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
     /// Return the primary secret key.
     fn primary_secret_key(&self) -> &packet::SecretKey;
 
