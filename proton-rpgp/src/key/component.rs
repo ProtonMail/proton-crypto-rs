@@ -22,18 +22,18 @@ use crate::{
 /// select one. A public component key represents such a selected key.
 #[derive(Debug)]
 #[allow(dead_code)]
-pub(crate) struct PublicComponentKey<'a> {
+pub struct PublicComponentKey<'a> {
     /// The public key part of the component key (either a primary or subkey).
-    pub(crate) public_key: AnyPublicKey<'a>,
+    pub public_key: AnyPublicKey<'a>,
 
     /// The primary self-certification of the component key.
-    pub(crate) primary_self_certification: &'a Signature,
+    pub primary_self_certification: &'a Signature,
 
     /// The self-certification of the component key.
     ///
     /// If the component key is a primary key, it points to the same signature
     /// as `primary_self_certification`
-    pub(crate) self_certification: &'a Signature,
+    pub self_certification: &'a Signature,
 }
 
 impl<'a> PublicComponentKey<'a> {
@@ -124,19 +124,19 @@ impl<'a> PublicComponentKey<'a> {
 /// Since an `OpenPGP` key can contain multiple actual keys, an operation must
 /// select one. A secret component key represents such a selected key.
 #[derive(Debug, Clone)]
-pub(crate) struct PrivateComponentKey<'a> {
+pub struct PrivateComponentKey<'a> {
     /// The secret key part of the component key (either a primary or subkey).
     ///
     /// We use a custom enum type because the secret key trait [`SecretKeyTrait`]
     /// does not include any decryption methods.
-    pub(crate) private_key: AnySecretKey<'a>,
+    pub private_key: AnySecretKey<'a>,
 
     /// The primary self-certification of the component key.
-    pub(crate) primary_self_certification: &'a Signature,
+    pub primary_self_certification: &'a Signature,
 
     /// The self-certification of the component key.
     ///
-    pub(crate) self_certification: &'a Signature,
+    pub self_certification: &'a Signature,
 }
 
 impl<'a> PrivateComponentKey<'a> {

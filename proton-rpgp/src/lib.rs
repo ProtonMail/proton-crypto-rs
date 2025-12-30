@@ -1,7 +1,7 @@
 mod decrypt;
 mod encrypt;
 mod errors;
-mod key;
+pub mod key;
 mod profile;
 mod sign;
 mod signature;

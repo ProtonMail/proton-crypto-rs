@@ -13,17 +13,17 @@ use rand::RngCore as _;
 use zeroize::Zeroizing;
 
 use crate::{
-    preferences::{EncryptionMechanism, RecipientsAlgorithms},
+    key::preferences::{EncryptionMechanism, RecipientsAlgorithms},
     CheckUnixTime, DataEncoding, EncryptionError, KeyOperationError, Profile, ResolvedDataEncoding,
 };
 
-mod certifications;
+pub mod certifications;
 pub(crate) use certifications::*;
 
-mod component;
+pub mod component;
 pub(crate) use component::*;
 
-mod selection;
+pub mod selection;
 pub(crate) use selection::*;
 
 pub(crate) mod preferences;
