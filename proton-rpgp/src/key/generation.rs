@@ -9,20 +9,20 @@ use rand::{CryptoRng, Rng};
 
 use crate::{
     KeyGenerationError, KeyGenerationType, PacketPublicSubkeyExt, PrivateKey, Profile, UnixTime,
-    DEFAULT_PROFILE,
+    UserIdError, DEFAULT_PROFILE,
 };
 
 /// Internal representation of a user-id.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct KeyUserId {
-    name: String,
-    email: String,
+pub(crate) struct KeyUserId {
+    pub name: String,
+    pub email: String,
 }
 
 impl KeyUserId {
-    fn try_to_user_id(&self) -> Result<UserId, KeyGenerationError> {
+    pub(crate) fn try_to_user_id(&self) -> Result<UserId, UserIdError> {
         UserId::from_str(PacketHeaderVersion::default(), self.to_string())
-            .map_err(|err| KeyGenerationError::InvalidUserId(self.to_string(), err))
+            .map_err(|err| UserIdError::InvalidUserId(self.to_string(), err))
     }
 }
 
@@ -99,7 +99,8 @@ impl KeyGenerator {
         let mut rng = self.profile.rng();
         let key_generation_options = self.algorithm.key_generation_profile();
         let preferred_hash = self.profile.key_hash_algorithm();
-        let (primary_user_id, non_primary_user_ids) = convert_user_ids(&self.user_ids)?;
+        let (primary_user_id, non_primary_user_ids) =
+            convert_user_ids(&self.user_ids).map_err(KeyGenerationError::InvalidUserId)?;
 
         if primary_user_id.is_none() && key_generation_options.key_version == KeyVersion::V4 {
             return Err(KeyGenerationError::NoUserId.into());
@@ -203,7 +204,7 @@ fn generate_encryption_subkey(
     Ok((subkey_secret, subkey_public))
 }
 
-fn primary_key_flags() -> KeyFlags {
+pub(crate) fn primary_key_flags() -> KeyFlags {
     let mut flags = KeyFlags::default();
     flags.set_sign(true);
     flags.set_certify(true);
@@ -217,9 +218,9 @@ fn encryption_subkey_flags() -> KeyFlags {
     flags
 }
 
-fn convert_user_ids(
+pub(crate) fn convert_user_ids(
     user_ids: &[KeyUserId],
-) -> Result<(Option<UserId>, Vec<UserId>), KeyGenerationError> {
+) -> Result<(Option<UserId>, Vec<UserId>), UserIdError> {
     let primary = user_ids
         .first()
         .map(KeyUserId::try_to_user_id)
@@ -228,7 +229,7 @@ fn convert_user_ids(
         .iter()
         .skip(1)
         .map(KeyUserId::try_to_user_id)
-        .collect::<Result<Vec<_>, KeyGenerationError>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
     Ok((primary, non_primary))
 }
 

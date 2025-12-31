@@ -30,6 +30,9 @@ pub enum Error {
     KeyValidation(#[from] KeyValidationError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
+    KeyModification(#[from] KeyModificationError),
+
+    #[error("{LIB_ERROR_PREFIX}: {0}")]
     Signing(#[from] SigningError),
 
     #[error("{LIB_ERROR_PREFIX}: {0}")]
@@ -101,14 +104,18 @@ pub enum SignatureError {
     #[error("{FUTURE_SIGNATURE_ERROR_MESSAGE}: {0}")]
     FutureSignature(UnixTime),
 
-    #[error("Signature is expired at unix time {date}, signature creation {creation}, expiration: {expiration}")]
+    #[error(
+        "Signature is expired at unix time {date}, signature creation {creation}, expiration: {expiration}"
+    )]
     Expired {
         date: UnixTime,
         creation: UnixTime,
         expiration: UnixTime,
     },
 
-    #[error("Signature with creation time {signature_date} is older than the verifying key with creation time {key_date}")]
+    #[error(
+        "Signature with creation time {signature_date} is older than the verifying key with creation time {key_date}"
+    )]
     SignatureOlderThanKey {
         signature_date: UnixTime,
         key_date: UnixTime,
@@ -132,7 +139,9 @@ pub enum SignatureContextError {
     #[error("Signature has multiple context notations: {0:?}")]
     MultipleContexts(Vec<String>),
 
-    #[error("Signature contains a critical context {0}, but no matching verification context was provided")]
+    #[error(
+        "Signature contains a critical context {0}, but no matching verification context was provided"
+    )]
     CriticialContext(String),
 }
 
@@ -228,8 +237,8 @@ pub enum KeyGenerationError {
     #[error("No user id provided")]
     NoUserId,
 
-    #[error("Invalid user id {0}: {1}")]
-    InvalidUserId(String, pgp::errors::Error),
+    #[error("Failed to convert user id: {0}")]
+    InvalidUserId(#[from] UserIdError),
 
     #[error("Failed to generate subkey: {0}")]
     SubkeyGeneration(#[from] pgp::composed::SubkeyParamsBuilderError),
@@ -242,6 +251,30 @@ pub enum KeyGenerationError {
 
     #[error("Failed to self-sign key: {0}")]
     Signing(#[from] SigningError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum KeyModificationError {
+    #[error("Failed to convert user id: {0}")]
+    InvalidUserId(#[from] UserIdError),
+
+    #[error("Failed to self-sign key: {0}")]
+    Signing(#[from] SigningError),
+
+    #[error("Failed load self signature for subkey: {0}")]
+    SubkeyCertification(#[from] KeyCertificationSelectionError),
+
+    #[error("Failed to modify subkey params: {0}")]
+    SubkeyModification(pgp::errors::Error),
+
+    #[error("Failed to modify primary key params: {0}")]
+    PrimaryKeyModification(pgp::errors::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum UserIdError {
+    #[error("Invalid user id {0}: {1}")]
+    InvalidUserId(String, pgp::errors::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
