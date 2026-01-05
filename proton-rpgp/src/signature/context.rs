@@ -86,11 +86,15 @@ impl VerificationContext {
         Self::new(value, true, None)
     }
 
-    fn is_required_at_time(&self, signature_time: UnixTime) -> bool {
-        self.is_required
-            && self
-                .required_after
-                .map_or_else(|| true, |time| signature_time >= time)
+    fn is_required_at_time(&self, signature_time: CheckUnixTime) -> bool {
+        if !self.is_required {
+            return false;
+        }
+        let Some(signature_time) = signature_time.at() else {
+            return true;
+        };
+        self.required_after
+            .map_or_else(|| true, |time| signature_time >= time)
     }
 
     pub(crate) fn check_subpackets<'a>(
@@ -121,17 +125,15 @@ impl VerificationContext {
             ));
         }
 
-        // If the context is not required at this time, we accept any context.
-        if let Some(date) = date.at() {
-            if !self.is_required_at_time(date) {
-                return Ok(());
-            }
-        }
-
         // If required, there must be exactly one context notation
-        let context = context_notations.pop().ok_or_else(|| {
-            MessageSignatureError::Context(SignatureContextError::MissingContext(self.clone()))
-        })?;
+        let Some(context) = context_notations.pop() else {
+            if self.is_required_at_time(date) {
+                return Err(MessageSignatureError::Context(
+                    SignatureContextError::MissingContext(self.clone()),
+                ));
+            }
+            return Ok(());
+        };
 
         // Does the context value match the verification context?
         if context.value.as_ref() != self.value.as_bytes() {
