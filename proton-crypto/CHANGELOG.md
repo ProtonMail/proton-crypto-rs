@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.8.0] - 2026-01-08
+
+### Changed
+
 - `facet` feature flag to derive Facet macro on externaly used new types.
+- Update `proton-srp` to 0.8.0 and adapt tp the breaking changes.
+
 ## [0.7.1] - 2025-11-07
 
 ### Changed

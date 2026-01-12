@@ -7,15 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2024-00-00
 
-### Fixed
-
-- use the `web-time` crate to support time usage under WebAssembly environments
+## 0.8.0 2026-01-08
 
 ### Added
 - Add SRP API with a custom random number generator. 
+- **BREAKING** Added support for legacy SRP password hash versions.
+- **BREAKING** Introduced a new `SrpHashVersion` type that replaces all previous usages of raw `u8` hash version values.
 
 ### Changed
-- pgp bumped to `0.17.0`.
+- pgp bumped to `0.18.0`.
+- **BREAKING** `SRPAuth::new`, `SRPAuth::with_pgp`, and `pmhash::srp_password_hash` now require an explicit `Option<&str>` username parameter.
 
 ## 0.7.1 2025-09-02
 

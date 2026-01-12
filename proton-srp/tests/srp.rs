@@ -1,6 +1,6 @@
 use proton_srp::{
     SRPAuth, SRPProofB64, SRPVerifierB64, ServerClientProof, ServerClientVerifier,
-    ServerInteraction,
+    ServerInteraction, SrpHashVersion,
 };
 
 #[test]
@@ -11,8 +11,9 @@ fn test_srp_call() {
     const TEST_SALT: &str = "yKlc5/CvObfoiw==";
     const TEST_PASSWORD: &str = "abc123";
     let client = SRPAuth::with_pgp(
+        None,
         TEST_PASSWORD,
-        4,
+        SrpHashVersion::V4,
         TEST_SALT,
         TEST_MODULUS_CLEAR_SIGN,
         TEST_SERVER_EPHEMERAL,
@@ -24,13 +25,16 @@ fn test_srp_call() {
 #[test]
 #[cfg(feature = "pgpinternal")]
 fn test_srp_error() {
+    use proton_srp::SrpHashVersion;
+
     const TEST_SERVER_EPHEMERAL: &str = "vl0zIXo4bLPtYVoy3kIvhWQx3ObPMYTY0c5/TFHlmwgBW6Hz/p2XDJdDykF3rBfwrSUD4tfs1YRCfgGfvxegCIQhL419OPYgA+ApXUuS2ni86AXUfjPnvJju/inYQxER8nzEhM8DZYAiNM44qeepmXGrHmwjXAMzyaggqxmkTq4v+seKntFE5oH7iIFacgP52wnV/p6OLOMNS4t/vZ3haKaoEVoFyCVVoTJ/OVPp1ZoUovOoxwDvUAOjSEgswenR96xT+4CsPz9Dm+yF/bDugcWGQ4KB8KEzBrO0PqmCQWMYOKaILegtgTjg08eQTvGylSEZmbTeVzoPe/THqh2bJw==";
     const TEST_MODULUS_CLEAR_SIGN: &str = "-----BEGIN PGP SIGNED-----\nHash: SHA256\n\no4ycZ14/7LfHkuSKWNlpQEh6bwLMVKvo0MFqVq9wHXwkZ/zMcqYaVhqNvLyDB0WY5Uv/Bo23JQsox52lM+4jPydw9/A9saAj8erLCc3ZaZHxOl/a8tlYTq7FeDrbhSSgivwTKJ5Y9otla/U8FATZBxqi7nqDihS5/7x/yK3VRnEsBG1i5DcY1UQK3KD9i9v7N2QTuGFYnRCv0MFsHzrQZWvUa1NsUhozU5PSV5s7hZkb/p6J3B9ybD6+LzuLS9fyLMcVdxzn2WUXG7JLeBbqsoECUfq9KP2waTzVLELOenWUV1wbioceJsaiP97ViwNJdnKx1ICoYu2c+z8ctVcqlw==\n-----BEGIN PGP SIGNATURE-----\nVersion: ProtonMail\nComment: https://protonmail.com\n\nwl4EARYIABAFAlwB1j0JEDUFhcTpUY8mAAB02wD5AOhMNS/K6/nvaeRhTr5n\niDGMalQccYlb58XzUEhqf3sBAOcTsz0fP3PVdMQYBbqcBl9Y6LGIG9DF4B4H\nZeLCoyYN\n=cAxM\n-----END PGP SIGNATURE-----\ns";
     const TEST_SALT: &str = "CGhrAMJla9YHGQ==";
     const TEST_PASSWORD: &str = "123";
     SRPAuth::with_pgp(
+        None,
         TEST_PASSWORD,
-        4,
+        SrpHashVersion::V4,
         TEST_SALT,
         TEST_MODULUS_CLEAR_SIGN,
         TEST_SERVER_EPHEMERAL,
@@ -60,8 +64,9 @@ fn test_srp_call_custom_verifier() {
     const TEST_PASSWORD: &str = "abc123";
     let client = SRPAuth::new(
         &TestVerifer {},
+        None,
         TEST_PASSWORD,
-        4,
+        SrpHashVersion::V4,
         TEST_SALT,
         TEST_MODULUS_CLEAR_SIGN,
         TEST_SERVER_EPHEMERAL,
@@ -106,8 +111,9 @@ fn srp_round_trip(verifier: &impl ModulusSignatureVerifier, password: &str, modu
     // Client login
     let client = SRPAuth::new(
         verifier,
+        None,
         password,
-        4,
+        SrpHashVersion::V4,
         &client_verifier.salt,
         modulus,
         &server_challenge.encode_b64(),

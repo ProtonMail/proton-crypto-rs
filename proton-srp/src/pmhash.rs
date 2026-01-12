@@ -3,9 +3,11 @@ use sha2::{Digest, Sha512};
 
 use crate::{
     srp::{SALT_LEN_BYTES, SRP_LEN_BYTES},
-    MailboxHashError, SRPError,
+    MailboxHashError, SRPError, SrpHashVersion,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+
+use base64::{prelude::BASE64_STANDARD as BASE_64, Engine as _};
 
 /// The byte length of the expanded hash.
 pub const EXPAND_HASH_LEN: usize = 256;
@@ -141,30 +143,36 @@ pub fn mailbox_password_hash(
 /// # Parameters
 ///
 /// * `version`          - The SRP version.
+/// * `username`         - The user name (Only used for versions 0, 1, and 2)
 /// * `password`         - The user password.
 /// * `salt       `      - The SRP salt for hashing the password.
-/// * `modulus`          - The SRP modulus.
+/// * `modulus`          - The SRP modulus. (Only used for versions 3 and 4)
 ///
 /// # Errors
 ///
 /// Will return `Err` if the `version` is not supported, `modulus` is invalid, or hashing fails.
 pub fn srp_password_hash(
-    version: u8,
+    version: SrpHashVersion,
+    username: Option<&str>,
     password: &str,
     salt: &[u8],
     modulus: &[u8],
 ) -> Result<SRPHashedPassword, SRPError> {
-    if version != 4 {
-        return Err(SRPError::UnsupportedVersion);
+    let username = version.unpack_username(username)?;
+    let modulus_bytes: &[u8; SRP_LEN_BYTES] = modulus
+        .try_into()
+        .map_err(|_err| SRPError::InvalidModulus("invalid modulus length"))?;
+    match version {
+        SrpHashVersion::V0 => srp_password_hash_version_zero(password, username, modulus_bytes),
+        SrpHashVersion::V1 => srp_password_hash_version_one(password, username, modulus_bytes),
+        SrpHashVersion::V2 => srp_password_hash_version_two(password, username, modulus_bytes),
+        SrpHashVersion::V3 | SrpHashVersion::V4 => srp_password_hash_version_three_and_four(
+            password,
+            salt.try_into()
+                .map_err(|_err| SRPError::InvalidSalt("wrong size"))?,
+            modulus_bytes,
+        ),
     }
-    srp_password_hash_version_four(
-        password,
-        salt.try_into()
-            .map_err(|_err| SRPError::InvalidSalt("wrong size"))?,
-        modulus
-            .try_into()
-            .map_err(|_err| SRPError::InvalidModulus("invalid modulus length"))?,
-    )
 }
 
 fn bcrypt_hash(
@@ -181,7 +189,7 @@ fn bcrypt_hash(
 /// Hashes the password with Proton's SRP version 4 hash.
 ///
 /// Computes: `H(H_pw(password, (s || proton)) || N)`
-fn srp_password_hash_version_four(
+fn srp_password_hash_version_three_and_four(
     password: &str,
     salt: &[u8; SALT_LEN_BYTES],
     modulus: &[u8; SRP_LEN_BYTES],
@@ -196,4 +204,62 @@ fn srp_password_hash_version_four(
     input.extend_from_slice(hashed_pass_bytes.as_bytes());
     input.extend_from_slice(modulus);
     Ok(SRPHashedPassword(expand_hash(input.as_slice())))
+}
+
+fn srp_password_hash_version_two(
+    password: &str,
+    username: &str,
+    modulus: &[u8; SRP_LEN_BYTES],
+) -> Result<SRPHashedPassword, SRPError> {
+    srp_password_hash_version_one(password, &clean_user_name(username), modulus)
+}
+
+fn srp_password_hash_version_one(
+    password: &str,
+    username: &str,
+    modulus: &[u8; SRP_LEN_BYTES],
+) -> Result<SRPHashedPassword, SRPError> {
+    let prehashed = md5::Md5::digest(username.to_lowercase().as_bytes());
+
+    // Legacy mistake.
+    let magic_salt_decoding: [u8; SALT_BCRYPT_LEN] = bcrypt::BASE_64
+        .decode(hex::encode(prehashed))?[..SALT_BCRYPT_LEN]
+        .try_into()
+        .map_err(|_| SRPError::PassordHashFailed("failed to decode salt"))?;
+
+    let hashed_pass_bytes =
+        bcrypt_hash(password, magic_salt_decoding).map_err(SRPError::BcryptError)?;
+    let mut input = Zeroizing::new(Vec::with_capacity(hashed_pass_bytes.len() + modulus.len()));
+    input.extend_from_slice(hashed_pass_bytes.as_bytes());
+    input.extend_from_slice(modulus);
+    Ok(SRPHashedPassword(expand_hash(input.as_slice())))
+}
+
+fn srp_password_hash_version_zero(
+    password: &str,
+    username: &str,
+    modulus: &[u8; SRP_LEN_BYTES],
+) -> Result<SRPHashedPassword, SRPError> {
+    let username_lower = username.to_ascii_lowercase();
+    let mut user_and_pass =
+        Zeroizing::new(Vec::with_capacity(username_lower.len() + password.len()));
+    user_and_pass.extend_from_slice(username_lower.as_bytes());
+    user_and_pass.extend_from_slice(password.as_bytes());
+
+    let mut hasher = Sha512::new();
+    hasher.update(&user_and_pass);
+
+    let mut prehashed = Zeroizing::new([0_u8; 64]);
+    hasher.finalize_into(prehashed.as_mut().into());
+    let b64_hash = Zeroizing::new(BASE_64.encode(&prehashed));
+
+    srp_password_hash_version_one(&b64_hash, username, modulus)
+}
+
+fn clean_user_name(user_name: &str) -> String {
+    user_name
+        .chars()
+        .filter(|c| *c != '-' && *c != '.' && *c != '_')
+        .flat_map(char::to_lowercase)
+        .collect()
 }

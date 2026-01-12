@@ -1,4 +1,4 @@
-use crate::{ModulusSignatureVerifier, ModulusVerifyError, PROTON_SRP_VERSION};
+use crate::{ModulusSignatureVerifier, ModulusVerifyError, SrpHashVersion, PROTON_SRP_VERSION};
 
 use super::*;
 use base64::{prelude::BASE64_STANDARD as BASE_64, Engine as _};
@@ -17,8 +17,8 @@ impl ModulusSignatureVerifier for TestNoOpVerifier {
 
 struct SrpInstance {
     //These are provided data. Username is not used, but helps understanding which test case we're referring to.
-    version: u8,
-    _username: &'static str,
+    version: SrpHashVersion,
+    username: &'static str,
     password: &'static str,
     modulus: &'static str,
     salt: &'static str,
@@ -31,8 +31,8 @@ struct SrpInstance {
 
 const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
     SrpInstance {
-        version: 4,
-        _username: "test",
+        version: SrpHashVersion::V4,
+        username: "test",
         password: "test",
         modulus: "G2TfKd7dhlYkXbfu51FEKtnPHa/FpxqUB2OFwvv5+nrWPpTLNl7JTrpb4THPY9OTDKxHVd5tBiXCTdmpBlUdIWYBIi66lP9Qx4uLJtvydjb0AZ8XALoJEodGLP+tT4iyLWa7+JkwkIZeRtB37PHbeMsqsNA2rXhrBGtdk71HPJV3mRTLk/YH/X77nTQWGVEmPOeUvxgfswHuRE0XCZnq/5QnzEFRvZGnVfGhhACcFBixbux7/C1fiNQrOKTMF2tz6rEy/jfdfhFi3KHRPoGm8Q8JDed+uMxJLNCxm7b8FR9bStVrFDCNWC2GRxOQxCI0AK7j1elMlz+5l9Wfip8wnw==",
         salt: "Jl54BOeNTVl8Ng==",
@@ -43,8 +43,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "D9Oj+Qiju2+H/xqGwpDXa4ceSogtyo4sBgKoirTHnIJSL8jRZL+dNqvhG1FuiOlMk9K75tfS7umBLCGAyTC1RsNS5vDE1U3Vrkg29XI4P4q4hjf3NxVq0F/NPrYNcuyJLTSXBHr0T+8d79WmM1UGTQsw/UILuGURDkqouSKFSADIEuv4QYQ21KxcIep+ptLQy/0oio15ciFGC4w6lnT+wLCHp6HoBcteRrz0bnlAfdoSSWZiL91MkYCU7++wV4q8VVp7HwIBNGYvLE9nnGSvOuBMFhsB8HgpxO8EQcVl/plQiZk5/cYQCRsiOP6XqxyDFgQpXPcQwz1FVWd8dycatA==",
       },
       SrpInstance {
-        version: 4,
-        _username: "LeadingZerosSalt",
+        version: SrpHashVersion::V4,
+        username: "LeadingZerosSalt",
         password: "test",
         modulus: "G2TfKd7dhlYkXbfu51FEKtnPHa/FpxqUB2OFwvv5+nrWPpTLNl7JTrpb4THPY9OTDKxHVd5tBiXCTdmpBlUdIWYBIi66lP9Qx4uLJtvydjb0AZ8XALoJEodGLP+tT4iyLWa7+JkwkIZeRtB37PHbeMsqsNA2rXhrBGtdk71HPJV3mRTLk/YH/X77nTQWGVEmPOeUvxgfswHuRE0XCZnq/5QnzEFRvZGnVfGhhACcFBixbux7/C1fiNQrOKTMF2tz6rEy/jfdfhFi3KHRPoGm8Q8JDed+uMxJLNCxm7b8FR9bStVrFDCNWC2GRxOQxCI0AK7j1elMlz+5l9Wfip8wnw==",
         salt: "AA54BOeNTVl8kg==",
@@ -55,8 +55,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "IPIs2+Z/Yp3ImACf1mHG0T7/4qtXXuUbBcklTJe0zuIImqHaucPheqhD6kdI/qg7NEfypx0ZkWDjg48QnbmxHPMbfh+bRvIwIu+eGEoMG4XzQl7mRnD99VyIBIJKUnzQ0slcbjhQxGFpB5y7d/VAX7ZEoGroAe3+4Tsr/KQl2IbRSTsWLzLv8hlL9/qRS1Wpj9PP4/Yq8THeHSfTMPmvnF9ixiVAn127VwzAV+yThL2ivNAz9NTccWMelJYDiMX4N4TCHdJzugP3R5OgEWTPMMgZM+oYhYWlHud/Dt00SNuWK3P232Gjj6HQB5AwWkHGczlnG807xrXhs5AhIySHdA==",
       },
       SrpInstance {
-        version: 4,
-        _username: "TrailingZerosSalt",
+        version: SrpHashVersion::V4,
+        username: "TrailingZerosSalt",
         password: "test",
         modulus: "G2TfKd7dhlYkXbfu51FEKtnPHa/FpxqUB2OFwvv5+nrWPpTLNl7JTrpb4THPY9OTDKxHVd5tBiXCTdmpBlUdIWYBIi66lP9Qx4uLJtvydjb0AZ8XALoJEodGLP+tT4iyLWa7+JkwkIZeRtB37PHbeMsqsNA2rXhrBGtdk71HPJV3mRTLk/YH/X77nTQWGVEmPOeUvxgfswHuRE0XCZnq/5QnzEFRvZGnVfGhhACcFBixbux7/C1fiNQrOKTMF2tz6rEy/jfdfhFi3KHRPoGm8Q8JDed+uMxJLNCxm7b8FR9bStVrFDCNWC2GRxOQxCI0AK7j1elMlz+5l9Wfip8wnw==",
         salt: "Jl54BOeNTVl8AA==",
@@ -67,8 +67,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "iNsC4HuEaS0l/rhb4rLIK62qfU3eK6p42f4PMIcP1VaJ09RY99a9U0wenIjWXJwbsYMOFctFqXT7oRRIZK6DrlVU72uJFcVuKLbtPzj+t0IB51hCC+k0RkNgBdbPaZXhvpSJ5UdABPiE8k7XqfoIuKqjTA+W/3BV1LNh24P6OH0Fv3XjJWefvV/aTT/aGOH2hZqpfGpvE0ZlGSdAqRmWWxEFAi4KjRMDYg20NdIXGbSl7HFpJ80ny2e84zfUDRNVZ+Qp5XV0lMmoErdAcO9BPyMEB3alJYBNyU40K+htUV1Ioiyxa3uu2I8ltETkWfajay39qe4FuhGhw0VHwcZLYw==",
       },
       SrpInstance {
-        version: 4,
-        _username: "abc123",
+        version: SrpHashVersion::V4,
+        username: "abc123",
         password: "LongerPassword",
         modulus: "+2RD2Y2hcERcl5XcNROY8d4VGPsoJ/dX6IBcX0PcKSdJkGCpKRcSRbIPrtTw71YRJ2QwoZQ/b9jnmZ2PQEB0lO4v0UezHswdWax/Y+kmbObuWPqbVNP/P3EvHyEDU+dxRzCnp4fTbXt9CUDxajAmPq1EjAm+HqnzIv6KhEowxLkAdH8wBX8zz4UL1xfQq4AIvm6zM9MPAsFXVgH4B3MH/KbaDb4BVsSF4wNDo3HpCDtY+PV9sEn0aprO4AwacC6Z0EwHd1Q7OiW4szvzXG6VMy4MkH+zV6RqKNsHNRDceQPw4UtbbdEZRfDRm345OdlC6ICNi//ypK415O7OSrBpvQ==",
         salt: "hyzJpo9GoQaQZg==",
@@ -79,8 +79,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "PFfxCPIAuFNgsywecKfcWpsQSBECj1dpR3Rsq6Ovu4KBhhoBmNVIlY9uXev0EC/HwbQ1b1jMtMNilqZVFxrwcxmnbojjC1t7KMbsgJ+rwnwSvx6+XuG5f4vfpWyo36MG/5a+1mP0Gmuj86+gRnLkPSy+bXKZvrE8wOBEAlsYtHyUc9JZNMPnMlD6vRC/QDPfTAdsc2qe5EFfua/wRygW4tSKUac6AZjWEi858K0y4ztk2erZDdTX0IrmX3ytfUJmjExAv3V0N6mtpBdWj+UlIWgcTSr4t+DclJ4QLlIRQH4cpY+U08Y3TSr/89ZPhsywrBEZh0P+CBjKsOF07haPyg==",
       },
       SrpInstance {
-        version: 4,
-        _username: "VeryLongUsername_123456789",
+        version: SrpHashVersion::V4,
+        username: "VeryLongUsername_123456789",
         password: "VeryLongAndSecurePassword",
         modulus: "wzWFFf5nOWQQSjvMAV8wefZxGsxuHDXKSu1ahcNFslgWC3PjKh3B8b2Dif6Wt6bv0cqKYmUYb+JWvWfbVQeoHKW7uhr8boVHlDQ/LfkRgqT67IT6b9wwKMhd40TvVF1aVmjPvgDQqY59+cTjgzv+SeXpOPRljSPreRdXhSpSDHkIRxwkkyT9h7OCoXlzy7li4g/NWYBRzEPnkgE0EmAylKyv5RGF5tV6+6wT+D6LGszClglLK212uN+SEP8A+6/rntMzwSOvXg6GB+HuAayAp/vsGUlSBQwQDRzwxYdAUJ3IKg7m+CU2+K0OZRKE6Cd0B7tiXdojpc2QawC3bSHa3Q==",
         salt: "cujclj9P6zluIQ==",
@@ -91,8 +91,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "m5qNgT4G7GUF9BVkEPCgu4MoefwPQmkRAfn8KCwGX9qJSZNVD4KI5ocfMtL0tzUs8oNssz+v2JhAW15ASNoMSJQYGLAURXF80b7OyCPOlDfpbhUKagd2LS8diakQl9ZKwFn+b5GeDpfwSnlRMY4lqNY2rRzLss38Z9/FH0cyM6xoShBTdyU0O92yDVpC+9vcQbr01xE4/0YroBXFRWKiz3TtJGrRZRKWPzCO5SK/1ARrJ5hs/2P8QtFKutxy/EMbwIIUBG0d3r9pl/z9sNmmBzXd0iERMiFRhnSxTb7BMWEkv29JtkJ6uaYkgEIroRCwRg0iAAg1MsxAstH8l7nYiQ==",
       },
       SrpInstance {
-        version: 4,
-        _username: "TestUsername",
+        version: SrpHashVersion::V4,
+        username: "TestUsername",
         password: "Test Password With Spaces",
         modulus: "UwuGCW/iuoTL1FGO4mOGv/NTEnvJVFU3tVFIN0YZOSy5DAXqNfADJYPZko62MJZCI23w0usAc2vYrMNJroCUyX8zCu4PST520cCSyYxhuIDJQsVNm6CuJIOq1qEl5gFoXs3YvZhMTxXt3sjSH4c8XOL0exYGnZUCP2yvLkwlcD3PLgnGbjkn4Z1MY3fVwx+estiB6CC8uXdHJ0w/Rl3zwXv6ycN99rJVIJaXdVrAaFF6GRNkv316OjtDIWBqVAWQ1woaCu6lgLdzG4nS0v1OxdCrZe2RdXBBweCIq8jEusK5tYbbA28DXwS8ntat4HE8/LhbrlVsTT+ioAuc5V0ExA==",
         salt: "vSds4CNJcRFDog==",
@@ -103,8 +103,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "PsMn3TCj59fbrSfhlQ83uUlEV1AtWN2pmJZGRxxkPH7dghpxzUYBTpuA58FD5mBvEq2x0S5QXOYPkB8ahh9WlEqeIUUY0qP6bnG97fCqx7z1+YPT9nHEzL9T9oDSO421G11seoFp4U/XKBqcj7XxoTL7kqkKVhkl1ABbKL0D3JvNlgg713FjcjWViZiFcsShi1Bnq/HUG4xLvStlHGnvw4oeDMesnuvQonkZzD6SA+uw8RCRTW4YjRvvopWtYzEFepz4ry/aX5qE2/uh/tPPSNODWy0r4rMlRYAk1FztZM8wrC4Ikw1PoAh5HVrJ45moQJreLAn70HE8VWGMXe2VjQ==",
       },
       SrpInstance {
-        version: 4,
-        _username: "Test2",
+        version: SrpHashVersion::V4,
+        username: "Test2",
         password: "PasswordThatIsLongerThan72CharsAndContainsSomeRandomStuffThatNoOneCaresAbout",
         modulus: "w3Y3esbGJpfiEcC+gNo8X3tzgauS2UU2tAZZStDBv+kKQk42CFzS9VPzcO2GPnJZchDdlKGbDaQlfNGO7a8zpx5b12V9slvmAvBDD+R2LZ9hAN0xnX5YcNwFg9B4KDLmjooSwaoLgBj7cdXzya64AgjeYsqwZvzIDidPMhmaohk4guJWqG4riZPHJ4zkcLpKmzFa8zwCmWfrlsRwmH9ED3zUaIByuY3AtXaGtYDedr8Q89J30kytASqDqYqDT5CiKinRE/Jyo451DfMYis/K3IZCt/mEfOT3Ievx2RBb4zzcGaAQgKlCf092sn0/z4kmpcSITELRttBSwvdERSKD2w==",
         salt: "lSIG/btGTkKS4Q==",
@@ -115,8 +115,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "nl5MUQ70wpLe7N75fkMqiheNNm1e3v69jB9gfvB58b82PwpVRRQCCC+jTOqUgh4AIjvkyqI5VyXK5/vXt6G/3Vcr3/VNkqG7yPfr7VFvwQTAxJId6qthORCOtApXqokT+qoqNiCGJVS4hW5uAAfq2WT7YNGG58JQ/WmkrOjv3x7UdfjYKLUWTZqIRD+T1W7bbmOBkk+GWVGWf3AgyUPhQpNsaWTDkNkY6YcmXliPIYc91faupKgbZXYhAxsss5rdhY5V/RycHCFYokzsd3qPpysqeHYMgyCykQUcLN4kyDe7j/gtsGJWJZa66glmKvAZd8W/vvQ8O9N49Dnvt4iafA==",
       },
       SrpInstance {
-        version: 4,
-        _username: "Test3",
+        version: SrpHashVersion::V4,
+        username: "Test3",
         password: "Test3",
         modulus: "a/jyYc17HJElzLFvb9y1nh54NeLhyD1DtR3TGcy279xW93VEhTj0CyJZ3PRkgp6eLoz+nopWWKVCm7z2WSjr+RJ2iWFIuSDho3Gb/Aer3mkmW5KWB55TnzsgtP2IRX39d3bzAPeaawH1Q4+AwFouJ9GQPCrtCHyNFWaRn9pEPWHmG/UJXM1fWem3wS5iEBOKK0jsOTEaEkQuKYupTZlOADhyVwYITvmT9dEIhOntEjWixy5eiib1/wv3ex+Y2E+Ty5o1mN5kfPKs2F6RVBWTg05yU9xBcmJIjgLUulOHOx9/uheukKGJq3Vi50aR85bNjJkxHJttSBBSj8NpiJW+5g==",
         salt: "rPelup77AgUCQg==",
@@ -127,8 +127,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "W5OCrwQYOL55LFcKMKbe5afJcg68z4zapxhYTMFGx5qwrzVU+12NrUNhIcTtjJ6cMM5NBOxioUusJcwn7WtnfJKLAwVRJOWf6XUfh866oBUyOg4SPiRYiz6vLPxe/WtBF2XBtTbhwecCtAd/TOnVMc/acbtj0QfMYZ+hjB9XlL4HMBDInWaAv2PgAZmWNRJI7fqaby/bmmUZ7iT4KdGKvXotQ720M9jwXs8YK0ClupL6Q5aPzLHEmGmczA3KooEPWfZ5n7fySsjEiq1fuOxMRhpOx1VF3rgL4BKakUNJGr1v+xsgNMT/u0ddLInCicHtZkSwejsoMQckMXAcjCb4Vg==",
       },
       SrpInstance {
-        version: 4,
-        _username: "Test4",
+        version: SrpHashVersion::V4,
+        username: "Test4",
         password: "Test4",
         modulus: "8/wGq0/O0KnnPYWCbqHCGu7tl4w8k4UkJl4y2/oCh5eSeO2AmQ6FRCG/GGEW5Tj4MC50mmg7knJ5X3A1LNmFVOb7p3FLoKtcAqHMZBu5MfUOCo+PsxRGwhlQo2IOUU8avu4QK7iyJd5e80sAZAEO5wz3Nx0tD8FUWG5C+ZcBvqrh6/wEGnl1p4KjRVqk7eqe0LEm5N7HRuXMxpa5UR5h3Awmp8OUOPmcccqkfxvvP/JfuMYdIKnRkeW1YnP6kMDTEKApbiuGFW7uwnU2oyUq5O0672cI5sUdRk4O4V7EtQ+qIglXkNT+k6a9z1cto2hQAVs96IJAfc+zfqRRduIw4A==",
         salt: "dRuDue2lP/mG2w==",
@@ -139,8 +139,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "CEQRlE9cO5G3n8AMIovkB1ZxfFPBMbQTZ9Sh0iEnXqNbzLlbh3oDZT3rRH0t9RLi4cvS5HDRwJ3lgcE0dLriMK8cBZq9rKRH3WpDjOBqTyAbSCmDuHM10W10RTQb7MZynDkWuvAbYMRuWi2guoGqW3CbMxQ2ofyoeaczkCTKDK3aAvkNqvAxIafd+HSxPLJGzvM5yJj1n/hIDM8pMpTxt4CjjcY7QuVQaNZTVrpPSwdqYDFd82cwB3JBm9YE6ZR2iItk39V4eKACO5NRU5Ydg0Tsq5DiD4zpQgEh4GTgT5VaOAu4ZZP2Kwgdf/N8YB6DEdic02hs3xvTgeAegjNI3Q==",
       },
       SrpInstance {
-        version: 4,
-        _username: "Test5",
+        version: SrpHashVersion::V4,
+        username: "Test5",
         password: "Test5",
         modulus: "Q06qM078EiXTdrLTjcb99OHhGCq0tHgDrp2sBYZdGpHZXn8wGLmJPrz97V6mytKflTF17iXtNa5NmzeZk2BQPZ0+uLMaKmQTmpkox81GAMQzASzlLRBatHGOwvUl+k8vTltDdr06hpjjxs5g6YZG5x6yaxhWXrkMM2f/uc1Pz4/fdfbp3jDSUtrtg1vvE9Ie3/uBY+VuvPstiErix3eOKCefYSUvXiTHkQOxYHipgOj27ZpipRGHtxZqeuM1vnhaTejF5b5O8bC52/jDxCxEW9I2snnbU/KPdoWrxECgm4zMTWsXI4Zqu97pFsxfaO71+QKi56FYBXiNvnT6HyCu7A==",
         salt: "JNmIaPOOZEzaWg==",
@@ -151,8 +151,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
         expected_server_proof: "5TG3U7dra2jIvOZu1ZODDQO/xabNCN1SfvqWOSlU5g4VuZTllz5h22rkVD9alpexj4qu1z5zd8Dz1DxOIihEJzZWed9Cix4CQgwQ7mZosXtYrH7dEyf0OiN85eMxa3K9Npct44N702VB393WOwXyH5fEwgdEx/c78g4lJ2gnBNOtH8sfKfP8Q02TAOEpKCPjfql4vkgl2xcHXLIO14sFhCWFH/iYqAwSO0nwFY1bpRON+eWrykcCZkgx+/AWCdf1BT5W5mIMl1JboFi8uYkoM1PTs7t66z/y4v8+uPzzpr9wcWqEWyU+M8TEM8d5SBng1wozpM/Zqmu3y5XCfpVDxQ==",
       },
       SrpInstance {
-        version: 4,
-        _username: "Test6",
+        version: SrpHashVersion::V4,
+        username: "Test6",
         password: "Test6",
         modulus: "W6ZWc9PGd/9CzSI8YTDOmR2zRbJkfdTtGYgf621pWsX7M7QC6BPPa4KTcuE8YRdAo3sjHzA08RQpUPi0ilUlD6qsKfvhKxi+OFIlj8jeN/UyOO5o34uvQbS/Ts5VHX3pG0KKLreN24bI8VSyWT0Y7uMzFEHZj4avzMr1FCTo4grLhuxHj6f1loBd5wBTIHDrj5Dmb7BQOFrP5+1F8EQUSWKpcycjfrd/KpqBDRjp+zZgcOiDFYUvWX2ZGykUhPF+K8ARUooOn3VRZnxnQKQTl+Ip6yTJc1+BRUavoX5amZtM/mWgjr/161j5C/K9rNBL0AlnrwHMoGYIsVcWvg8Fqg==",
         salt: "ZLpMUnhDn1QjkQ==",
@@ -166,8 +166,8 @@ const PYTHON_SRP_INSTANCES: &[SrpInstance] = &[
 
 const GO_SRP_INSTANCES: &[SrpInstance] = & [
     SrpInstance {
-        version: 4,
-        _username: "GoFlow1",
+        version: SrpHashVersion::V4,
+        username: "GoFlow1",
         password: "Password\nabc!!~~ä\r\n",
         modulus: "W2z5HBi8RvsfYzZTS7qBaUxxPhsfHJFZpu3Kd6s1JafNrCCH9rfvPLrfuqocxWPgWDH2R8neK7PkNvjxto9TStuY5z7jAzWRvFWN9cQhAKkdWgy0JY6ywVn22+HFpF4cYesHrqFIKUPDMSSIlWjBVmEJZ/MusD44ZT29xcPrOqeZvwtCffKtGAIjLYPZIEbZKnDM1Dm3q2K/xS5h+xdhjnndhsrkwm9U9oyA2wxzSXFL+pdfj2fOdRwuR5nW0J2NFrq3kJjkRmpO/Genq1UW+TEknIWAb6VzJJJA244K/H8cnSx2+nSNZO3bbo6Ys228ruV9A8m6DhxmS+bihN3ttQ==",
         salt: "GOz6DK53KINQHw==",
@@ -178,8 +178,8 @@ const GO_SRP_INSTANCES: &[SrpInstance] = & [
         expected_server_proof: "H8FR90AJ93/3jrJHGyuH5Z7H3w5cb65bdolDCJNVBdS6atvNgFCNAF0b3sfOMAbVilce9p2y6fydeX1WRqnKjwLpVLCOHAfgJuZZ8HDOwe9IeYwn+U5K8pNnh9K7VGLdqX+8Vt//iFY8SzWvYHM408dmJYRfCuOo1wvcTyb5aHj+nMORlVfPAUTgDv2HSwfbEA30j1gzEtDZTV1KmDc/mNmnDaE8MM+8nFdru+1hDa9jSCMHA41jXIujaI5y4lysK1sqgpJGJSYiUF9MgVbWGtqV921JeBPKn76sAsgoQ85Sn8wrFoC3AqzqKofRDVPKkGMeyobb7RJ+5s/i2saGMQ==",
     },
     SrpInstance {
-        version: 4,
-        _username: "GoFlow2",
+        version: SrpHashVersion::V4,
+        username: "GoFlow2",
         password: "This is a looooooooong password",
         modulus: "W2z5HBi8RvsfYzZTS7qBaUxxPhsfHJFZpu3Kd6s1JafNrCCH9rfvPLrfuqocxWPgWDH2R8neK7PkNvjxto9TStuY5z7jAzWRvFWN9cQhAKkdWgy0JY6ywVn22+HFpF4cYesHrqFIKUPDMSSIlWjBVmEJZ/MusD44ZT29xcPrOqeZvwtCffKtGAIjLYPZIEbZKnDM1Dm3q2K/xS5h+xdhjnndhsrkwm9U9oyA2wxzSXFL+pdfj2fOdRwuR5nW0J2NFrq3kJjkRmpO/Genq1UW+TEknIWAb6VzJJJA244K/H8cnSx2+nSNZO3bbo6Ys228ruV9A8m6DhxmS+bihN3ttQ==",
         salt: "zm2TS6veJe1NXw==",
@@ -211,6 +211,7 @@ const TEST_VERIFIER_MODULUS_NO_OP: &str = "y6TtufhYg2mIeauZYOti+GPbd/0vP66kP34Tg
 fn test_srp(srp_test_instances: &SrpInstance) {
     let mut client = SRPAuth::new_with_modulus_verifier(
         &TestNoOpVerifier {},
+        Some(srp_test_instances.username),
         srp_test_instances.password,
         srp_test_instances.version,
         srp_test_instances.salt,
@@ -327,8 +328,9 @@ fn test_srp_round_trip() {
     // Client login
     let client = SRPAuth::new(
         &TestNoOpVerifier {},
+        None,
         PASSWORD,
-        4,
+        SrpHashVersion::V4,
         &client_verifier.salt,
         TEST_VERIFIER_MODULUS_NO_OP,
         &server_challenge.encode_b64(),
@@ -372,8 +374,9 @@ fn test_srp_round_trip_with_restore() {
     // Client login
     let client = SRPAuth::new(
         &TestNoOpVerifier {},
+        None,
         PASSWORD,
-        4,
+        SrpHashVersion::V4,
         &client_verifier.salt,
         TEST_VERIFIER_MODULUS_NO_OP,
         &server_challenge.encode_b64(),

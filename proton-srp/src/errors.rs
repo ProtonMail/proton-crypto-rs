@@ -9,6 +9,10 @@ pub enum SRPError {
     Base64Decode(#[from] DecodeError),
     #[error("bcrypt error: {0}")]
     BcryptError(#[from] bcrypt::BcryptError),
+    #[error("Missing username: version {0} requires a username for the password hash")]
+    MissingUsername(u8),
+    #[error("Password hash failed: {0}")]
+    PassordHashFailed(&'static str),
     /// `ModulusVerify` is thrown if modulus extraction/verification from
     /// the PGP message fails.
     ///

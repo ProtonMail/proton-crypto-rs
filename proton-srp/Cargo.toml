@@ -1,6 +1,6 @@
 [package]
 name = "proton-srp"
-version = "0.7.1"
+version = "0.8.0"
 edition.workspace = true
 license = "MIT"
 license-file = "LICENSE"
@@ -8,14 +8,16 @@ authors.workspace = true
 
 [dependencies]
 bcrypt = "0.17.1"
+md5 = { package = "md-5", version = "0.10.6" }
 crypto-bigint = { version = "0.5.5", features = ["zeroize"] }
+hex = { workspace = true }
 rand = { workspace = true }
 sha2 = { workspace = true }
 base64 = { workspace = true }
 thiserror = { workspace = true }
 zeroize = { workspace = true }
 # Optional
-pgp = { version = "0.17.0", optional = true }
+pgp = { version = "0.18.0", optional = true }
 
 [features]
 default = ["pgpinternal"]
