@@ -8,7 +8,7 @@ authors.workspace = true
 
 [dependencies]
 bcrypt = "0.17.1"
-md-5 = "0.10.6"
+md5 = { package = "md-5", version = "0.10.6" }
 crypto-bigint = { version = "0.5.5", features = ["zeroize"] }
 hex = { workspace = true }
 rand = { workspace = true }
