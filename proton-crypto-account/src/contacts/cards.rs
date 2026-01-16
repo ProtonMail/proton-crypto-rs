@@ -2,8 +2,8 @@ use derive_more::derive::TryFrom;
 use proton_crypto::{
     crypto::{
         AsPublicKeyRef, DataEncoding, Decryptor, DecryptorSync, DetachedSignatureVariant,
-        Encryptor, EncryptorSync, PGPProviderSync, Signer, SignerSync, SigningMode, VerifiedData,
-        Verifier, VerifierSync, WritingMode,
+        Encryptor, EncryptorSync, PGPProviderSync, Signer, SignerSync, SigningMode, UnixTimestamp,
+        VerificationInformation, VerifiedData, Verifier, VerifierSync, WritingMode,
     },
     utils::remove_trailing_spaces,
 };
@@ -60,6 +60,21 @@ impl FromSql for ContactCardType {
     }
 }
 
+/// Provides information about the signature that
+/// was successfully verified.
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct ContactSignatureInfo {
+    pub signature_creation_time: UnixTimestamp,
+}
+
+impl From<VerificationInformation> for ContactSignatureInfo {
+    fn from(value: VerificationInformation) -> Self {
+        Self {
+            signature_creation_time: value.signature_creation_time,
+        }
+    }
+}
+
 /// `DecryptableVerifiableCard` provides the ability to access the data from within contact cards, decrypting encrypted data
 /// and verifying and signatures present
 pub trait DecryptableVerifiableCard {
@@ -88,18 +103,47 @@ pub trait DecryptableVerifiableCard {
         decryption_keys: &[impl AsRef<T::PrivateKey>],
         verification_keys: &[impl AsPublicKeyRef<T::PublicKey>],
     ) -> Result<Vec<u8>, CardCryptoError> {
+        self.decrypt_and_verify_sync_with_signature_info(
+            provider,
+            decryption_keys,
+            verification_keys,
+        )
+        .map(|(data, _)| data)
+    }
+
+    /// Returns the plain text data from the card.  If the card has been encrypted, it is decrypted.  If the card
+    /// is signed, the signature is verified.
+    ///
+    /// For signed cards, the signature information of the verified signature is returned.
+    ///
+    /// # Parameters
+    /// * `provider` - The pgp provider instance from [`proton_crypto`].
+    /// * `decryption_keys` - The set of keys which will be used to decrypt the contact card
+    /// * `verification_keys` - The set of keys which will be used to verify the signature on the contact card
+    ///
+    /// # Errors
+    /// When decryption or signature verification fail
+    fn decrypt_and_verify_sync_with_signature_info<T: PGPProviderSync>(
+        &self,
+        provider: &T,
+        decryption_keys: &[impl AsRef<T::PrivateKey>],
+        verification_keys: &[impl AsPublicKeyRef<T::PublicKey>],
+    ) -> Result<(Vec<u8>, Option<ContactSignatureInfo>), CardCryptoError> {
         match self.card_type() {
-            ContactCardType::ClearText => Ok(self.card_data().to_owned()),
-            ContactCardType::Encrypted => Ok(provider
-                .new_decryptor()
-                .with_decryption_key_refs(decryption_keys)
-                .decrypt(self.card_data(), DataEncoding::Armor)
-                .map_err(CardCryptoError::DecryptionError)?
-                .into_vec()),
+            ContactCardType::ClearText => Ok((self.card_data().to_owned(), None)),
+            ContactCardType::Encrypted => Ok((
+                provider
+                    .new_decryptor()
+                    .with_decryption_key_refs(decryption_keys)
+                    .decrypt(self.card_data(), DataEncoding::Armor)
+                    .map_err(CardCryptoError::DecryptionError)?
+                    .into_vec(),
+                None,
+            )),
             ContactCardType::Signed => {
                 // Strip trailing spaces to verify legacy contacts.
                 let cleaned_data = remove_trailing_spaces(str::from_utf8(self.card_data())?);
-                provider
+                let info = provider
                     .new_verifier()
                     .with_verification_key_refs(verification_keys)
                     .verify_detached(
@@ -108,7 +152,7 @@ pub trait DecryptableVerifiableCard {
                         DataEncoding::Armor,
                     )
                     .map_err(CardCryptoError::SignatureVerificationError)?;
-                Ok(self.card_data().to_owned())
+                Ok((self.card_data().to_owned(), Some(info.into())))
             }
             ContactCardType::EncryptedAndSigned => {
                 let decrypted_card_result = provider
@@ -122,8 +166,8 @@ pub trait DecryptableVerifiableCard {
                     )
                     .decrypt(self.card_data(), DataEncoding::Armor)
                     .map_err(CardCryptoError::DecryptionError)?;
-                decrypted_card_result.verification_result()?;
-                Ok(decrypted_card_result.into_vec())
+                let info: VerificationInformation = decrypted_card_result.verification_result()?;
+                Ok((decrypted_card_result.into_vec(), Some(info.into())))
             }
         }
     }
