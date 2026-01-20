@@ -306,3 +306,29 @@ fn key_is_forwarding_key() {
         .expect("Failed to import key");
     assert!(!key.is_forwarding_key(&profile));
 }
+
+#[test]
+fn fix_future_key_with_modification() {
+    let future_date = UnixTime::new(1_800_456_452);
+    let key = KeyGenerator::default()
+        .with_user_id("test", "test@test.com")
+        .at_date(future_date)
+        .generate()
+        .expect("Failed to generate key");
+
+    let current_date = UnixTime::new(1_768_920_452);
+
+    key.check_can_verify(&KEY_TEST_PROFILE, current_date.into())
+        .expect_err("Future key should not be able to verify");
+
+    let modified_key = key
+        .modify_default()
+        .at_date(current_date)
+        .update_key_creation_time(current_date)
+        .modify()
+        .expect("Failed to modify key");
+
+    modified_key
+        .check_can_verify(&KEY_TEST_PROFILE, current_date.into())
+        .expect("Modified key should be able to verify");
+}
