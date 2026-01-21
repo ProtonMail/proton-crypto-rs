@@ -1,7 +1,7 @@
 use pgp::{
     composed::SignedSecretKey,
     packet::{self, KeyFlags, PubKeyInner},
-    types::{KeyDetails, PublicKeyTrait},
+    types::KeyDetails,
 };
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 
 pub struct KeyModifier {
     /// The key to modify.
-    key_to_modify: SignedSecretKey,
+    key: SignedSecretKey,
 
     /// The profile to use for the key modification.
     profile: Profile,
@@ -21,7 +21,7 @@ pub struct KeyModifier {
     new_user_ids: Vec<KeyUserId>,
 
     /// Whether to remove the old user-ids from the key.
-    remove_old_user_ids: bool,
+    clear_existing_user_ids: bool,
 
     /// Whether reset and create new signatures for user-ids/direct-key/subkeys.
     ///
@@ -29,22 +29,22 @@ pub struct KeyModifier {
     reset_signatures: bool,
 
     /// The date of the key generation for the self-certifications and key creation time.
-    date: UnixTime,
+    modification_date: UnixTime,
 
     /// Override the key creation time of the primary key and subkeys.
-    key_time: Option<UnixTime>,
+    key_creation_time: Option<UnixTime>,
 }
 
 impl KeyModifier {
     pub fn new(profile: &Profile, key_to_modify: &PrivateKey) -> Self {
         Self {
-            key_to_modify: key_to_modify.secret.clone(),
+            key: key_to_modify.secret.clone(),
             profile: profile.clone(),
             new_user_ids: Vec::new(),
-            remove_old_user_ids: false,
+            clear_existing_user_ids: false,
             reset_signatures: false,
-            date: UnixTime::now().unwrap_or_default(),
-            key_time: None,
+            modification_date: UnixTime::now().unwrap_or_default(),
+            key_creation_time: None,
         }
     }
 
@@ -62,8 +62,8 @@ impl KeyModifier {
     }
 
     /// Remove all existing user-ids from the key.
-    pub fn erase_existing_user_ids(mut self, remove_all: bool) -> Self {
-        self.remove_old_user_ids = remove_all;
+    pub fn clear_existing_user_ids(mut self) -> Self {
+        self.clear_existing_user_ids = true;
         self
     }
 
@@ -71,43 +71,41 @@ impl KeyModifier {
     ///
     /// When enabled, all existing signatures related to these components are removed,
     /// and new self-signatures are created according to the modification configuration.
-    pub fn reset_signatures(mut self, resign: bool) -> Self {
-        self.reset_signatures = resign;
+    pub fn reset_signatures(mut self) -> Self {
+        self.reset_signatures = true;
         self
     }
 
     /// Override the key creation time of the primary key and subkeys.  
     ///
     /// Automatically triggers a signature reset.
-    pub fn update_key_creation_time(mut self, key_time: UnixTime) -> Self {
+    pub fn with_key_creation_time(mut self, key_creation_time: UnixTime) -> Self {
         self.reset_signatures = true;
-        self.key_time = Some(key_time);
+        self.key_creation_time = Some(key_creation_time);
         self
     }
 
     /// Set the date of the key modification.
-    pub fn at_date(mut self, date: UnixTime) -> Self {
-        self.date = date;
+    pub fn with_date(mut self, date: UnixTime) -> Self {
+        self.modification_date = date;
         self
     }
 
     /// Modify the key according to the configuration.
     pub fn modify(self) -> crate::Result<PrivateKey> {
         let sub_key_flags = self.collect_sub_key_flags()?;
-        let modifier = self
-            .inner_modify_primary_key()?
-            .inner_modify_subkeys(sub_key_flags)?;
-        Ok(PrivateKey::new(modifier.key_to_modify))
+        let modifier = self.modify_primary_key()?.modify_subkeys(sub_key_flags)?;
+        Ok(PrivateKey::new(modifier.key))
     }
 
     fn collect_sub_key_flags(&self) -> Result<Vec<KeyFlags>, KeyModificationError> {
         if self.reset_signatures {
-            self.key_to_modify
+            self.key
                 .secret_subkeys
                 .iter()
                 .map(|sub_key| {
                     let self_sig = sub_key.latest_valid_self_certification(
-                        self.key_to_modify.primary_key(),
+                        self.key.primary_key(),
                         CheckUnixTime::disable(),
                         &self.profile,
                     )?;
@@ -119,48 +117,44 @@ impl KeyModifier {
         }
     }
 
-    fn inner_modify_primary_key(mut self) -> Result<Self, KeyModificationError> {
+    fn modify_primary_key(mut self) -> Result<Self, KeyModificationError> {
         let mut rng = self.profile.rng();
         let preferred_hash = self.profile.key_hash_algorithm();
 
-        if self.remove_old_user_ids {
-            self.key_to_modify.details.users.clear();
+        if self.clear_existing_user_ids {
+            self.key.details.users.clear();
         }
 
         if self.reset_signatures {
-            if let Some(key_time) = self.key_time {
+            if let Some(key_creation_time) = self.key_creation_time {
                 let pub_key = PubKeyInner::new(
-                    self.key_to_modify.primary_key().version(),
-                    self.key_to_modify.primary_key().algorithm(),
-                    key_time.into(),
+                    self.key.primary_key().version(),
+                    self.key.primary_key().algorithm(),
+                    key_creation_time.into(),
                     None,
-                    self.key_to_modify.primary_key().public_params().clone(),
+                    self.key.primary_key().public_params().clone(),
                 )
                 .map_err(KeyModificationError::PrimaryKeyModification)?;
                 let primary_pub_key = packet::PublicKey::from_inner(pub_key)
                     .map_err(KeyModificationError::PrimaryKeyModification)?;
                 let primary_secret_key = packet::SecretKey::new(
                     primary_pub_key.clone(),
-                    self.key_to_modify
-                        .primary_secret_key()
-                        .secret_params()
-                        .clone(),
+                    self.key.primary_secret_key().secret_params().clone(),
                 )
                 .map_err(KeyModificationError::PrimaryKeyModification)?;
-                self.key_to_modify.primary_key = primary_secret_key;
+                self.key.primary_key = primary_secret_key;
             }
         }
 
         let key_gen_config = KeyGenerationProfileBuilder::default()
-            .key_version(self.key_to_modify.version())
+            .key_version(self.key.version())
             .build();
 
-        let (primary_user_id, non_primary_user_ids) = if self.key_to_modify.details.users.is_empty()
-        {
+        let (primary_user_id, non_primary_user_ids) = if self.key.details.users.is_empty() {
             convert_user_ids(&self.new_user_ids)?
         } else {
             let mut old_user_ids = if self.reset_signatures {
-                std::mem::take(&mut self.key_to_modify.details.users)
+                std::mem::take(&mut self.key.details.users)
                     .into_iter()
                     .map(|user| user.id)
                     .collect::<Vec<_>>()
@@ -182,9 +176,9 @@ impl KeyModifier {
 
         let updated_signed_key_details = key_details_config
             .sign_with(
-                self.key_to_modify.primary_secret_key(),
-                self.key_to_modify.primary_key(),
-                self.date,
+                self.key.primary_secret_key(),
+                self.key.primary_key(),
+                self.modification_date,
                 preferred_hash,
                 &mut rng,
                 &self.profile,
@@ -192,16 +186,16 @@ impl KeyModifier {
             .map_err(KeyModificationError::Signing)?;
 
         let mut new_users = Vec::with_capacity(
-            updated_signed_key_details.users.len() + self.key_to_modify.details.users.len(),
+            updated_signed_key_details.users.len() + self.key.details.users.len(),
         );
         new_users.extend(updated_signed_key_details.users);
-        new_users.extend(self.key_to_modify.details.users);
-        self.key_to_modify.details.users = new_users;
+        new_users.extend(self.key.details.users);
+        self.key.details.users = new_users;
 
         if self.reset_signatures {
-            self.key_to_modify.details.revocation_signatures.clear();
-            self.key_to_modify.details.direct_signatures.clear();
-            self.key_to_modify
+            self.key.details.revocation_signatures.clear();
+            self.key.details.direct_signatures.clear();
+            self.key
                 .details
                 .direct_signatures
                 .extend(updated_signed_key_details.direct_signatures);
@@ -210,7 +204,7 @@ impl KeyModifier {
         Ok(self)
     }
 
-    fn inner_modify_subkeys(
+    fn modify_subkeys(
         mut self,
         sub_key_flags: Vec<KeyFlags>,
     ) -> Result<Self, KeyModificationError> {
@@ -219,15 +213,15 @@ impl KeyModifier {
             let preferred_hash = self.profile.key_hash_algorithm();
 
             let updated_subkeys: Vec<_> = self
-                .key_to_modify
+                .key
                 .secret_subkeys
                 .iter()
                 .map(|sub_key| {
-                    if let Some(key_time) = self.key_time {
+                    if let Some(key_creation_time) = self.key_creation_time {
                         let pub_key = PubKeyInner::new(
                             sub_key.key.version(),
                             sub_key.key.algorithm(),
-                            key_time.into(),
+                            key_creation_time.into(),
                             None,
                             sub_key.key.public_key().public_params().clone(),
                         )
@@ -249,9 +243,9 @@ impl KeyModifier {
                     sub_key
                         .public_key()
                         .sign_with(
-                            self.key_to_modify.primary_secret_key(),
-                            self.key_to_modify.primary_key(),
-                            self.date,
+                            self.key.primary_secret_key(),
+                            self.key.primary_key(),
+                            self.modification_date,
                             preferred_hash,
                             subkey_flag,
                             None,
@@ -263,7 +257,7 @@ impl KeyModifier {
                 .collect::<Result<Vec<_>, _>>()?;
 
             for (sub_key, (updated_subkey, signature)) in self
-                .key_to_modify
+                .key
                 .secret_subkeys
                 .iter_mut()
                 .zip(updated_subkeys.into_iter().zip(new_subkey_signatures))
@@ -301,9 +295,9 @@ mod tests {
 
         let modified_key = key
             .modify_default()
-            .erase_existing_user_ids(true)
+            .clear_existing_user_ids()
             .add_user_id("test2", "test2@test.com")
-            .at_date(date)
+            .with_date(date)
             .modify()
             .expect("Failed to modify key");
 
@@ -345,9 +339,9 @@ mod tests {
 
         let modified_key = key
             .modify_default()
-            .erase_existing_user_ids(true)
+            .clear_existing_user_ids()
             .add_user_id("test2", "test2@test.com")
-            .at_date(date)
+            .with_date(date)
             .modify()
             .expect("Failed to modify key");
 
@@ -370,6 +364,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::indexing_slicing)]
     fn key_modification_user_id_v4_reset() {
         let key = PrivateKey::import(
             include_str!("../../test-data/keys/private_key_v4.asc").as_bytes(),
@@ -383,9 +378,9 @@ mod tests {
         let modified_key = key
             .modify_default()
             .add_user_id("test2", "test2@test.com")
-            .reset_signatures(true)
-            .update_key_creation_time(date)
-            .at_date(date)
+            .reset_signatures()
+            .with_key_creation_time(date)
+            .with_date(date)
             .modify()
             .expect("Failed to modify key");
 

@@ -323,8 +323,8 @@ fn fix_future_key_with_modification() {
 
     let modified_key = key
         .modify_default()
-        .at_date(current_date)
-        .update_key_creation_time(current_date)
+        .with_date(current_date)
+        .with_key_creation_time(current_date)
         .modify()
         .expect("Failed to modify key");
 
