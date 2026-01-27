@@ -10,7 +10,7 @@ use pgp::{
     armor::{self as pgp_armor, BlockType},
     packet::{Packet, PacketParser},
     ser::Serialize,
-    types::{Fingerprint, KeyId},
+    types::{Fingerprint, KeyId, Tag},
 };
 
 use crate::{ArmorError, EncryptedMessageError, SessionKey};
@@ -189,22 +189,34 @@ impl From<Vec<u8>> for EncryptedMessage {
 ///
 /// Assumes the message has the form:
 /// `| key packets | data packet |`
-/// All packets after data packet are ignored.
+///
+/// `key packets` are additionaly allowed to contain `Marker` and `Padding` packets.
+/// All packets after the data packet are ignored.
 fn split_pgp_message(encrypted_message: &[u8]) -> Result<(&[u8], &[u8]), EncryptedMessageError> {
     let bytes_read = Rc::new(RefCell::new(0));
     let reader = ExternalCountingReader::new(encrypted_message, bytes_read.clone());
     let mut split_point = 0;
-    for packet in PacketParser::new(reader) {
+    let mut parser = PacketParser::new(reader);
+    while let Some(packet) = parser.next_ref() {
         match packet {
-            Ok(Packet::PublicKeyEncryptedSessionKey(_) | Packet::SymKeyEncryptedSessionKey(_)) => {
-                // Safe to read the counter as the reader is not used concurrently.
-                split_point = *bytes_read.borrow();
-            }
-            Ok(Packet::SymEncryptedProtectedData(_)) => {
-                break;
+            Ok(mut body_reader) => {
+                let header = body_reader.packet_header();
+                match header.tag() {
+                    Tag::PublicKeyEncryptedSessionKey
+                    | Tag::SymKeyEncryptedSessionKey
+                    | Tag::Marker
+                    | Tag::Padding => {
+                        io::copy(&mut body_reader, &mut io::sink())
+                            .map_err(|_| EncryptedMessageError::NonExpectedPacketSplit)?;
+                        split_point = *bytes_read.borrow();
+                    }
+                    Tag::SymEncryptedProtectedData => {
+                        break;
+                    }
+                    _ => return Err(EncryptedMessageError::NonExpectedPacketSplit),
+                }
             }
             Err(e) => return Err(EncryptedMessageError::ParseSplit(e)),
-            _ => return Err(EncryptedMessageError::NonExpectedPacketSplit),
         }
     }
 
@@ -374,13 +386,23 @@ fn detect_key_packets(key_packets: &[u8]) -> (usize, usize) {
     let reader = ExternalCountingReader::new(key_packets, bytes_read.clone());
     let mut split_point = 0;
     let mut num_key_packets = 0;
-    for packet in PacketParser::new(reader) {
+    let mut parser = PacketParser::new(reader);
+    while let Some(packet) = parser.next_ref() {
         match packet {
-            Ok(Packet::PublicKeyEncryptedSessionKey(_) | Packet::SymKeyEncryptedSessionKey(_)) => {
-                split_point = *bytes_read.borrow();
-                num_key_packets += 1;
+            Ok(mut body_reader) => {
+                let header = body_reader.packet_header();
+                match header.tag() {
+                    Tag::PublicKeyEncryptedSessionKey | Tag::SymKeyEncryptedSessionKey => {
+                        if io::copy(&mut body_reader, &mut io::sink()).is_err() {
+                            break;
+                        }
+                        num_key_packets += 1;
+                        split_point = *bytes_read.borrow();
+                    }
+                    _ => break,
+                }
             }
-            _ => break,
+            Err(_) => break,
         }
     }
     (split_point, num_key_packets)
