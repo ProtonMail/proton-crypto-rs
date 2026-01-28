@@ -36,6 +36,9 @@ print_stdout = "warn"
 unseparated_literal_suffix ="warn"
 wrong_self_convention ="warn"
 pedantic={ level = "warn", priority = -1 }
+index_refutable_slice = "warn"
+indexing_slicing = "warn"
+string_slice = "warn"
 
 # --- Overrides ---
 return-self-not-must-use = { level = "allow", priority = 1 }
