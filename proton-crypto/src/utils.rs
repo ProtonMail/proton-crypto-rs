@@ -20,15 +20,16 @@ fn decode_and_append_line(
 }
 
 /// Helper function to canonicalized and trim the input data for signature verification.
+#[allow(clippy::indexing_slicing)]
 pub fn to_canonicalized_string(data: &[u8], trim: bool) -> Result<String, Utf8Error> {
     let mut data_sanitized = String::with_capacity(data.len());
     let mut line_idx = 0;
     for (idx, c) in data.iter().enumerate() {
         if *c == b'\n' {
             let line = if idx > 0 && data[idx - 1] == b'\r' {
-                &data[line_idx..idx - 1]
+                data.get(line_idx..idx - 1).unwrap_or_default()
             } else {
-                &data[line_idx..idx]
+                data.get(line_idx..idx).unwrap_or_default()
             };
             decode_and_append_line(line, &mut data_sanitized, trim)?;
             data_sanitized.push_str("\r\n");
