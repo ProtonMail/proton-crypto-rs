@@ -78,6 +78,7 @@ impl<'a> PublicComponentKey<'a> {
         check_message_signature_details(date, signature, self, context, profile)
     }
 
+    #[allow(clippy::indexing_slicing)]
     pub fn verify_signature_with_hash(
         &self,
         date: CheckUnixTime,
@@ -95,6 +96,10 @@ impl<'a> PublicComponentKey<'a> {
         let Some(signature_bytes) = signature.signature() else {
             return Err(MessageSignatureError::Failed(SignatureError::ConfigAccess));
         };
+        if hash.len() < 2 {
+            return Err(MessageSignatureError::Failed(SignatureError::NoHash));
+        }
+
         if signed_hash_value[0] != hash[0] || signed_hash_value[1] != hash[1] {
             return Err(MessageSignatureError::Failed(SignatureError::Verification(
                 pgp::errors::Error::Message {

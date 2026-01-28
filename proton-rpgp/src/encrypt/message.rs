@@ -208,10 +208,15 @@ fn split_pgp_message(encrypted_message: &[u8]) -> Result<(&[u8], &[u8]), Encrypt
         }
     }
 
-    Ok((
-        &encrypted_message[..split_point],
-        &encrypted_message[split_point..],
-    ))
+    let key_packets = encrypted_message
+        .get(..split_point)
+        .ok_or(EncryptedMessageError::NonExpectedPacketSplit)?;
+
+    let data_packets = encrypted_message
+        .get(split_point..)
+        .ok_or(EncryptedMessageError::NonExpectedPacketSplit)?;
+
+    Ok((key_packets, data_packets))
 }
 
 fn encyption_key_ids(encrypted_message: &[u8]) -> Vec<KeyId> {

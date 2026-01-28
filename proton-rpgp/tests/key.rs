@@ -194,6 +194,7 @@ fn key_can_verify() {
 }
 
 #[test]
+#[allow(clippy::indexing_slicing)]
 fn key_sha256_fingerprints() {
     const EXPECTED_FINGERPRINTS: [&str; 2] = [
         "c661eb295d86ca96733f4a18237f0e7b0bbf599e0060795302546fc644f3c9e3",

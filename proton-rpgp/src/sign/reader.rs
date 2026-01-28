@@ -140,6 +140,7 @@ impl<'a> InnerDetachedHashingReader<'a> {
 }
 
 impl Read for InnerDetachedHashingReader<'_> {
+    #[allow(clippy::indexing_slicing)]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let (bytes_read, hashing) = match &mut *self.hash_tracker.0.borrow_mut() {
             HashState::Hashing { .. } => {

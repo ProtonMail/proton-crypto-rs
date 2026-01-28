@@ -395,7 +395,10 @@ impl Read for DetachedSignaturesBodyReader<'_> {
             Self::Init { .. } => unreachable!("invalid state"),
             Self::Body { buffer, .. } => {
                 let to_write = buffer.remaining().min(buf.len());
-                buffer.copy_to_slice(&mut buf[..to_write]);
+                let to_write_slice = buf
+                    .get_mut(..to_write)
+                    .ok_or(io::Error::other("Slice is out of bounds"))?;
+                buffer.copy_to_slice(to_write_slice);
                 Ok(to_write)
             }
             Self::Done { .. } => Ok(0),
@@ -414,7 +417,10 @@ pub(crate) fn fill_buffer_bytes<R: BufRead>(
     while buffer.remaining() < len {
         let source_buffer = source.fill_buf()?;
         let read = source_buffer.len().min(len - buffer.remaining());
-        buffer.put_slice(&source_buffer[..read]);
+        let to_read = source_buffer
+            .get(..read)
+            .ok_or(io::Error::other("Slice is out of bounds"))?;
+        buffer.put_slice(to_read);
         read_total += read;
         source.consume(read);
 

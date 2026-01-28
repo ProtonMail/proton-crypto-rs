@@ -43,6 +43,7 @@ impl NormalizingHasher {
         self.hasher
     }
 
+    #[allow(clippy::indexing_slicing)]
     pub(crate) fn hash_buf(&mut self, buffer: &[u8]) {
         if buffer.is_empty() {
             return;
@@ -164,6 +165,7 @@ impl<R: Read> Utf8CheckReader<R> {
 }
 
 impl<R: Read> Read for Utf8CheckReader<R> {
+    #[allow(clippy::indexing_slicing)]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         // Checks if `data` contains valid utf-8 and returns up to 3 bytes of overhang, which
         // might add up to a valid codepoint with more data in the following read.
@@ -176,7 +178,9 @@ impl<R: Read> Read for Utf8CheckReader<R> {
 
                     // handle the remaining data, which may be a fragment of UTF-8 that will be
                     // completed in the next read
-                    let rest = &data[valid_up_to..];
+                    let rest = data
+                        .get(valid_up_to..)
+                        .ok_or(io::Error::other("Slice is out of bounds"))?;
 
                     match rest.len() {
                         0 => Ok(None),

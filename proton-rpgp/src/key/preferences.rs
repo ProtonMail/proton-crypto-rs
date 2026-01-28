@@ -190,7 +190,7 @@ fn select_hash_to_sign(
     if let Some(selection) = candidates.first() {
         *selection
     } else {
-        acceptable_hashes[0]
+        *acceptable_hashes.first().unwrap_or(&HashAlgorithm::Sha256)
     }
 }
 
@@ -210,7 +210,7 @@ pub(crate) fn select_hash_to_sign_key_signatures(
     if let Some(selection) = candidates.first() {
         *selection
     } else {
-        acceptable_hashes[0]
+        *acceptable_hashes.first().unwrap_or(&HashAlgorithm::Sha256)
     }
 }
 

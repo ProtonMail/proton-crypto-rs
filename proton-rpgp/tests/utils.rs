@@ -1,6 +1,7 @@
 use std::io::{self, Read, Write};
 
 #[allow(dead_code)]
+#[allow(clippy::indexing_slicing)]
 pub fn test_copy<R, W>(reader: &mut R, writer: &mut W, buffer_size: usize) -> io::Result<u64>
 where
     R: ?Sized + Read,
