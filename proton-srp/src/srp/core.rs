@@ -256,6 +256,7 @@ fn hash_two(first: &BigUint, second: &BigUint) -> BigUint {
     BigUint::from_le_slice(expand_hash(data_to_hash.as_slice()).as_slice())
 }
 
+#[allow(clippy::indexing_slicing)]
 fn compute_client_proof(a_pub: &BigUint, b_pub: &BigUint, shared_session: &BigUint) -> [u8; 256] {
     // client_proof = H (A || B || K)
     let mut data_to_hash = Zeroizing::new([0_u8; 3 * SRP_LEN_BYTES]);
@@ -265,6 +266,7 @@ fn compute_client_proof(a_pub: &BigUint, b_pub: &BigUint, shared_session: &BigUi
     *expand_hash(data_to_hash.as_slice())
 }
 
+#[allow(clippy::indexing_slicing)]
 fn compute_server_proof(
     a_pub: &BigUint,
     client_proof: &[u8; 256],

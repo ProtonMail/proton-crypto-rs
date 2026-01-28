@@ -47,7 +47,7 @@ impl MailboxHashedPassword {
     /// This prefix includes the bcrypt version (`$2y$`), the cost factor (`10`),
     /// and the 22-character salt used during hashing.
     pub fn prefix(&self) -> &[u8] {
-        &self.0[..BCRYPT_PREFIX_LEN]
+        self.0.get(..BCRYPT_PREFIX_LEN).unwrap_or_default()
     }
 
     /// Returns the hashed password portion of the bcrypt hash, which is a 31-character string.
@@ -55,7 +55,7 @@ impl MailboxHashedPassword {
     /// This part follows the bcrypt prefix ([`Self::prefix`])
     /// and represents the hashed result of the user's password.
     pub fn hashed_password(&self) -> &[u8] {
-        &self.0[BCRYPT_PREFIX_LEN..]
+        self.0.get(BCRYPT_PREFIX_LEN..).unwrap_or_default()
     }
 
     /// Returns the total length of the bcrypt prefix and hashed password in bytes.
@@ -223,7 +223,9 @@ fn srp_password_hash_version_one(
 
     // Legacy mistake.
     let magic_salt_decoding: [u8; SALT_BCRYPT_LEN] = bcrypt::BASE_64
-        .decode(hex::encode(prehashed))?[..SALT_BCRYPT_LEN]
+        .decode(hex::encode(prehashed))?
+        .get(..SALT_BCRYPT_LEN)
+        .ok_or(SRPError::PassordHashFailed("failed to decode salt"))?
         .try_into()
         .map_err(|_| SRPError::PassordHashFailed("failed to decode salt"))?;
 
