@@ -201,6 +201,7 @@ impl<Priv: PrivateKey, Pub: PublicKey> PrimaryUnlockedAddressKey<Priv, Pub> {
     }
 
     /// Return a reference to the primary keys for signing.
+    #[allow(clippy::indexing_slicing)]
     pub fn for_signing(&self) -> &[Priv] {
         // Only sign with one key for backwards compatibility for now.
         &self.sign[..1]

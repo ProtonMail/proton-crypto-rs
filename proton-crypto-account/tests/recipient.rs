@@ -57,6 +57,7 @@ fn test_internal_recipient_key_order_prefer_pinned() {
 }
 
 #[test]
+#[allow(clippy::indexing_slicing)]
 fn test_internal_recipient_key_order_prefer_v6() {
     let pgp = new_pgp_provider();
     let mut api_keys_data = test_public_keys();
