@@ -28,6 +28,7 @@ type HmacSha256 = Hmac<Sha256>;
 /// # Errors
 ///
 /// Returns [`crate::ProofOfWorkError`] if the deadline is exceeded or computing the solution fails.
+#[allow(clippy::indexing_slicing)]
 pub fn solve_ecdlp_challenge(
     b64_challenge: &str,
     max_duration: Duration,
@@ -84,6 +85,7 @@ pub fn solve_ecdlp_challenge(
 /// # Errors
 ///
 /// Returns [`crate::ProofOfWorkError`] if the deadline is exceeded or computing the solution fails.
+#[allow(clippy::indexing_slicing)]
 pub fn solve_argon2_challenge(
     b64_challenge: &str,
     max_duration: Duration,
@@ -161,25 +163,33 @@ fn prf_challenge(key: &[u8], solution_bytes: &[u8]) -> Result<Vec<u8>, ProofOfWo
     Ok(challenge_prf.finalize().into_bytes().to_vec())
 }
 
-fn argon2_build_handle(argon2_params: &[u8]) -> Result<(Argon2, Box<[u8]>), ProofOfWorkError> {
+fn argon2_build_handle(argon2_params: &[u8]) -> Result<(Argon2<'_>, Box<[u8]>), ProofOfWorkError> {
     let (p_cost, output_len, m_cost, t_cost) = (
         u32::from_le_bytes(
-            argon2_params[0..4]
+            argon2_params
+                .get(0..4)
+                .unwrap_or_default()
                 .try_into()
                 .map_err(|_| ProofOfWorkError::Unexpected)?,
         ),
         u32::from_le_bytes(
-            argon2_params[4..8]
+            argon2_params
+                .get(4..8)
+                .unwrap_or_default()
                 .try_into()
                 .map_err(|_| ProofOfWorkError::Unexpected)?,
         ),
         u32::from_le_bytes(
-            argon2_params[8..12]
+            argon2_params
+                .get(8..12)
+                .unwrap_or_default()
                 .try_into()
                 .map_err(|_| ProofOfWorkError::Unexpected)?,
         ),
         u32::from_le_bytes(
-            argon2_params[12..16]
+            argon2_params
+                .get(12..16)
+                .unwrap_or_default()
                 .try_into()
                 .map_err(|_| ProofOfWorkError::Unexpected)?,
         ),
