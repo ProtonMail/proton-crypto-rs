@@ -78,10 +78,13 @@ impl<'a> AesGcmCiphertext<'a> {
 
     /// Tries to decode the ciphertext from a byte slice as `iv (12 bytes)| encrypted data | tag (16 bytes)`.
     pub fn decode(ciphertext: &'a [u8]) -> SubtleResult<Self> {
-        Self::new(
-            &ciphertext[..AES_GCM_256_IV_SIZE],
-            &ciphertext[AES_GCM_256_IV_SIZE..],
-        )
+        let iv = ciphertext
+            .get(..AES_GCM_256_IV_SIZE)
+            .ok_or(SubtleError::InvalidIvLength)?;
+        let ct = ciphertext
+            .get(AES_GCM_256_IV_SIZE..)
+            .ok_or(SubtleError::InvalidCiphertext)?;
+        Self::new(iv, ct)
     }
 
     /// Tries to decode the ciphertext from a byte slice as `iv (16 bytes)| encrypted data | tag (16 bytes)`.
