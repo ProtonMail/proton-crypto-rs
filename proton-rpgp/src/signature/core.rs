@@ -2,7 +2,7 @@ use pgp::{
     bytes::Bytes,
     crypto::hash::HashAlgorithm,
     packet::{KeyFlags, Notation, SignatureConfig, SignatureType, Subpacket, SubpacketData},
-    types::{KeyVersion, PublicKeyTrait, SecretKeyTrait},
+    types::{KeyVersion, SigningKey, VerifyingKey},
 };
 use rand::{CryptoRng, Rng};
 
@@ -87,8 +87,8 @@ pub fn configure_key_details_signature<K, R, P>(
     mut rng: R,
 ) -> Result<SignatureConfig, SigningError>
 where
-    P: PublicKeyTrait,
-    K: SecretKeyTrait,
+    P: VerifyingKey,
+    K: SigningKey,
     R: Rng + CryptoRng,
 {
     let hash_algorithm =
@@ -117,7 +117,7 @@ pub fn key_details_signature_subpackets<K, R>(
     mut rng: R,
 ) -> Result<Vec<Subpacket>, SigningError>
 where
-    K: SecretKeyTrait,
+    K: SigningKey,
     R: Rng + CryptoRng,
 {
     let mut hashed_subpackets = Vec::with_capacity(11);
@@ -199,8 +199,8 @@ pub fn configure_subkey_signature<K, R, P>(
     mut rng: R,
 ) -> Result<SignatureConfig, SigningError>
 where
-    P: PublicKeyTrait,
-    K: SecretKeyTrait,
+    P: VerifyingKey,
+    K: SigningKey,
     R: Rng + CryptoRng,
 {
     let hash_algorithm = select_hash_to_sign_key_signatures(
@@ -229,7 +229,7 @@ pub fn subkey_signature_subpackets<K, R>(
     mut rng: R,
 ) -> Result<Vec<Subpacket>, SigningError>
 where
-    K: SecretKeyTrait,
+    K: SigningKey,
     R: Rng + CryptoRng,
 {
     let mut hashed_subpackets = Vec::with_capacity(5);
@@ -292,12 +292,12 @@ fn push_v4_issuer_and_salt<K, R>(
     rng: &mut R,
 ) -> Result<(), SigningError>
 where
-    K: SecretKeyTrait,
+    K: SigningKey,
     R: Rng + CryptoRng,
 {
     if private_key.version() < KeyVersion::V6 {
         for subpacket in [
-            Subpacket::regular(SubpacketData::Issuer(private_key.key_id())),
+            Subpacket::regular(SubpacketData::IssuerKeyId(private_key.legacy_key_id())),
             salt_notation(hash_algorithm, rng),
         ] {
             hashed_subpackets.push(subpacket.map_err(SigningError::Sign)?);
@@ -311,7 +311,7 @@ fn push_issuer_fingerprint_subpacket<K>(
     private_key: &K,
 ) -> Result<(), SigningError>
 where
-    K: SecretKeyTrait,
+    K: SigningKey,
 {
     if private_key.version() < KeyVersion::V6 {
         hashed_subpackets.push(
@@ -328,7 +328,7 @@ where
 }
 
 fn signature_config_from_key(
-    private_key: &impl SecretKeyTrait,
+    private_key: &impl SigningKey,
     signature_mode: SignatureType,
     hash_algorithm: HashAlgorithm,
     rng: impl Rng + CryptoRng,

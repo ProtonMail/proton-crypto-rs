@@ -125,8 +125,8 @@ pub struct ProfileSettings {
     /// Minimum number of bits required for RSA keys.
     pub min_rsa_bits: usize,
 
-    /// Maximum allowed recursion depth for parsing or processing.
-    pub max_recursion_depth: usize,
+    /// Maximum number of signatures that are verified in a message.
+    pub max_number_of_signatures: usize,
 
     /// If true, ignore key flags in key usage checks.
     pub ignore_key_flags: bool,
@@ -197,7 +197,7 @@ impl Default for ProfileSettings {
             ],
             rejected_ecc_curves: vec![ECCCurve::Secp256k1],
             min_rsa_bits: 1023,
-            max_recursion_depth: 8,
+            max_number_of_signatures: 16,
             ignore_key_flags: false,
             known_notation_names: HashSet::from([PROTON_CONTEXT_NOTATION_NAME.to_string()]),
             allow_insecure_verification_with_reformatted_keys: true,
@@ -376,11 +376,9 @@ impl ProfileSettingsBuilder {
         self
     }
 
-    /// Sets the maximum recursion depth for signature verification.
-    ///
-    /// This limits the depth of recursive signature verification.
-    pub fn max_recursion_depth(mut self, depth: usize) -> Self {
-        self.settings.max_recursion_depth = depth;
+    /// Sets the maximum number of signatures that are verified in a message.
+    pub fn max_number_of_signatures(mut self, num: usize) -> Self {
+        self.settings.max_number_of_signatures = num;
         self
     }
 

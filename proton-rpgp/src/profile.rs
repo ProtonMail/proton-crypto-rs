@@ -107,8 +107,8 @@ impl Profile {
         self.settings.known_notation_names.contains(notation_name)
     }
 
-    pub fn max_recursion_depth(&self) -> usize {
-        self.settings.max_recursion_depth
+    pub fn max_number_of_message_signatures(&self) -> usize {
+        self.settings.max_number_of_signatures
     }
 
     pub fn ignore_key_flags(&self) -> bool {

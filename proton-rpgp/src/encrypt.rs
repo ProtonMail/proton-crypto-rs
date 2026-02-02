@@ -11,7 +11,6 @@ use pgp::{
     },
     crypto::{aead::AeadAlgorithm, sym::SymmetricKeyAlgorithm},
     packet::{DataMode, PacketTrait, PublicKeyEncryptedSessionKey, SymKeyEncryptedSessionKey},
-    ser::Serialize,
     types::{CompressionAlgorithm, KeyDetails, KeyVersion, Password},
 };
 use rand::{CryptoRng, Rng};
@@ -891,8 +890,14 @@ fn key_packets_to_bytes(
     pkesks: &[PublicKeyEncryptedSessionKey],
     skesks: &[SymKeyEncryptedSessionKey],
 ) -> Result<Vec<u8>, EncryptionError> {
-    let output_len = pkesks.iter().map(Serialize::write_len).sum::<usize>()
-        + skesks.iter().map(Serialize::write_len).sum::<usize>();
+    let output_len = pkesks
+        .iter()
+        .map(PacketTrait::write_len_with_header)
+        .sum::<usize>()
+        + skesks
+            .iter()
+            .map(PacketTrait::write_len_with_header)
+            .sum::<usize>();
 
     let mut output = Vec::with_capacity(output_len);
     for pkesk in pkesks {

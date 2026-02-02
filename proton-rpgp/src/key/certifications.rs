@@ -2,7 +2,7 @@ use pgp::{
     composed::{SignedPublicKey, SignedPublicSubKey, SignedSecretKey, SignedSecretSubKey},
     packet::{self},
     ser::Serialize,
-    types::{PublicKeyTrait, SignedUser, Tag},
+    types::{SignedUser, Tag, VerifyingKey},
 };
 
 use crate::{
@@ -21,7 +21,7 @@ pub trait CertificationSelectionExt {
     fn iter_self_revocations(&self) -> impl Iterator<Item = &packet::Signature>;
 
     /// Verifies that the given signature is a valid self-certification for this key part.
-    fn verify_certification<K: PublicKeyTrait + Serialize>(
+    fn verify_certification<K: VerifyingKey + Serialize>(
         &self,
         key: &K,
         key_signature: &packet::Signature,
@@ -37,7 +37,7 @@ pub trait CertificationSelectionExt {
     /// # Errors
     ///
     /// If there are no valid self-certifications, it will return [`KeyCertificationSelectionError::NoSelfCertification`].
-    fn latest_valid_self_certification<K: PublicKeyTrait + Serialize>(
+    fn latest_valid_self_certification<K: VerifyingKey + Serialize>(
         &self,
         primary_key: &K,
         date: CheckUnixTime,
@@ -86,7 +86,7 @@ pub trait CertificationSelectionExt {
     ///
     /// If date is zero, the date checks are disabled.
     /// Note that third-party revocation signatures are not supported.
-    fn revoked<K: PublicKeyTrait + Serialize>(
+    fn revoked<K: VerifyingKey + Serialize>(
         &self,
         primary_key: &K,
         self_signature: Option<&packet::Signature>,
@@ -136,7 +136,7 @@ pub trait CertificationSelectionExt {
     /// # Errors
     ///
     /// Returns an error if there is no valid self-certification or if the self-certification is revoked.
-    fn check_validity<K: PublicKeyTrait + Serialize>(
+    fn check_validity<K: VerifyingKey + Serialize>(
         &self,
         primary_key: &K,
         date: CheckUnixTime,
@@ -165,7 +165,7 @@ impl CertificationSelectionExt for SignedUser {
             .filter(|sig| sig.is_certification() && sig.is_revocation())
     }
 
-    fn verify_certification<K: PublicKeyTrait + Serialize>(
+    fn verify_certification<K: VerifyingKey + Serialize>(
         &self,
         key: &K,
         self_signature: &packet::Signature,
@@ -188,7 +188,7 @@ impl CertificationSelectionExt for SignedPublicSubKey {
         self.signatures.iter().filter(|sig| sig.is_revocation())
     }
 
-    fn verify_certification<K: PublicKeyTrait + Serialize>(
+    fn verify_certification<K: VerifyingKey + Serialize>(
         &self,
         signing_key: &K,
         self_signature: &packet::Signature,
@@ -208,7 +208,7 @@ impl CertificationSelectionExt for SignedSecretSubKey {
         self.signatures.iter().filter(|sig| sig.is_revocation())
     }
 
-    fn verify_certification<K: PublicKeyTrait + Serialize>(
+    fn verify_certification<K: VerifyingKey + Serialize>(
         &self,
         signing_key: &K,
         self_signature: &packet::Signature,
@@ -233,8 +233,8 @@ fn verify_subkey_signature<K, S>(
     profile: &Profile,
 ) -> Result<(), SignatureError>
 where
-    K: PublicKeyTrait + Serialize,
-    S: PublicKeyTrait + Serialize,
+    K: VerifyingKey + Serialize,
+    S: VerifyingKey + Serialize,
 {
     self_signature
         .verify_subkey_binding(signing_key, subkey)
@@ -250,7 +250,9 @@ where
                 check_signature_details(embedded, date, profile)?;
             }
             None => {
-                return Err(SignatureError::MissingCrossSignature(subkey.key_id()));
+                return Err(SignatureError::MissingCrossSignature(
+                    subkey.legacy_key_id(),
+                ));
             }
         }
     }
@@ -267,7 +269,7 @@ impl CertificationSelectionExt for SignedPublicKey {
         self.details.revocation_signatures.iter()
     }
 
-    fn verify_certification<K: PublicKeyTrait + Serialize>(
+    fn verify_certification<K: VerifyingKey + Serialize>(
         &self,
         key: &K,
         key_signature: &packet::Signature,
@@ -290,7 +292,7 @@ impl CertificationSelectionExt for SignedSecretKey {
         self.details.revocation_signatures.iter()
     }
 
-    fn verify_certification<K: PublicKeyTrait + Serialize>(
+    fn verify_certification<K: VerifyingKey + Serialize>(
         &self,
         key: &K,
         key_signature: &packet::Signature,

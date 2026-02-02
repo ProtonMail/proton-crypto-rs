@@ -605,7 +605,10 @@ mod tests {
             signature.issuer_fingerprint().first().copied(),
             Some(&key.fingerprint())
         );
-        assert_eq!(signature.issuer().first().copied(), Some(&key.key_id()));
+        assert_eq!(
+            signature.issuer_key_id().first().copied(),
+            Some(&key.key_id())
+        );
         assert_eq!(signature.unix_created_at().unwrap(), date);
         assert_eq!(signature.notations().len(), 1);
     }
@@ -633,7 +636,10 @@ mod tests {
             signature.issuer_fingerprint().first().copied(),
             Some(&key.fingerprint())
         );
-        assert_eq!(signature.issuer().first().copied(), Some(&key.key_id()));
+        assert_eq!(
+            signature.issuer_key_id().first().copied(),
+            Some(&key.key_id())
+        );
         assert_eq!(signature.unix_created_at().unwrap(), date);
         assert_eq!(signature.notations().len(), 1);
     }
@@ -662,7 +668,7 @@ mod tests {
             signature.issuer_fingerprint().first().copied(),
             Some(&key.fingerprint())
         );
-        assert!(signature.issuer().is_empty());
+        assert!(signature.issuer_key_id().is_empty());
         assert!(signature.notations().is_empty());
     }
 
@@ -692,7 +698,10 @@ mod tests {
             signature.issuer_fingerprint().first().copied(),
             Some(&key.fingerprint())
         );
-        assert_eq!(signature.issuer().first().copied(), Some(&key.key_id()));
+        assert_eq!(
+            signature.issuer_key_id().first().copied(),
+            Some(&key.key_id())
+        );
         assert_eq!(signature.unix_created_at().unwrap(), date);
         assert_eq!(signature.notations().len(), 1);
     }
@@ -729,7 +738,10 @@ mod tests {
             signature.issuer_fingerprint().first().copied(),
             Some(&key.fingerprint())
         );
-        assert_eq!(signature.issuer().first().copied(), Some(&key.key_id()));
+        assert_eq!(
+            signature.issuer_key_id().first().copied(),
+            Some(&key.key_id())
+        );
         assert_eq!(signature.unix_created_at().unwrap(), date);
         assert_eq!(signature.notations().len(), 1);
     }
@@ -761,7 +773,7 @@ mod tests {
             signature.issuer_fingerprint().first().copied(),
             Some(&key.fingerprint())
         );
-        assert!(signature.issuer().is_empty());
+        assert!(signature.issuer_key_id().is_empty());
         assert!(signature.notations().is_empty());
     }
 

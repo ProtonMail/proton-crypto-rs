@@ -50,7 +50,7 @@ impl VerificationInformation {
         } else {
             // Fallback to the first issuer if no key info is provided.
             signature
-                .issuer()
+                .issuer_key_id()
                 .into_iter()
                 .next()
                 .copied()
@@ -243,7 +243,7 @@ impl VerificationResultCreator {
 
 #[derive(Debug, Clone, Copy)]
 pub enum VerificationInput<'a> {
-    Message(&'a Message<'a>),
+    Message(&'a Message<'a>, usize),
     Data(&'a [u8]),
     Hash(&'a [u8]),
 }
@@ -292,9 +292,13 @@ impl SignatureVerificationResult {
         let mut verified_by = None;
         for candidate in verification_candidates {
             verification_result = match data_to_verify {
-                VerificationInput::Message(message) => candidate
+                VerificationInput::Message(message, signature_index) => candidate
                     .verify_message_signature_with_message(
-                        date, &signature, message, context, profile,
+                        date,
+                        message,
+                        signature_index,
+                        context,
+                        profile,
                     ),
                 VerificationInput::Data(input_data) => candidate
                     .verify_message_signature_with_data(
@@ -432,8 +436,10 @@ pub(crate) fn check_message_signature_details(
 
 /// Extension trait for [`pgp::composed::Message`] to verify signatures with our logic.
 pub(crate) trait MessageVerificationExt {
-    /// Verifies the nested signatures of the message.
-    fn verify_nested_to_verified_signatures(
+    /// Verifies the signatures of the message.
+    ///
+    /// The data has to be fully read before calling this function.
+    fn verify_message_signatures(
         &self,
         date: CheckUnixTime,
         keys: &[impl AsPublicKeyRef],
@@ -443,60 +449,39 @@ pub(crate) trait MessageVerificationExt {
 }
 
 impl MessageVerificationExt for Message<'_> {
-    /// Verifies the nested signatures of the message.
-    fn verify_nested_to_verified_signatures(
+    fn verify_message_signatures(
         &self,
         date: CheckUnixTime,
         keys: &[impl AsPublicKeyRef],
         context: Option<&VerificationContext>,
         profile: &Profile,
     ) -> Result<Vec<SignatureVerificationResult>, MessageProcessingError> {
-        let mut verification_results = Vec::new();
+        match self {
+            Message::Signed { reader, .. } => {
+                let max_signatures = profile.max_number_of_message_signatures();
+                let signature_count = reader.num_signatures().min(max_signatures);
 
-        let mut current_message = self;
+                let verification_results: Result<Vec<_>, _> = (0..signature_count)
+                    .map(|index| {
+                        let signature = reader
+                            .signature(index)
+                            .ok_or(MessageProcessingError::NotFullyRead)?;
+                        Ok(SignatureVerificationResult::create_by_verifying(
+                            date,
+                            signature.clone(),
+                            keys,
+                            VerificationInput::Message(self, index),
+                            context,
+                            profile,
+                        ))
+                    })
+                    .collect();
 
-        for _ in 0..profile.max_recursion_depth() {
-            match current_message {
-                Message::SignedOnePass { reader, .. } => {
-                    let Some(signature) = reader.signature() else {
-                        return Err(MessageProcessingError::NotFullyRead);
-                    };
-                    let result = SignatureVerificationResult::create_by_verifying(
-                        date,
-                        signature.clone(),
-                        keys,
-                        VerificationInput::Message(current_message),
-                        context,
-                        profile,
-                    );
-                    verification_results.push(result);
-                    current_message = reader.get_ref();
-                }
-                Message::Signed { reader, .. } => {
-                    let signature = reader.signature();
-                    let result = SignatureVerificationResult::create_by_verifying(
-                        date,
-                        signature.clone(),
-                        keys,
-                        VerificationInput::Message(current_message),
-                        context,
-                        profile,
-                    );
-                    verification_results.push(result);
-                    current_message = reader.get_ref();
-                }
-                Message::Literal { .. } => {
-                    break;
-                }
-                Message::Compressed { .. } => {
-                    return Err(MessageProcessingError::Compression);
-                }
-                Message::Encrypted { .. } => {
-                    return Err(MessageProcessingError::Encrypted);
-                }
+                verification_results
             }
+            Message::Literal { .. } => Ok(Vec::new()),
+            Message::Compressed { .. } => Err(MessageProcessingError::Compression),
+            Message::Encrypted { .. } => Err(MessageProcessingError::Encrypted),
         }
-
-        Ok(verification_results)
     }
 }

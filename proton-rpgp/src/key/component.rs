@@ -5,8 +5,8 @@ use pgp::{
     crypto::{ecc_curve::ECCCurve, hash::HashAlgorithm, public_key::PublicKeyAlgorithm},
     packet::{self, PublicKeyEncryptedSessionKey, Signature, SignatureHasher},
     types::{
-        Fingerprint, KeyDetails, KeyId, KeyVersion, Password, PkeskVersion, PublicKeyTrait,
-        PublicParams, SecretKeyTrait, SecretParams,
+        DecryptionKey, EncryptionKey, Fingerprint, KeyDetails, KeyId, KeyVersion, Password,
+        PkeskVersion, PublicParams, SecretParams, SigningKey, Timestamp, VerifyingKey,
     },
 };
 
@@ -67,13 +67,13 @@ impl<'a> PublicComponentKey<'a> {
     pub fn verify_message_signature_with_message(
         &self,
         date: CheckUnixTime,
-        signature: &Signature,
         message: &Message<'_>,
+        signature_index: usize,
         context: Option<&VerificationContext>,
         profile: &Profile,
     ) -> Result<(), MessageSignatureError> {
-        message
-            .verify(&self.public_key)
+        let signature = message
+            .verify_nested_explicit(signature_index, &self.public_key)
             .map_err(|err| MessageSignatureError::Failed(SignatureError::Verification(err)))?;
         check_message_signature_details(date, signature, self, context, profile)
     }
@@ -113,7 +113,7 @@ impl<'a> PublicComponentKey<'a> {
             )));
         }
         self.public_key
-            .verify_signature(config.hash_alg, hash, signature_bytes)
+            .verify(config.hash_alg, hash, signature_bytes)
             .map_err(|err| MessageSignatureError::Failed(SignatureError::Verification(err)))?;
         check_message_signature_details(date, signature, self, context, profile)
     }
@@ -230,15 +230,6 @@ pub enum AnySecretKey<'a> {
     SecretSubKey(&'a packet::SecretSubkey),
 }
 
-impl AnySecretKey<'_> {
-    pub(crate) fn public_params(&self) -> &PublicParams {
-        match self {
-            AnySecretKey::PrimarySecretKey(key) => key.public_key().public_params(),
-            AnySecretKey::SecretSubKey(key) => key.public_key().public_params(),
-        }
-    }
-}
-
 impl KeyDetails for AnySecretKey<'_> {
     fn version(&self) -> KeyVersion {
         match self {
@@ -254,10 +245,10 @@ impl KeyDetails for AnySecretKey<'_> {
         }
     }
 
-    fn key_id(&self) -> KeyId {
+    fn legacy_key_id(&self) -> KeyId {
         match self {
-            AnySecretKey::PrimarySecretKey(key) => key.key_id(),
-            AnySecretKey::SecretSubKey(key) => key.key_id(),
+            AnySecretKey::PrimarySecretKey(key) => key.legacy_key_id(),
+            AnySecretKey::SecretSubKey(key) => key.legacy_key_id(),
         }
     }
 
@@ -267,18 +258,41 @@ impl KeyDetails for AnySecretKey<'_> {
             AnySecretKey::SecretSubKey(key) => key.algorithm(),
         }
     }
+
+    fn created_at(&self) -> Timestamp {
+        match self {
+            AnySecretKey::PrimarySecretKey(key) => key.created_at(),
+            AnySecretKey::SecretSubKey(key) => key.created_at(),
+        }
+    }
+
+    fn legacy_v3_expiration_days(&self) -> Option<u16> {
+        match self {
+            AnySecretKey::PrimarySecretKey(key) => key.legacy_v3_expiration_days(),
+            AnySecretKey::SecretSubKey(key) => key.legacy_v3_expiration_days(),
+        }
+    }
+
+    fn public_params(&self) -> &PublicParams {
+        match self {
+            AnySecretKey::PrimarySecretKey(key) => key.public_params(),
+            AnySecretKey::SecretSubKey(key) => key.public_params(),
+        }
+    }
 }
 
-impl SecretKeyTrait for AnySecretKey<'_> {
-    fn create_signature(
+impl SigningKey for AnySecretKey<'_> {
+    fn sign(
         &self,
         key_pw: &Password,
         hash: HashAlgorithm,
         data: &[u8],
     ) -> pgp::errors::Result<pgp::types::SignatureBytes> {
         match self {
-            AnySecretKey::PrimarySecretKey(key) => key.create_signature(key_pw, hash, data),
-            AnySecretKey::SecretSubKey(key) => key.create_signature(key_pw, hash, data),
+            AnySecretKey::PrimarySecretKey(key) => key.sign(key_pw, hash, data),
+            AnySecretKey::SecretSubKey(key) => {
+                <packet::SecretSubkey as SigningKey>::sign(key, key_pw, hash, data)
+            }
         }
     }
 
@@ -286,6 +300,20 @@ impl SecretKeyTrait for AnySecretKey<'_> {
         match self {
             AnySecretKey::PrimarySecretKey(key) => key.hash_alg(),
             AnySecretKey::SecretSubKey(key) => key.hash_alg(),
+        }
+    }
+}
+
+impl DecryptionKey for AnySecretKey<'_> {
+    fn decrypt(
+        &self,
+        key_pw: &Password,
+        values: &pgp::types::PkeskBytes,
+        typ: pgp::types::EskType,
+    ) -> pgp::errors::Result<pgp::errors::Result<PlainSessionKey>> {
+        match self {
+            AnySecretKey::PrimarySecretKey(key) => key.decrypt(key_pw, values, typ),
+            AnySecretKey::SecretSubKey(key) => key.decrypt(key_pw, values, typ),
         }
     }
 }
@@ -336,7 +364,7 @@ impl AnySecretKey<'_> {
 
 /// [`AnyPublicKey`] either represents a public primary or public subkey.
 ///
-/// The [`Signature::verify`] method does not allow to pass dyn reference to a public key implementing [`PublicKeyTrait`].
+/// The [`Signature::verify`] method does not allow to pass dyn reference to a public key implementing [`VerifyingKey`].
 /// Thus, we need an explicit enum type covering all public key types.
 #[derive(Debug, Clone)]
 pub enum AnyPublicKey<'a> {
@@ -362,10 +390,10 @@ impl KeyDetails for AnyPublicKey<'_> {
         }
     }
 
-    fn key_id(&self) -> KeyId {
+    fn legacy_key_id(&self) -> KeyId {
         match self {
-            AnyPublicKey::PrimaryPublicKey(key) => key.key_id(),
-            AnyPublicKey::PublicSubKey(key) => key.key_id(),
+            AnyPublicKey::PrimaryPublicKey(key) => key.legacy_key_id(),
+            AnyPublicKey::PublicSubKey(key) => key.legacy_key_id(),
         }
     }
 
@@ -375,32 +403,18 @@ impl KeyDetails for AnyPublicKey<'_> {
             AnyPublicKey::PublicSubKey(key) => key.algorithm(),
         }
     }
-}
 
-impl PublicKeyTrait for AnyPublicKey<'_> {
-    fn verify_signature(
-        &self,
-        hash: HashAlgorithm,
-        data: &[u8],
-        signature: &pgp::types::SignatureBytes,
-    ) -> pgp::errors::Result<()> {
-        match self {
-            AnyPublicKey::PrimaryPublicKey(key) => key.verify_signature(hash, data, signature),
-            AnyPublicKey::PublicSubKey(key) => key.verify_signature(hash, data, signature),
-        }
-    }
-
-    fn created_at(&self) -> &chrono::DateTime<chrono::Utc> {
+    fn created_at(&self) -> Timestamp {
         match self {
             AnyPublicKey::PrimaryPublicKey(key) => key.created_at(),
             AnyPublicKey::PublicSubKey(key) => key.created_at(),
         }
     }
 
-    fn expiration(&self) -> Option<u16> {
+    fn legacy_v3_expiration_days(&self) -> Option<u16> {
         match self {
-            AnyPublicKey::PrimaryPublicKey(key) => key.expiration(),
-            AnyPublicKey::PublicSubKey(key) => key.expiration(),
+            AnyPublicKey::PrimaryPublicKey(key) => key.legacy_v3_expiration_days(),
+            AnyPublicKey::PublicSubKey(key) => key.legacy_v3_expiration_days(),
         }
     }
 
@@ -408,6 +422,34 @@ impl PublicKeyTrait for AnyPublicKey<'_> {
         match self {
             AnyPublicKey::PrimaryPublicKey(key) => key.public_params(),
             AnyPublicKey::PublicSubKey(key) => key.public_params(),
+        }
+    }
+}
+
+impl VerifyingKey for AnyPublicKey<'_> {
+    fn verify(
+        &self,
+        hash: HashAlgorithm,
+        data: &[u8],
+        signature: &pgp::types::SignatureBytes,
+    ) -> pgp::errors::Result<()> {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.verify(hash, data, signature),
+            AnyPublicKey::PublicSubKey(key) => key.verify(hash, data, signature),
+        }
+    }
+}
+
+impl EncryptionKey for AnyPublicKey<'_> {
+    fn encrypt<R: rand::CryptoRng + rand::Rng>(
+        &self,
+        rng: R,
+        plain: &[u8],
+        typ: pgp::types::EskType,
+    ) -> pgp::errors::Result<pgp::types::PkeskBytes> {
+        match self {
+            AnyPublicKey::PrimaryPublicKey(key) => key.encrypt(rng, plain, typ),
+            AnyPublicKey::PublicSubKey(key) => key.encrypt(rng, plain, typ),
         }
     }
 }

@@ -398,7 +398,7 @@ impl<'a> Verifier<'a> {
                 (message.as_data_vec()?, message)
             };
 
-        let verified_signatures = message.verify_nested_to_verified_signatures(
+        let verified_signatures = message.verify_message_signatures(
             self.date,
             &self.verification_keys,
             self.verification_context.as_deref(),

@@ -1,7 +1,7 @@
 use pgp::{
     crypto::{aead::AeadAlgorithm, hash::HashAlgorithm, sym::SymmetricKeyAlgorithm},
     packet::Features,
-    types::{CompressionAlgorithm, PublicParams},
+    types::{CompressionAlgorithm, KeyDetails, PublicParams},
 };
 
 use crate::{Ciphersuite, PrivateComponentKey, Profile, PublicComponentKey};

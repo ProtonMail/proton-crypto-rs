@@ -102,7 +102,7 @@ impl<'a> MessageVerifyingReader<'a> {
     pub fn verification_result(&self) -> VerificationResult {
         let verified_signatures = self
             .message
-            .verify_nested_to_verified_signatures(
+            .verify_message_signatures(
                 self.verifier.date,
                 &self.verifier.verification_keys,
                 self.verifier.verification_context.as_deref(),

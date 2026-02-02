@@ -5,10 +5,9 @@ use std::{
     ops::Deref,
 };
 
-use chrono::{DateTime, Utc};
 use pgp::{
     packet::KeyFlags,
-    types::{Fingerprint, KeyId, Password},
+    types::{Fingerprint, KeyId, Password, Timestamp},
 };
 
 use crate::{armor, FingerprintError};
@@ -145,26 +144,17 @@ impl Display for UnixTime {
     }
 }
 
-impl From<&DateTime<Utc>> for UnixTime {
-    fn from(value: &DateTime<Utc>) -> Self {
-        // Ok to transform to u64 without checks.
-        #[allow(clippy::cast_sign_loss)]
-        Self(value.timestamp() as u64)
+impl From<Timestamp> for UnixTime {
+    fn from(value: Timestamp) -> Self {
+        UnixTime::new(u64::from(value.as_secs()))
     }
 }
 
-impl From<DateTime<Utc>> for UnixTime {
-    fn from(value: DateTime<Utc>) -> Self {
-        // Ok to transform to u64 without checks.
-        #[allow(clippy::cast_sign_loss)]
-        Self(value.timestamp() as u64)
-    }
-}
-
-impl From<UnixTime> for DateTime<Utc> {
+impl From<UnixTime> for Timestamp {
     fn from(value: UnixTime) -> Self {
-        let seconds = i64::try_from(value.unix_seconds()).unwrap_or_default();
-        DateTime::from_timestamp(seconds, 0).unwrap_or_default()
+        // Ok to cast to u32 without checks.
+        #[allow(clippy::cast_possible_truncation)]
+        Timestamp::from_secs(value.0 as u32)
     }
 }
 

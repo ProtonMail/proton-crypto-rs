@@ -1,7 +1,7 @@
 use pgp::{
     packet::{RevocationCode, Signature, SignatureType, Subpacket, SubpacketData},
     ser::Serialize,
-    types::PublicKeyTrait,
+    types::VerifyingKey,
 };
 
 use crate::{types::UnixTime, CheckUnixTime, GenericKeyIdentifier, Profile, SignatureError};
@@ -21,7 +21,7 @@ pub(crate) use key::*;
 pub(crate) mod core;
 
 pub(crate) trait SignatureExt {
-    fn is_issued_by<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool;
+    fn is_issued_by<K: VerifyingKey + Serialize>(&self, key: &K) -> bool;
 
     fn is_revocation(&self) -> bool;
 
@@ -35,11 +35,14 @@ pub(crate) trait SignatureExt {
 }
 
 impl SignatureExt for Signature {
-    fn is_issued_by<K: PublicKeyTrait + Serialize>(&self, key: &K) -> bool {
+    fn is_issued_by<K: VerifyingKey + Serialize>(&self, key: &K) -> bool {
         self.issuer_fingerprint()
             .into_iter()
             .any(|fp| *fp == key.fingerprint())
-            || self.issuer().into_iter().any(|fp| *fp == key.key_id())
+            || self
+                .issuer_key_id()
+                .into_iter()
+                .any(|fp| *fp == key.legacy_key_id())
     }
 
     fn is_revocation(&self) -> bool {
@@ -81,12 +84,14 @@ impl SignatureExt for Signature {
             return Err(SignatureError::FutureSignature(unix_creation_time));
         }
         if let Some(expire_delta) = self.signature_expiration_time() {
-            if expire_delta.is_zero() {
+            if expire_delta.as_secs() == 0 {
                 // If the signature expiration delta is zero, it means that the signature has
                 // no expiration time, and is thus not expired.
                 return Ok(());
             }
-            let expiration_date = UnixTime::from(*creation_time + *expire_delta);
+            let expiration_date = UnixTime::new(
+                u64::from(creation_time.as_secs()) + u64::from(expire_delta.as_secs()),
+            );
             if expiration_date < date {
                 return Err(SignatureError::Expired {
                     date,
@@ -106,7 +111,7 @@ impl SignatureExt for Signature {
                 .map(|fp| GenericKeyIdentifier::Fingerprint(fp.clone()))
                 .collect();
         }
-        self.issuer()
+        self.issuer_key_id()
             .into_iter()
             .map(|id| GenericKeyIdentifier::KeyId(*id))
             .collect()

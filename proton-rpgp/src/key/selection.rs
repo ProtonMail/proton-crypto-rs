@@ -5,7 +5,7 @@ use pgp::{
     crypto::{ecc_curve::ECCCurve, public_key::PublicKeyAlgorithm},
     packet::{self, KeyFlags},
     ser::Serialize,
-    types::{KeyDetails, KeyId, KeyVersion, PublicKeyTrait, PublicParams, SignedUser},
+    types::{KeyDetails, KeyId, KeyVersion, PublicParams, SignedUser, VerifyingKey},
 };
 
 use crate::{
@@ -133,8 +133,9 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
         let primary_self_certification = self.check_primary_key(encryption_date, profile)?;
 
         let primary_key = self.primary_key();
-        check_key_requirements(primary_key, profile)
-            .map_err(|err| KeyValidationError::PrimaryRequirement(primary_key.key_id(), err))?;
+        check_key_requirements(primary_key, profile).map_err(|err| {
+            KeyValidationError::PrimaryRequirement(primary_key.legacy_key_id(), err)
+        })?;
 
         // Select the best subkey that is a valid encryption key.
         let mut errors = Vec::new();
@@ -160,19 +161,25 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
                 profile,
                 CheckMode::Encryption,
             ) {
-                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(
+                    sub_key.legacy_key_id(),
+                    err,
+                ));
                 continue;
             }
 
             // Check key requirements enforced by the profile.
             if let Err(err) = check_key_requirements(&sub_key.key, profile) {
-                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(
+                    sub_key.legacy_key_id(),
+                    err,
+                ));
                 continue;
             }
 
             // Prefer newer subkeys.
             let should_prefer = max_time.is_none_or(|current_max_time| {
-                sub_key.created_at() > &current_max_time || (!is_pq && sub_key.algorithm().is_pqc())
+                sub_key.created_at() > current_max_time || (!is_pq && sub_key.algorithm().is_pqc())
             });
 
             if should_prefer {
@@ -181,7 +188,7 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
                     primary_self_certification,
                     sub_key_self_certification,
                 ));
-                max_time = Some(*sub_key.created_at());
+                max_time = Some(sub_key.created_at());
                 is_pq = sub_key.algorithm().is_pqc();
             }
         }
@@ -199,11 +206,11 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
             CheckMode::Encryption,
         ) {
             errors.push(KeyValidationError::PrimaryRequirement(
-                primary_key.key_id(),
+                primary_key.legacy_key_id(),
                 err,
             ));
             return Err(KeyValidationError::NoEncryptionKey(
-                primary_key.key_id(),
+                primary_key.legacy_key_id(),
                 errors.into(),
             ));
         }
@@ -233,8 +240,9 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
         let primary_self_certification = self.check_primary_key(date, profile)?;
 
         let primary_key = self.primary_key();
-        check_key_requirements(primary_key, profile)
-            .map_err(|err| KeyValidationError::PrimaryRequirement(primary_key.key_id(), err))?;
+        check_key_requirements(primary_key, profile).map_err(|err| {
+            KeyValidationError::PrimaryRequirement(primary_key.legacy_key_id(), err)
+        })?;
 
         let primary_identifier = primary_key.generic_identifier();
         if !key_ids.is_empty() && !key_ids.iter().any(|key_id| key_id == &primary_identifier) {
@@ -253,7 +261,7 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
                 }
                 Err(err) => {
                     errors.push(KeyValidationError::PrimaryRequirement(
-                        primary_key.key_id(),
+                        primary_key.legacy_key_id(),
                         err,
                     ));
                 }
@@ -285,13 +293,19 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
             if let Err(err) =
                 check_signing_key_flags(&sub_key.key, sub_key_self_certification, profile, usage)
             {
-                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(
+                    sub_key.legacy_key_id(),
+                    err,
+                ));
                 continue;
             }
 
             // Check key requirements enforced by the profile.
             if let Err(err) = check_key_requirements(&sub_key.key, profile) {
-                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(
+                    sub_key.legacy_key_id(),
+                    err,
+                ));
                 continue;
             }
             verification_keys.push(PublicComponentKey::new(
@@ -303,7 +317,7 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
 
         if verification_keys.is_empty() {
             return Err(KeyValidationError::NoVerificationKeys(
-                primary_key.key_id(),
+                primary_key.legacy_key_id(),
                 errors.into(),
             ));
         }
@@ -334,8 +348,9 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
         let primary_self_certification = self.check_primary_key(date, profile)?;
 
         let primary_key = self.primary_key();
-        check_key_requirements(primary_key, profile)
-            .map_err(|err| KeyValidationError::PrimaryRequirement(primary_key.key_id(), err))?;
+        check_key_requirements(primary_key, profile).map_err(|err| {
+            KeyValidationError::PrimaryRequirement(primary_key.legacy_key_id(), err)
+        })?;
 
         let mut signing_key = None;
         let mut max_time = None;
@@ -343,8 +358,8 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
         for sub_key in self.iter_private_subkeys() {
             // Filter by key id if present.
             if let Some(key_id) = key_id {
-                if sub_key.key_id() != key_id {
-                    errors.push(KeyValidationError::NoMatch(sub_key.key_id(), key_id));
+                if sub_key.legacy_key_id() != key_id {
+                    errors.push(KeyValidationError::NoMatch(sub_key.legacy_key_id(), key_id));
                     continue;
                 }
             }
@@ -366,18 +381,24 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 profile,
                 usage,
             ) {
-                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(
+                    sub_key.legacy_key_id(),
+                    err,
+                ));
                 continue;
             }
 
             // Check key requirements enforced by the profile.
             if let Err(err) = check_key_requirements(sub_key.key.public_key(), profile) {
-                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(
+                    sub_key.legacy_key_id(),
+                    err,
+                ));
                 continue;
             }
 
             let should_prefer = max_time.is_none_or(|current_max_time| {
-                sub_key.public_key().created_at() > &current_max_time
+                sub_key.public_key().created_at() > current_max_time
             });
 
             if should_prefer {
@@ -386,7 +407,7 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
                     primary_self_certification,
                     sub_key_self_certification,
                 ));
-                max_time = Some(*sub_key.public_key().created_at());
+                max_time = Some(sub_key.public_key().created_at());
             }
         }
 
@@ -396,10 +417,13 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
 
         // Check if the primary key is a valid signing key.
         if let Some(key_id) = key_id {
-            if primary_key.key_id() != key_id {
-                errors.push(KeyValidationError::NoMatch(primary_key.key_id(), key_id));
+            if primary_key.legacy_key_id() != key_id {
+                errors.push(KeyValidationError::NoMatch(
+                    primary_key.legacy_key_id(),
+                    key_id,
+                ));
                 return Err(KeyValidationError::NoSigningKey(
-                    primary_key.key_id(),
+                    primary_key.legacy_key_id(),
                     errors.into(),
                 ));
             }
@@ -409,11 +433,11 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
             check_signing_key_flags(primary_key, primary_self_certification, profile, usage)
         {
             errors.push(KeyValidationError::PrimaryRequirement(
-                primary_key.key_id(),
+                primary_key.legacy_key_id(),
                 err,
             ));
             return Err(KeyValidationError::NoSigningKey(
-                primary_key.key_id(),
+                primary_key.legacy_key_id(),
                 errors.into(),
             ));
         }
@@ -451,7 +475,7 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
             if let Some(key_id) = &key_id {
                 if &sub_key.key.generic_identifier() != key_id {
                     errors.push(KeyValidationError::NoMatchDecryption(
-                        sub_key.key_id(),
+                        sub_key.legacy_key_id(),
                         key_id.clone(),
                     ));
                     continue;
@@ -475,7 +499,10 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
                 profile,
                 mode,
             ) {
-                errors.push(KeyValidationError::SubkeyRequirement(sub_key.key_id(), err));
+                errors.push(KeyValidationError::SubkeyRequirement(
+                    sub_key.legacy_key_id(),
+                    err,
+                ));
                 continue;
             }
 
@@ -491,7 +518,7 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
             check_valid_encryption_key(primary_key, primary_self_certification, profile, mode)
         {
             errors.push(KeyValidationError::PrimaryRequirement(
-                primary_key.key_id(),
+                primary_key.legacy_key_id(),
                 err,
             ));
         } else {
@@ -504,7 +531,7 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
 
         if decryption_keys.is_empty() {
             return Err(KeyValidationError::NoDecryptionKeys(
-                primary_key.key_id(),
+                primary_key.legacy_key_id(),
                 errors.into(),
             ));
         }
@@ -513,7 +540,7 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
 }
 
 fn check_signing_key_flags(
-    public_key: &impl PublicKeyTrait,
+    public_key: &impl VerifyingKey,
     self_certification: &packet::Signature,
     profile: &Profile,
     usage: SignatureUsage,
@@ -548,13 +575,13 @@ impl CheckMode {
 }
 
 fn check_valid_encryption_key(
-    public_key: &impl PublicKeyTrait,
+    public_key: &impl KeyDetails,
     signature: &packet::Signature,
     profile: &Profile,
     mode: CheckMode,
 ) -> Result<(), KeyRequirementError> {
     // Check the key algorithm.
-    if !public_key.is_encryption_key() {
+    if !public_key.algorithm().can_encrypt() {
         return Err(KeyRequirementError::InvalidUsageAlgorithm(
             public_key.algorithm(),
         ));
@@ -584,7 +611,7 @@ fn check_valid_encryption_key(
 }
 
 fn check_valid_certification_key(
-    public_key: &impl PublicKeyTrait,
+    public_key: &impl VerifyingKey,
     signature: &packet::Signature,
     profile: &Profile,
 ) -> Result<(), KeyRequirementError> {
@@ -592,7 +619,7 @@ fn check_valid_certification_key(
 }
 
 fn check_valid_signing_key(
-    public_key: &impl PublicKeyTrait,
+    public_key: &impl VerifyingKey,
     signature: &packet::Signature,
     profile: &Profile,
 ) -> Result<(), KeyRequirementError> {
@@ -600,7 +627,7 @@ fn check_valid_signing_key(
 }
 
 fn check_valid_key_with_flags<F>(
-    public_key: &impl PublicKeyTrait,
+    public_key: &impl VerifyingKey,
     signature: &packet::Signature,
     profile: &Profile,
     check_flag: F,
@@ -609,7 +636,7 @@ where
     F: Fn(&KeyFlags) -> bool,
 {
     // Check the key algorithm.
-    if !public_key.is_signing_key() {
+    if !public_key.algorithm().can_sign() {
         return Err(KeyRequirementError::InvalidUsageAlgorithm(
             public_key.algorithm(),
         ));
@@ -654,7 +681,7 @@ fn compare_identities(current: &packet::Signature, potential: &packet::Signature
 /// Returns an error if the key is expired.
 /// The key is expired if it is in the future or if it has an expiration time
 /// that is before the given date.
-pub(crate) fn check_key_not_expired<K: PublicKeyTrait + Serialize>(
+pub(crate) fn check_key_not_expired<K: VerifyingKey + Serialize>(
     key: &K,
     self_signature: &packet::Signature,
     check_date: CheckUnixTime,
@@ -669,14 +696,15 @@ pub(crate) fn check_key_not_expired<K: PublicKeyTrait + Serialize>(
             creation: key_creation_time.into(),
         });
     }
-
     if let Some(expiration_time) = self_signature.key_expiration_time() {
-        if expiration_time.is_zero() {
+        if expiration_time.as_secs() == 0 {
             // If the key expiration time is zero, it means that the key has no expiration time,
             // and is thus not expired.
             return Ok(());
         }
-        let expiration_date = UnixTime::from(*key_creation_time + *expiration_time);
+        let expiration_date = UnixTime::new(
+            u64::from(key_creation_time.as_secs()) + u64::from(expiration_time.as_secs()),
+        );
         if expiration_date < date {
             return Err(KeyCertificationSelectionError::ExpiredKey {
                 date,
@@ -695,7 +723,7 @@ pub(crate) fn check_key_not_expired<K: PublicKeyTrait + Serialize>(
 /// - The key has enough bits for the RSA algorithm.
 /// - The key has a valid curve for the ECC algorithm.
 fn check_key_requirements(
-    public_key: impl PublicKeyTrait,
+    public_key: impl VerifyingKey,
     profile: &Profile,
 ) -> Result<(), KeyRequirementError> {
     if profile.reject_public_key_algorithm(public_key.algorithm()) {

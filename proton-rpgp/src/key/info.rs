@@ -63,7 +63,7 @@ impl<T: AsPublicKeyRef> AccessKeyInfo for T {
 
     /// Returns the key id of the `OpenPGP` primary key.
     fn key_id(&self) -> KeyId {
-        self.as_public_key().as_signed_public_key().key_id()
+        self.as_public_key().as_signed_public_key().legacy_key_id()
     }
 
     /// Returns the fingerprint of the `OpenPGP` primary key.
@@ -75,9 +75,9 @@ impl<T: AsPublicKeyRef> AccessKeyInfo for T {
     fn key_ids(&self) -> Vec<KeyId> {
         let pub_key_ref = &self.as_public_key().as_signed_public_key();
         let mut output = Vec::with_capacity(pub_key_ref.public_subkeys.len() + 1);
-        output.push(pub_key_ref.key_id());
+        output.push(pub_key_ref.legacy_key_id());
         for subkey in &pub_key_ref.public_subkeys {
-            output.push(subkey.key_id());
+            output.push(subkey.legacy_key_id());
         }
         output
     }
@@ -172,7 +172,7 @@ pub struct KeyInfo {
 impl<'a> From<PublicComponentKey<'a>> for KeyInfo {
     fn from(key: PublicComponentKey<'a>) -> Self {
         Self {
-            key_id: key.public_key.key_id(),
+            key_id: key.public_key.legacy_key_id(),
             fingerprint: key.public_key.fingerprint(),
             algorithm: key.public_key.algorithm(),
         }
@@ -182,7 +182,7 @@ impl<'a> From<PublicComponentKey<'a>> for KeyInfo {
 pub trait PublicKeyExt: KeyDetails {
     /// Returns the key identifier of the `OpenPGP` key.
     fn generic_identifier(&self) -> GenericKeyIdentifier {
-        GenericKeyIdentifier::Both(self.key_id(), self.fingerprint())
+        GenericKeyIdentifier::Both(self.legacy_key_id(), self.fingerprint())
     }
 }
 

@@ -6,7 +6,7 @@ use pgp::{
         UserId,
     },
     ser::Serialize,
-    types::{CompressionAlgorithm, KeyVersion, Password, PublicKeyTrait, SecretKeyTrait},
+    types::{CompressionAlgorithm, KeyVersion, Password, SigningKey, VerifyingKey},
 };
 use rand::{CryptoRng, Rng};
 use smallvec::SmallVec;
@@ -43,8 +43,8 @@ impl KeyDetailsConfig {
     ) -> Result<SignedKeyDetails, SigningError>
     where
         R: CryptoRng + Rng,
-        K: SecretKeyTrait,
-        P: PublicKeyTrait + Serialize,
+        K: SigningKey,
+        P: VerifyingKey + Serialize,
     {
         let direct_signatures = if primary_secret_key.version() == KeyVersion::V6 {
             let config = configure_key_details_signature(
@@ -146,8 +146,8 @@ pub(crate) trait PacketPublicSubkeyExt {
         profile: &Profile,
     ) -> Result<Signature, SigningError>
     where
-        K: SecretKeyTrait,
-        P: PublicKeyTrait + Serialize,
+        K: SigningKey,
+        P: VerifyingKey + Serialize,
         R: CryptoRng + Rng;
 }
 
@@ -164,8 +164,8 @@ impl PacketPublicSubkeyExt for packet::PublicSubkey {
         profile: &Profile,
     ) -> Result<Signature, SigningError>
     where
-        K: SecretKeyTrait,
-        P: PublicKeyTrait + Serialize,
+        K: SigningKey,
+        P: VerifyingKey + Serialize,
         R: CryptoRng + Rng,
     {
         let mut config = configure_subkey_signature(

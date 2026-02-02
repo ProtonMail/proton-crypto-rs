@@ -237,7 +237,7 @@ mod tests {
     use pgp::{
         crypto::hash::HashAlgorithm,
         packet::{Packet, PacketParser, Signature, SignatureType, SignatureVersion},
-        types::PublicKeyTrait,
+        types::KeyDetails,
     };
 
     use crate::{AccessKeyInfo, DataEncoding, SignatureExt};
@@ -269,7 +269,7 @@ mod tests {
             Some(&key.fingerprint())
         );
         assert_eq!(
-            key_info_signature.issuer().first().copied(),
+            key_info_signature.issuer_key_id().first().copied(),
             Some(&key.key_id())
         );
         assert_eq!(key_info_signature.unix_created_at().unwrap(), date);

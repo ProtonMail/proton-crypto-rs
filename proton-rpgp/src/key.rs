@@ -198,12 +198,12 @@ impl LockedPrivateKey {
         secret_copy
             .primary_key
             .remove_password(&local_password)
-            .map_err(|e| KeyOperationError::Unlock(secret_copy.primary_key.key_id(), e))?;
+            .map_err(|e| KeyOperationError::Unlock(secret_copy.primary_key.legacy_key_id(), e))?;
         for subkey in &mut secret_copy.secret_subkeys {
             subkey
                 .key
                 .remove_password(&local_password)
-                .map_err(|err| KeyOperationError::Unlock(subkey.key.key_id(), err))?;
+                .map_err(|err| KeyOperationError::Unlock(subkey.key.legacy_key_id(), err))?;
         }
         Ok(PrivateKey::new(secret_copy))
     }
