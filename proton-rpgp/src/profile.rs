@@ -42,7 +42,7 @@ impl Profile {
         rand::thread_rng()
     }
 
-    pub fn canditate_compression_algorithms(&self) -> &[CompressionAlgorithm] {
+    pub fn candidate_compression_algorithms(&self) -> &[CompressionAlgorithm] {
         &self.settings.candidate_compression_algorithms
     }
 

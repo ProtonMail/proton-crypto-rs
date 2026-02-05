@@ -10,7 +10,7 @@ use crate::{
     check_signature_details, types::CheckUnixTime, AsPublicKeyRef, KeyInfo, MessageProcessingError,
     MessageSignatureError, Profile, PublicComponentKey, PublicKeySelectionExt,
     SignatureContextError, SignatureError, SignatureExt, SignatureUsage, UnixTime,
-    VerificationContext, VerificationResultUtilityError, FUTURE_SIGNATUTRE_ERROR_MESSAGE,
+    VerificationContext, VerificationResultUtilityError, FUTURE_SIGNATURE_ERROR_MESSAGE,
     LIB_ERROR_PREFIX,
 };
 
@@ -345,7 +345,7 @@ impl SignatureVerificationResult {
                 Ok(keys) => keys,
                 Err(error) => {
                     let result = if profile.allow_insecure_verification_with_reformatted_keys()
-                        && error.to_string().contains(FUTURE_SIGNATUTRE_ERROR_MESSAGE)
+                        && error.to_string().contains(FUTURE_SIGNATURE_ERROR_MESSAGE)
                     {
                         key.as_public_key()
                             .as_signed_public_key()

@@ -21,7 +21,6 @@ use crate::{
 /// Since an `OpenPGP` key can contain multiple actual keys, an operation must
 /// select one. A public component key represents such a selected key.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct PublicComponentKey<'a> {
     /// The public key part of the component key (either a primary or subkey).
     pub public_key: AnyPublicKey<'a>,

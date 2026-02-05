@@ -52,7 +52,7 @@ impl RecipientsAlgorithms {
         let mut candidate_symmetric_algorithms =
             profile.candidate_symmetric_key_algorithms().to_vec();
         let mut candidate_compression_algorithms =
-            profile.canditate_compression_algorithms().to_vec();
+            profile.candidate_compression_algorithms().to_vec();
         let mut candidate_aead_algorithms = profile.candidate_aead_ciphersuites().to_vec();
         let mut aead_support = true;
 
