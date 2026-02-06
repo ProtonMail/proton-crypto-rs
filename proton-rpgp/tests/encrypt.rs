@@ -175,25 +175,26 @@ pub fn encrypt_message_v4_passphrase_stream() {
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
-pub fn encrypt_message_v4_multi_passphrase() {
+pub fn encrypt_message_v4_mixed() {
     let input_data = b"hello world";
-    let passphrase1: &str = "password1";
-    let passphrase2: &str = "password2";
+    let passphrase: &str = "password";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
 
     let encrypted_data = Encryptor::new(TEST_PW_PROFILE.clone())
-        .with_passphrase(passphrase1)
-        .with_passphrase(passphrase2)
+        .with_passphrase(passphrase)
+        .with_encryption_key(key.as_public_key())
         .encrypt_raw(input_data, DataEncoding::Armored)
         .expect("Failed to encrypt");
 
     let decrypted_data = Decryptor::new(TEST_PW_PROFILE.clone())
-        .with_passphrase(passphrase1)
+        .with_passphrase(passphrase)
         .decrypt(&encrypted_data, DataEncoding::Armored)
         .expect("Failed to decrypt");
     assert_eq!(decrypted_data.data, input_data);
 
     let decrypted_data = Decryptor::new(TEST_PW_PROFILE.clone())
-        .with_passphrase(passphrase2)
+        .with_decryption_key(&key)
         .decrypt(&encrypted_data, DataEncoding::Armored)
         .expect("Failed to decrypt");
     assert_eq!(decrypted_data.data, input_data);
@@ -201,26 +202,27 @@ pub fn encrypt_message_v4_multi_passphrase() {
 
 #[test]
 #[allow(clippy::missing_panics_doc)]
-pub fn encrypt_message_v4_multi_passphrase_stream() {
+pub fn encrypt_message_v4_mixed_stream() {
     let input_data = b"hello world".repeat(1024);
-    let passphrase1: &str = "password1";
-    let passphrase2: &str = "password2";
+    let passphrase: &str = "password";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
 
     let mut buffer = Vec::new();
     Encryptor::new(TEST_PW_PROFILE.clone())
-        .with_passphrase(passphrase1)
-        .with_passphrase(passphrase2)
+        .with_passphrase(passphrase)
+        .with_encryption_key(key.as_public_key())
         .encrypt_stream(&input_data[..], DataEncoding::Armored, &mut buffer)
         .expect("Failed to encrypt");
 
     let decrypted_data = Decryptor::new(TEST_PW_PROFILE.clone())
-        .with_passphrase(passphrase1)
+        .with_passphrase(passphrase)
         .decrypt(&buffer, DataEncoding::Armored)
         .expect("Failed to decrypt");
     assert_eq!(decrypted_data.data, input_data);
 
     let decrypted_data = Decryptor::new(TEST_PW_PROFILE.clone())
-        .with_passphrase(passphrase2)
+        .with_decryption_key(&key)
         .decrypt(&buffer, DataEncoding::Armored)
         .expect("Failed to decrypt");
     assert_eq!(decrypted_data.data, input_data);
