@@ -31,7 +31,7 @@ facet = { workspace = true, optional = true}
 workspace = true
 
 [features]
-default = ["rustpgp"]
+default = ["gopgp"]
 sql = ["dep:rusqlite"]
 rustpgp = ["proton-crypto/rustpgp"]
 gopgp = ["proton-crypto/gopgp"]

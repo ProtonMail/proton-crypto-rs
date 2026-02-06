@@ -23,7 +23,7 @@ facet = { workspace = true, optional = true }
 smol = "2.0.0"
 
 [features]
-default = ["rustpgp"]
+default = ["gopgp"]
 rustpgp = ["dep:proton-rpgp"]
 gopgp = ["dep:gopenpgp-sys"]
 rustpgp_wasm = ["rustpgp", "proton-rpgp/wasm"]
