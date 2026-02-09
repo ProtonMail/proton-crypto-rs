@@ -1,6 +1,7 @@
 # Proton Cryptography Rust
 
-Utility crates for cryptographic operations in Proton.
+Utility crates for cryptographic operations at Proton.
+Not intended or vetted for general usage outside Proton.
 
 ## Crates
 

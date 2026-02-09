@@ -1,6 +1,6 @@
 # Crate proton-rpgp
 
-Pure Rust Proton sepcific OpenPGP library built on [rpgp](https://github.com/rpgp/rpgp). Used Rust backend in [proton-crypto](https://github.com/ProtonMail/proton-crypto-rs).
+Pure Rust Proton specific OpenPGP library built on [rpgp](https://github.com/rpgp/rpgp). Used as Rust backend in [proton-crypto](https://github.com/ProtonMail/proton-crypto-rs).
 
 ## Usage
 
