@@ -36,10 +36,11 @@ pub fn armor_public_key(public_key: impl AsRef<[u8]>) -> crate::Result<Vec<u8>> 
 ///
 /// Produces data of the form:
 /// ```skip
-/// -----BEGIN PGP PRIVATE KEY BLOCK-----
+/// -----BEGIN PGP <TYPE> KEY BLOCK-----
 ///
 /// ...
-/// -----END PGP PRIVATE KEY BLOCK-----
+/// -----END PGP <TYPE> KEY BLOCK-----
+/// where <TYPE> `PRIVATE`.
 /// ```
 pub fn armor_private_key(private_key: impl AsRef<[u8]>) -> crate::Result<Vec<u8>> {
     let mut armored = Vec::with_capacity(private_key.as_ref().len());

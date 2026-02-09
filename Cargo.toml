@@ -68,29 +68,29 @@ registry = "proton"
 
 [workspace.dependencies.proton-crypto]
 path     = "proton-crypto"
-version  = "0.8.0"
+version  = "0.9.0"
 default-features = false
 registry = "proton"
 
 [workspace.dependencies.proton-crypto-account]
 path     = "proton-crypto-account"
-version  = "0.13.0"
+version  = "0.14.0"
 registry = "proton"
 
 [workspace.dependencies.proton-srp]
 path     = "proton-srp"
 default-features = false
-version  = "0.8.0"
+version  = "0.8.1"
 registry = "proton"
 
 [workspace.dependencies.proton-crypto-subtle]
 path     = "proton-crypto-subtle"
-version  = "0.2.0"
+version  = "0.2.1"
 registry = "proton"
 
 [workspace.dependencies.proton-device-verification]
 path     = "proton-device-verification"
-version  = "0.1.0"
+version  = "0.1.1"
 registry = "proton"
 
 [workspace.dependencies.proton-rpgp]
