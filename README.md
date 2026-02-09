@@ -1,30 +1,38 @@
-
 # Proton Cryptography Rust
 
-This workspace provides several utility crates for cryptographic operations within Proton.
+Utility crates for cryptographic operations in Proton.
 
-## Core Proton Crypto
+## Crates
 
-The `proton-crypto` crate contains the core library for crypto operations. In particular:
+- **proton-crypto**: Core Proton cryptography library: generic Proton-specific OpenPGP and SRP API. Backends: GopenPGP (`gopgp`) or pure Rust (`rustpgp` via proton-rpgp).
+- **proton-crypto-account**: Proton account cryptography (user keys, address keys, etc.) and key management; re-exports `proton-crypto`.
+- **proton-rpgp**: Pure Rust OpenPGP wrapper on top of [rpgp](https://github.com/rpgp/rpgp) (used as optional backend in `proton-crypto`).
+- **gopenpgp-sys**: Rust bindings to [GopenPGP](https://github.com/ProtonMail/gopenpgp).
+- **proton-srp**: Pure Rust implementation of Proton’s Secure Remote Password (SRP) protocol.
+- **proton-crypto-subtle**: Low-level primitives: AEAD, HKDF.
+- **proton-device-verification**: Device verification for clients.
 
-- It defines a generic API for OpenPGP operations, which is the core cryptographic protocol in most products. An implementation of the API can be accessed through `new_pgp_provider` providing a default `PGPProvider`.
-- An implementation of the `PGPProvider` using GopenPGP via the `gopenpgp-sys` wrapper.
-- SRP API for authentication and an implementation using GopenPGP via the `gopenpgp-sys` wrapper. The default SRP provider can be accessed via `new_srp_provider`.
+## Build
 
-## Account Proton Crypto
+```bash
+cargo build
+```
 
-The `proton-crypto-account` crate provides Proton key models (e.g., User Keys, Address keys, etc.) and key management operations building on `proton-crypto`. Note that the crate re-exports the underlying `proton-crypto` dependency.
+The default `proton-crypto` backend is [GopenPGP](https://github.com/ProtonMail/gopenpgp) (`gopgp`), which requires [Go](https://go.dev/) to build `gopenpgp-sys`. For a pure Rust build, use:
 
-## Others
+```bash
+cargo build --no-default-features -p proton-crypto -p proton-crypto-account --features rustpgp
+```
 
-#### proton-srp
+## Contributions
 
-A pure Rust implementation of Proton's version of the Secure Remote Password (SRP) protocol.
+We are not currently accepting external contributions via this GitHub repository. This open-source mirror is provided for transparency and reference.
 
-#### gopenpgp-sys
+## License
 
-Rust API calling GopenPGP.
+MIT. See [LICENSE](LICENSE).
 
-#### proton-device-verification
+## Security
 
-Implements device verification for clients.
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
