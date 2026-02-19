@@ -13,10 +13,10 @@ pub trait Decryptor<'a> {
     type SessionKey;
 
     /// `OpenPGP` private key type.
-    type PrivateKey: PrivateKey;
+    type PrivateKey: PrivateKey + 'a;
 
     /// `OpenPGP` public key type.
-    type PublicKey: PublicKey;
+    type PublicKey: PublicKey + 'a;
 
     /// Type for data that has been verified against `OpenPGP` signatures.
     type VerifiedData: VerifiedData;
@@ -37,7 +37,10 @@ pub trait Decryptor<'a> {
     ///
     /// Assumes that the message to decrypt was encrypted towards one of the `OpenPGP` keys.
     /// Triggers the hybrid decryption mode with the asymmetric keys.
-    fn with_decryption_keys(self, decryption_key: &'a [Self::PrivateKey]) -> Self;
+    fn with_decryption_keys(
+        self,
+        decryption_keys: impl IntoIterator<Item = &'a Self::PrivateKey>,
+    ) -> Self;
 
     /// Adds the `OpenPGP` keys for decrypting the `OpenPGP` message.
     ///
@@ -55,7 +58,10 @@ pub trait Decryptor<'a> {
     ///
     /// Assumes that the message contains a signature that can be verified with one of the provided `OpenPGP` keys.
     /// Triggers the signature verification.
-    fn with_verification_keys(self, verification_keys: &'a [Self::PublicKey]) -> Self;
+    fn with_verification_keys(
+        self,
+        verification_keys: impl IntoIterator<Item = &'a Self::PublicKey>,
+    ) -> Self;
 
     /// Adds the `OpenPGP` verification keys for verifying signatures in the `OpenPGP` message.
     ///

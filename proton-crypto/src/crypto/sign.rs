@@ -15,7 +15,7 @@ pub trait SigningContext: Clone + Send + Sync {}
 
 /// `Signer` provides a builder API to sign data and create signatures with `OpenPGP` operations.
 pub trait Signer<'a> {
-    type PrivateKey: PrivateKey;
+    type PrivateKey: PrivateKey + 'a;
     type SigningContext: SigningContext;
     type SignerWriter<'b, T: io::Write + 'b>: EncryptorWriter<'b, T>;
     /// Adds an `OpenPGP` key for creating a signature over the data.
@@ -27,7 +27,10 @@ pub trait Signer<'a> {
     ///
     /// For each signing key provided, the encryptor will create a signature over the input data.
     /// The signatures are inlined within the encrypted message.
-    fn with_signing_keys(self, signing_keys: &'a [Self::PrivateKey]) -> Self;
+    fn with_signing_keys(
+        self,
+        signing_keys: impl IntoIterator<Item = &'a Self::PrivateKey>,
+    ) -> Self;
     /// Adds several `OpenPGP` keys for creating signatures over the data.
     ///
     /// For each signing key provided, the encryptor will create a signature over the input data.

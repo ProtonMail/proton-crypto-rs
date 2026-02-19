@@ -2,8 +2,8 @@ use std::io;
 
 use super::GoPublicKey;
 use crate::crypto::{
-    AsPublicKeyRef, DataEncoding, VerifiedData, OpenPGPKeyID, VerificationContext,
-    VerificationError, VerificationInformation, VerificationResult, VerifiedDataReader, Verifier,
+    AsPublicKeyRef, DataEncoding, OpenPGPKeyID, VerificationContext, VerificationError,
+    VerificationInformation, VerificationResult, VerifiedData, VerifiedDataReader, Verifier,
     VerifierAsync, VerifierSync,
 };
 use crate::{CryptoInfoError, UnixTimestamp};
@@ -96,8 +96,15 @@ impl<'a> Verifier<'a> for GoVerifier<'a> {
         GoVerifier(self.0.with_verification_key(verification_key))
     }
 
-    fn with_verification_keys(self, verification_keys: &'a [Self::PublicKey]) -> Self {
-        GoVerifier(self.0.with_verification_keys(verification_keys))
+    fn with_verification_keys(
+        self,
+        verification_keys: impl IntoIterator<Item = &'a Self::PublicKey>,
+    ) -> Self {
+        GoVerifier(
+            verification_keys
+                .into_iter()
+                .fold(self.0, gopenpgp_sys::Verifier::with_verification_key),
+        )
     }
 
     fn with_verification_key_refs(

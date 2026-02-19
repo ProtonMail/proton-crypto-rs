@@ -55,10 +55,10 @@ pub trait Encryptor<'a> {
     type SessionKey;
 
     /// `OpenPGP` privates key type.
-    type PrivateKey: PrivateKey;
+    type PrivateKey: PrivateKey + 'a;
 
     /// `OpenPGP` public key type.
-    type PublicKey: PublicKey;
+    type PublicKey: PublicKey + 'a;
 
     /// Type for encrypted `OpenPGP` messages.
     type PGPMessage: PGPMessage;
@@ -89,7 +89,10 @@ pub trait Encryptor<'a> {
     /// is encrypted with the provided recipient keys. The output `OpenPGP` message will contain
     /// an encrypted `key packets` and the encrypted `data packet`.
     /// i.e., `OpenPGPMessage(key packets|data packet)`
-    fn with_encryption_keys(self, encryption_keys: &'a [Self::PublicKey]) -> Self;
+    fn with_encryption_keys(
+        self,
+        encryption_keys: impl IntoIterator<Item = &'a Self::PublicKey>,
+    ) -> Self;
 
     /// Adds several `OpenPGP` keys to encrypt the data to.
     ///
@@ -112,7 +115,10 @@ pub trait Encryptor<'a> {
     ///
     /// For each signing key provided, the encryptor will create a signature over the input data.
     /// The signatures are inlined within the encrypted message.
-    fn with_signing_keys(self, signing_keys: &'a [Self::PrivateKey]) -> Self;
+    fn with_signing_keys(
+        self,
+        signing_keys: impl IntoIterator<Item = &'a Self::PrivateKey>,
+    ) -> Self;
 
     /// Adds several `OpenPGP` keys for creating signatures over the data.
     ///

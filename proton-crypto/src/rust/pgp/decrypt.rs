@@ -45,10 +45,13 @@ impl<'a> Decryptor<'a> for RustDecryptor<'a> {
         self
     }
 
-    fn with_decryption_keys(mut self, decryption_keys: &'a [Self::PrivateKey]) -> Self {
+    fn with_decryption_keys(
+        mut self,
+        decryption_keys: impl IntoIterator<Item = &'a Self::PrivateKey>,
+    ) -> Self {
         self.inner = self
             .inner
-            .with_decryption_keys(decryption_keys.iter().map(|k| k.0.as_ref()));
+            .with_decryption_keys(decryption_keys.into_iter().map(|k| k.0.as_ref()));
         self
     }
 
@@ -67,10 +70,13 @@ impl<'a> Decryptor<'a> for RustDecryptor<'a> {
         self
     }
 
-    fn with_verification_keys(mut self, verification_keys: &'a [Self::PublicKey]) -> Self {
+    fn with_verification_keys(
+        mut self,
+        verification_keys: impl IntoIterator<Item = &'a Self::PublicKey>,
+    ) -> Self {
         self.inner = self
             .inner
-            .with_verification_keys(verification_keys.iter().map(|k| k.0.as_ref()));
+            .with_verification_keys(verification_keys.into_iter().map(|k| k.0.as_ref()));
         self
     }
 

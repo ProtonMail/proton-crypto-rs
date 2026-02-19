@@ -25,8 +25,15 @@ impl<'a> Signer<'a> for GoSigner<'a> {
         Self(self.0.with_signing_key(signing_key))
     }
 
-    fn with_signing_keys(self, signing_keys: &'a [Self::PrivateKey]) -> Self {
-        Self(self.0.with_signing_keys(signing_keys))
+    fn with_signing_keys(
+        self,
+        signing_keys: impl IntoIterator<Item = &'a Self::PrivateKey>,
+    ) -> Self {
+        Self(
+            signing_keys
+                .into_iter()
+                .fold(self.0, gopenpgp_sys::Signer::with_signing_key),
+        )
     }
 
     fn with_signing_key_refs(self, signing_keys: &'a [impl AsRef<Self::PrivateKey>]) -> Self {

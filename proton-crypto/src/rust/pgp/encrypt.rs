@@ -320,10 +320,13 @@ impl<'a> Encryptor<'a> for RustEncryptor<'a> {
         self
     }
 
-    fn with_encryption_keys(mut self, encryption_keys: &'a [Self::PublicKey]) -> Self {
+    fn with_encryption_keys(
+        mut self,
+        encryption_keys: impl IntoIterator<Item = &'a Self::PublicKey>,
+    ) -> Self {
         self.inner = self
             .inner
-            .with_encryption_keys(encryption_keys.iter().map(|k| k.0.as_ref()));
+            .with_encryption_keys(encryption_keys.into_iter().map(|k| k.0.as_ref()));
         self
     }
 
@@ -342,10 +345,13 @@ impl<'a> Encryptor<'a> for RustEncryptor<'a> {
         self
     }
 
-    fn with_signing_keys(mut self, signing_keys: &'a [Self::PrivateKey]) -> Self {
+    fn with_signing_keys(
+        mut self,
+        signing_keys: impl IntoIterator<Item = &'a Self::PrivateKey>,
+    ) -> Self {
         self.inner = self
             .inner
-            .with_signing_keys(signing_keys.iter().map(|k| k.0.as_ref()));
+            .with_signing_keys(signing_keys.into_iter().map(|k| k.0.as_ref()));
         self
     }
 

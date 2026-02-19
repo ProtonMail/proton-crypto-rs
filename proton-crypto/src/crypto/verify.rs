@@ -85,14 +85,17 @@ pub trait VerifiedData: AsRef<[u8]> + Sized {
 
 /// `Verifier` provides a builder API to verify signatures with `OpenPGP` signature operations.
 pub trait Verifier<'a> {
-    type PublicKey: PublicKey;
+    type PublicKey: PublicKey + 'a;
     type VerifiedData: VerifiedData;
     type VerificationContext: VerificationContext;
     /// Adds the `OpenPGP` verification key for verifying the signatures.
     fn with_verification_key(self, verification_key: &'a Self::PublicKey) -> Self;
 
     /// Adds `OpenPGP` verifications key for verifying the signatures.
-    fn with_verification_keys(self, verification_keys: &'a [Self::PublicKey]) -> Self;
+    fn with_verification_keys(
+        self,
+        verification_keys: impl IntoIterator<Item = &'a Self::PublicKey>,
+    ) -> Self;
 
     /// Adds `OpenPGP` verifications key for verifying the signatures.
     ///

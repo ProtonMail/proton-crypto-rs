@@ -24,8 +24,15 @@ impl<'a> Decryptor<'a> for GoDecryptor<'a> {
         GoDecryptor(self.0.with_decryption_key(decryption_key))
     }
 
-    fn with_decryption_keys(self, decryption_keys: &'a [Self::PrivateKey]) -> Self {
-        GoDecryptor(self.0.with_decryption_keys(decryption_keys))
+    fn with_decryption_keys(
+        self,
+        decryption_keys: impl IntoIterator<Item = &'a Self::PrivateKey>,
+    ) -> Self {
+        GoDecryptor(
+            decryption_keys
+                .into_iter()
+                .fold(self.0, gopenpgp_sys::Decryptor::with_decryption_key),
+        )
     }
 
     fn with_decryption_key_refs(self, decryption_keys: &'a [impl AsRef<Self::PrivateKey>]) -> Self {
@@ -40,8 +47,15 @@ impl<'a> Decryptor<'a> for GoDecryptor<'a> {
         GoDecryptor(self.0.with_verification_key(verification_key))
     }
 
-    fn with_verification_keys(self, verification_keys: &'a [Self::PublicKey]) -> Self {
-        GoDecryptor(self.0.with_verification_keys(verification_keys))
+    fn with_verification_keys(
+        self,
+        verification_keys: impl IntoIterator<Item = &'a Self::PublicKey>,
+    ) -> Self {
+        GoDecryptor(
+            verification_keys
+                .into_iter()
+                .fold(self.0, gopenpgp_sys::Decryptor::with_verification_key),
+        )
     }
 
     fn with_verification_key_refs(

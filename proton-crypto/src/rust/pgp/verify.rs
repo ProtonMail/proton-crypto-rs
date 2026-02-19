@@ -195,10 +195,13 @@ impl<'a> Verifier<'a> for RustVerifier<'a> {
         self
     }
 
-    fn with_verification_keys(mut self, verification_keys: &'a [Self::PublicKey]) -> Self {
+    fn with_verification_keys(
+        mut self,
+        verification_keys: impl IntoIterator<Item = &'a Self::PublicKey>,
+    ) -> Self {
         self.inner = self
             .inner
-            .with_verification_keys(verification_keys.iter().map(|k| k.0.as_ref()));
+            .with_verification_keys(verification_keys.into_iter().map(|k| k.0.as_ref()));
         self
     }
 

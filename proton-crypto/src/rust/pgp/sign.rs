@@ -91,10 +91,13 @@ impl<'a> Signer<'a> for RustSigner<'a> {
         self
     }
 
-    fn with_signing_keys(mut self, signing_keys: &'a [Self::PrivateKey]) -> Self {
+    fn with_signing_keys(
+        mut self,
+        signing_keys: impl IntoIterator<Item = &'a Self::PrivateKey>,
+    ) -> Self {
         self.inner = self
             .inner
-            .with_signing_keys(signing_keys.iter().map(|k| k.0.as_ref()));
+            .with_signing_keys(signing_keys.into_iter().map(|k| k.0.as_ref()));
         self
     }
 
