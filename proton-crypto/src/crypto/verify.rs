@@ -1,5 +1,7 @@
 use std::{future::Future, io};
 
+use crate::crypto::VerificationError;
+
 use super::{AsPublicKeyRef, DataEncoding, PublicKey, UnixTimestamp, VerificationResult};
 
 /// `VerificationContext` allows to provide a context for signature verification.
@@ -33,27 +35,47 @@ where
 }
 
 /// Represents decrypted PGP data that might have been verified with a signature.  
-pub trait VerifiedData: AsRef<[u8]> {
+pub trait VerifiedData: AsRef<[u8]> + Sized {
     /// Borrow the raw inner data.
+    ///
+    /// WARNING: Accessing this data directly ignores the result of the verification.
     fn as_bytes(&self) -> &[u8];
+
+    /// Borrow the verified inner data.
+    fn as_verified_bytes(&self) -> Result<&[u8], VerificationError> {
+        self.verification_result()?;
+        Ok(self.as_bytes())
+    }
 
     /// Indicates if the data has been verified with a signature.
     fn is_verified(&self) -> bool;
 
     /// Returns the verification result.
-    ///
-    /// Returns an error if no verification result is found or retrieving the result fails.
     fn verification_result(&self) -> VerificationResult;
 
     /// Clones the data and puts it into the returned vec.
+    ///
+    /// WARNING: Accessing this data directly ignores the result of the verification.
     fn to_vec(&self) -> Vec<u8> {
-        let data_ref = self.as_ref();
-        let mut data_vec = Vec::with_capacity(data_ref.len());
-        data_vec.extend_from_slice(data_ref);
-        data_vec
+        self.as_ref().to_vec()
     }
+
     /// Transforms to the decrypted data.
+    fn try_to_verified_vec(&self) -> Result<Vec<u8>, VerificationError> {
+        self.verification_result()?;
+        Ok(self.to_vec())
+    }
+
+    /// Transforms to the decrypted data.
+    ///
+    /// WARNING: Accessing this data directly ignores the result of the verification.
     fn into_vec(self) -> Vec<u8>;
+
+    /// Transforms into verified data.
+    fn try_into_verified_vec(self) -> Result<Vec<u8>, VerificationError> {
+        self.verification_result()?;
+        Ok(self.into_vec())
+    }
 
     /// Returns all signatures in serialized form.
     ///

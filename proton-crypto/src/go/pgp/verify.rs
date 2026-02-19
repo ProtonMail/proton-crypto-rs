@@ -2,8 +2,8 @@ use std::io;
 
 use super::GoPublicKey;
 use crate::crypto::{
-    AsPublicKeyRef, DataEncoding, OpenPGPKeyID, VerificationContext, VerificationError,
-    VerificationInformation, VerificationResult, VerifiedData, VerifiedDataReader, Verifier,
+    AsPublicKeyRef, DataEncoding, VerifiedData, OpenPGPKeyID, VerificationContext,
+    VerificationError, VerificationInformation, VerificationResult, VerifiedDataReader, Verifier,
     VerifierAsync, VerifierSync,
 };
 use crate::{CryptoInfoError, UnixTimestamp};
