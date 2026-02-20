@@ -20,21 +20,21 @@ pub trait Signer<'a> {
     type SignerWriter<'b, T: io::Write + 'b>: EncryptorWriter<'b, T>;
     /// Adds an `OpenPGP` key for creating a signature over the data.
     ///
-    /// For each signing key provided, the encryptor will create a signature over the input data.
-    /// The signatures are inlined within the encrypted message.
+    /// For each signing key provided, the signer will create a signature over the input data.
+    /// The signatures are inlined within the signed message.
     fn with_signing_key(self, signing_key: &'a Self::PrivateKey) -> Self;
     /// Adds several `OpenPGP` keys for creating signatures over the data.
     ///
-    /// For each signing key provided, the encryptor will create a signature over the input data.
-    /// The signatures are inlined within the encrypted message.
+    /// For each signing key provided, the signer will create a signature over the input data.
+    /// The signatures are inlined within the signed message.
     fn with_signing_keys(
         self,
         signing_keys: impl IntoIterator<Item = &'a Self::PrivateKey>,
     ) -> Self;
     /// Adds several `OpenPGP` keys for creating signatures over the data.
     ///
-    /// For each signing key provided, the encryptor will create a signature over the input data.
-    /// The signatures are inlined within the encrypted message.
+    /// For each signing key provided, the signer will create a signature over the input data.
+    /// The signatures are inlined within the signed message.
     fn with_signing_key_refs(self, signing_keys: &'a [impl AsRef<Self::PrivateKey>]) -> Self;
     /// Sets the signing context for creating signatures.
     ///
