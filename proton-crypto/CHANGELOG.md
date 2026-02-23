@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Use `impl IntoIterator` for multiple key input in the crypto API.
-- Improve usablitlty and secuirty of the `VerifiedData` struct
+- Improve usability and security of the `VerifiedData` struct
 
 ## [0.9.0] - 2026-02-10
 
