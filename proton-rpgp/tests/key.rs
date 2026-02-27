@@ -322,10 +322,10 @@ fn fix_future_key_with_modification() {
         .expect_err("Future key should not be able to verify");
 
     let modified_key = key
-        .modify_default()
+        .modify()
         .with_date(current_date)
         .with_key_creation_time(current_date)
-        .modify()
+        .apply()
         .expect("Failed to modify key");
 
     modified_key

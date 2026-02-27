@@ -380,18 +380,18 @@ impl PrivateKey {
         Ok(LockedPrivateKey::new(secret_copy))
     }
 
-    /// Create a new key modifier with the given profile.
-    ///
-    /// The returned modifier allows to motify a copy of the secret key.
-    pub fn modify(&self, profile: &Profile) -> KeyModifier {
-        KeyModifier::new(profile, self)
-    }
-
     /// Create a new key modifier with the default profile.
     ///
     /// The returned modifier allows to motify a copy of the secret key.
-    pub fn modify_default(&self) -> KeyModifier {
-        KeyModifier::new_default(self)
+    pub fn modify(&self) -> KeyModifier {
+        KeyModifier::new(self)
+    }
+
+    /// Create a new key modifier with the given profile.
+    ///
+    /// The returned modifier allows to motify a copy of the secret key.
+    pub fn modify_with_profile(&self, profile: &Profile) -> KeyModifier {
+        KeyModifier::new_with_profile(self, profile)
     }
 
     /// Checks if the secret key is a `Proton` forwarding key.

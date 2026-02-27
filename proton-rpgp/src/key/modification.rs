@@ -36,7 +36,11 @@ pub struct KeyModifier {
 }
 
 impl KeyModifier {
-    pub fn new(profile: &Profile, key_to_modify: &PrivateKey) -> Self {
+    pub fn new(key_to_modify: &PrivateKey) -> Self {
+        Self::new_with_profile(key_to_modify, &DEFAULT_PROFILE)
+    }
+
+    pub fn new_with_profile(key_to_modify: &PrivateKey, profile: &Profile) -> Self {
         Self {
             key: key_to_modify.secret.clone(),
             profile: profile.clone(),
@@ -46,10 +50,6 @@ impl KeyModifier {
             modification_date: UnixTime::now().unwrap_or_default(),
             key_creation_time: None,
         }
-    }
-
-    pub fn new_default(key_to_modify: &PrivateKey) -> Self {
-        Self::new(&DEFAULT_PROFILE, key_to_modify)
     }
 
     /// Add a new user-id to the key.
@@ -91,10 +91,12 @@ impl KeyModifier {
         self
     }
 
-    /// Modify the key according to the configuration.
-    pub fn modify(self) -> crate::Result<PrivateKey> {
+    /// Apply the key modifications according to the configuration.
+    pub fn apply(self) -> crate::Result<PrivateKey> {
         let sub_key_flags = self.collect_sub_key_flags()?;
-        let modifier = self.modify_primary_key()?.modify_subkeys(sub_key_flags)?;
+        let modifier = self
+            .apply_primary_key_modifications()?
+            .apply_subkey_modifications(sub_key_flags)?;
         Ok(PrivateKey::new(modifier.key))
     }
 
@@ -117,7 +119,7 @@ impl KeyModifier {
         }
     }
 
-    fn modify_primary_key(mut self) -> Result<Self, KeyModificationError> {
+    fn apply_primary_key_modifications(mut self) -> Result<Self, KeyModificationError> {
         let mut rng = self.profile.rng();
         let preferred_hash = self.profile.key_hash_algorithm();
 
@@ -204,7 +206,7 @@ impl KeyModifier {
         Ok(self)
     }
 
-    fn modify_subkeys(
+    fn apply_subkey_modifications(
         mut self,
         sub_key_flags: Vec<KeyFlags>,
     ) -> Result<Self, KeyModificationError> {
@@ -294,11 +296,11 @@ mod tests {
         let date = UnixTime::new(1_756_196_260);
 
         let modified_key = key
-            .modify_default()
+            .modify()
             .clear_existing_user_ids()
             .add_user_id("test2", "test2@test.com")
             .with_date(date)
-            .modify()
+            .apply()
             .expect("Failed to modify key");
 
         assert!(modified_key
@@ -338,11 +340,11 @@ mod tests {
         let date = UnixTime::new(1_756_196_260);
 
         let modified_key = key
-            .modify_default()
+            .modify()
             .clear_existing_user_ids()
             .add_user_id("test2", "test2@test.com")
             .with_date(date)
-            .modify()
+            .apply()
             .expect("Failed to modify key");
 
         assert!(modified_key
@@ -376,12 +378,12 @@ mod tests {
         let date = UnixTime::new(1_756_196_260);
 
         let modified_key = key
-            .modify_default()
+            .modify()
             .add_user_id("test2", "test2@test.com")
             .reset_signatures()
             .with_key_creation_time(date)
             .with_date(date)
-            .modify()
+            .apply()
             .expect("Failed to modify key");
 
         assert!(modified_key
