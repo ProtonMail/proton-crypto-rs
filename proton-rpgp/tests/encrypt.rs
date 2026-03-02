@@ -1,10 +1,12 @@
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use pgp::crypto::{aead::AeadAlgorithm, hash::HashAlgorithm, sym::SymmetricKeyAlgorithm};
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, EncryptedMessage,
-    EncryptedMessageInfo, EncryptionError, Encryptor, Error, KeyGenerator, PrivateKey, Profile,
-    ProfileSettings, SessionKey, StringToKeyOption, UnixTime, VerificationError,
+    component::{PrivateComponentKeyPublicView, PublicComponentKey},
+    AccessKeyInfo, AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, EncryptedMessage,
+    EncryptedMessageInfo, EncryptionError, EncryptionMechanism, EncryptionObserver, Encryptor,
+    Error, KeyGenerator, PrivateKey, Profile, ProfileSettings, SessionKey, StringToKeyOption,
+    UnixTime, VerificationError,
 };
 
 mod utils;
@@ -1160,4 +1162,55 @@ fn dummy_session_key(seipdv2: bool) -> SessionKey {
     } else {
         SessionKey::new(DUMMY_SK, SymmetricKeyAlgorithm::AES256)
     }
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_message_v4_with_observer() {
+    /// Observer for testing
+    #[derive(Debug)]
+    struct TestEncryptionObserver {
+        key: PrivateKey,
+    }
+
+    impl EncryptionObserver for TestEncryptionObserver {
+        fn observe_encryption_keys(&self, keys: &[PublicComponentKey<'_>]) {
+            let observed_key = keys.first().unwrap();
+            assert_eq!(
+                self.key.key_id(),
+                observed_key
+                    .primary_self_certification
+                    .issuer_key_id()
+                    .into_iter()
+                    .next()
+                    .copied()
+                    .unwrap()
+            );
+        }
+
+        fn observe_signing_keys(&self, key_views: &[PrivateComponentKeyPublicView<'_>]) {
+            let observed_key = key_views.first().unwrap();
+            assert_eq!(
+                self.key.fingerprint(),
+                observed_key.key_details.fingerprint()
+            );
+        }
+
+        fn observe_encryption_mechanism(&self, mechanism: &EncryptionMechanism) {
+            assert!(matches!(mechanism, EncryptionMechanism::SeipdV1(_)));
+        }
+    }
+
+    let input_data = b"hello world";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let observer = TestEncryptionObserver { key: key.clone() };
+
+    let _ = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .with_signing_key(&key)
+        .with_observer(Arc::new(observer))
+        .encrypt_raw(input_data, DataEncoding::Armored)
+        .expect("Failed to encrypt");
 }

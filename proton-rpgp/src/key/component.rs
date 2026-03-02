@@ -215,6 +215,27 @@ impl<'a> PrivateComponentKey<'a> {
         .into_hasher()
         .map_err(SigningError::Sign)
     }
+
+    /// Get a public view on the private component key.
+    pub fn public_view(&self) -> PrivateComponentKeyPublicView<'a> {
+        PrivateComponentKeyPublicView {
+            key_details: Box::new(self.private_key.clone()),
+            primary_self_certification: self.primary_self_certification,
+            self_certification: self.self_certification,
+        }
+    }
+}
+
+/// Represents a public view on a selected private component key in an `OpenPGP` key.
+pub struct PrivateComponentKeyPublicView<'a> {
+    /// The private key part of the component key (either a primary or subkey).
+    pub key_details: Box<dyn KeyDetails + 'a>,
+
+    /// The primary self-certification of the component key.
+    pub primary_self_certification: &'a Signature,
+
+    /// The self-certification of the component key.
+    pub self_certification: &'a Signature,
 }
 
 /// The [`SecretKeyTrait`] does not expose decryption methods. Thus, we

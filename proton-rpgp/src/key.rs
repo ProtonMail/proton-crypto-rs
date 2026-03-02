@@ -13,8 +13,8 @@ use rand::RngCore as _;
 use zeroize::Zeroizing;
 
 use crate::{
-    key::preferences::{EncryptionMechanism, RecipientsAlgorithms},
-    CheckUnixTime, DataEncoding, EncryptionError, KeyOperationError, Profile, ResolvedDataEncoding,
+    key::preferences::RecipientsAlgorithms, CheckUnixTime, DataEncoding, EncryptionError,
+    KeyOperationError, Profile, ResolvedDataEncoding,
 };
 
 pub mod certifications;
@@ -27,6 +27,7 @@ pub mod selection;
 pub(crate) use selection::*;
 
 pub(crate) mod preferences;
+pub use preferences::EncryptionMechanism;
 
 mod generation;
 pub use generation::*;

@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     io::{Read, Write},
     mem,
+    sync::Arc,
 };
 
 use pgp::{
@@ -18,13 +19,15 @@ use rand::{CryptoRng, Rng};
 use crate::{
     preferences::{EncryptionMechanism, RecipientsAlgorithms},
     CheckUnixTime, Ciphersuite, CloneablePasswords, DataEncoding, EncryptionError,
-    ExternalDetachedSignature, ExternalHashTracker, KeyValidationError, PrivateKey, Profile,
-    PublicComponentKey, PublicKey, PublicKeySelectionExt, ResolvedDataEncoding, SessionKey,
-    SignatureContext, Signer, SigningError, DEFAULT_PROFILE,
+    ExternalDetachedSignature, ExternalHashTracker, KeyValidationError, PrivateComponentKey,
+    PrivateKey, Profile, PublicComponentKey, PublicKey, PublicKeySelectionExt,
+    ResolvedDataEncoding, SessionKey, SignatureContext, Signer, SigningError, DEFAULT_PROFILE,
 };
 
 mod message;
 pub use message::*;
+mod observe;
+pub use observe::*;
 
 /// The encryptor to use to perform `OpenPGP` encryption/signcryption operations.
 #[derive(Debug, Clone)]
@@ -50,6 +53,9 @@ pub struct Encryptor<'a> {
     /// Determines if a detached signature should be created.
     detached_signature_op: SignDetachedOperation,
 
+    /// The observer to use for the encryption if any.
+    observer: Option<Arc<dyn EncryptionObserver>>,
+
     /// The internal signer to use for the signing part.
     pub(crate) signer: Signer<'a>,
 }
@@ -65,6 +71,7 @@ impl<'a> Encryptor<'a> {
             message_symmetric_algorithm: profile.message_symmetric_algorithm(),
             message_cipher_suite: profile.message_aead_cipher_suite(),
             detached_signature_op: SignDetachedOperation::default(),
+            observer: None,
             signer: Signer::new(profile),
         }
     }
@@ -132,6 +139,12 @@ impl<'a> Encryptor<'a> {
     /// Sets the application signature context to use for the message signatures.
     pub fn with_signature_context(mut self, context: impl Into<Cow<'a, SignatureContext>>) -> Self {
         self.signer = self.signer.with_signature_context(context);
+        self
+    }
+
+    /// Sets the observer to use for the encryption.
+    pub fn with_observer(mut self, observer: Arc<dyn EncryptionObserver>) -> Self {
+        self.observer = Some(observer);
         self
     }
 
@@ -314,6 +327,10 @@ impl<'a> Encryptor<'a> {
     pub fn encrypt_session_key(self, session_key: &SessionKey) -> crate::Result<Vec<u8>> {
         let encryption_keys = self.select_encryption_keys()?;
 
+        if let Some(observer) = &self.observer {
+            observer.observe_encryption_keys(&encryption_keys);
+        }
+
         let recipients_algo = RecipientsAlgorithms::select(
             self.message_symmetric_algorithm,
             self.message_cipher_suite,
@@ -438,6 +455,10 @@ impl<'a> Encryptor<'a> {
         self.check_encryption_tools()?;
         let encryption_keys = self.select_encryption_keys()?;
 
+        if let Some(stats_collector) = &self.observer {
+            stats_collector.observe_encryption_keys(&encryption_keys);
+        }
+
         let recipients_algorithm_selection = RecipientsAlgorithms::select(
             self.message_symmetric_algorithm,
             self.message_cipher_suite,
@@ -461,6 +482,10 @@ impl<'a> Encryptor<'a> {
         } else {
             recipients_algorithm_selection.encryption_mechanism()
         };
+
+        if let Some(observer) = &self.observer {
+            observer.observe_encryption_mechanism(&encryption_mechanism);
+        }
 
         let resolved_data_encoding = data_encoding.resolve_for_write();
         let revealed_session_key = match encryption_mechanism {
@@ -536,6 +561,14 @@ impl<'a> Encryptor<'a> {
             .signer
             .select_signing_keys()
             .map_err(EncryptionError::SigningKeySelection)?;
+
+        if let Some(observer) = &self.observer {
+            let key_views: Vec<_> = signing_keys
+                .iter()
+                .map(PrivateComponentKey::public_view)
+                .collect();
+            observer.observe_signing_keys(&key_views);
+        }
 
         let signed_builder = self.signer.sign_message(
             message_builder,
