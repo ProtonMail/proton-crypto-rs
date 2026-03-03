@@ -18,13 +18,7 @@ serde_repr = "0.1"
 serde_json = "1.0.137"
 thiserror = { workspace = true }
 zeroize = { workspace = true }
-rusqlite = { version = "0.32.1", features = [
-    "bundled",
-    "chrono",
-    "functions",
-    "trace",
-    "uuid",
-], optional = true}
+rusqlite = { version = ">= 0.32.1", optional = true}
 facet = { workspace = true, optional = true}
 
 [lints]

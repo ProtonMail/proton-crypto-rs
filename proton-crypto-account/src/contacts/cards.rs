@@ -47,7 +47,7 @@ pub enum ContactCardType {
 
 #[cfg(feature = "sql")]
 impl ToSql for ContactCardType {
-    fn to_sql(&self) -> Result<ToSqlOutput, Error> {
+    fn to_sql(&self) -> Result<ToSqlOutput<'_>, Error> {
         Ok(ToSqlOutput::from(*self as u8))
     }
 }

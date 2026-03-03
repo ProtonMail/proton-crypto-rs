@@ -46,7 +46,7 @@ macro_rules! string_id {
 
         #[cfg(feature = "sql")]
         impl rusqlite::types::ToSql for $name {
-            fn to_sql(&self) -> Result<rusqlite::types::ToSqlOutput, rusqlite::Error> {
+            fn to_sql(&self) -> Result<rusqlite::types::ToSqlOutput<'_>, rusqlite::Error> {
                 self.0.to_sql()
             }
         }
