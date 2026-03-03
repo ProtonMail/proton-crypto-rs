@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.10.0] - 2026-03-03
+
 ### Added
 
 - New struct `OpenPGP` that allows to create OpenPGP providers.
@@ -16,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Use `impl IntoIterator` for multiple key input in the crypto API.
 - Improve usability and security of the `VerifiedData` struct
+- Bump `proton-rpgp` to `0.2.0`
 
 ## [0.9.0] - 2026-02-10
 

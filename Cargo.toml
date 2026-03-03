@@ -68,13 +68,13 @@ registry = "proton"
 
 [workspace.dependencies.proton-crypto]
 path     = "proton-crypto"
-version  = "0.9.0"
+version  = "0.10.0"
 default-features = false
 registry = "proton"
 
 [workspace.dependencies.proton-crypto-account]
 path     = "proton-crypto-account"
-version  = "0.14.0"
+version  = "0.15.0"
 registry = "proton"
 
 [workspace.dependencies.proton-srp]
@@ -95,7 +95,7 @@ registry = "proton"
 
 [workspace.dependencies.proton-rpgp]
 path     = "proton-rpgp"
-version  = "0.1.0"
+version  = "0.2.0"
 registry = "proton"
 
 

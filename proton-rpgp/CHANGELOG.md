@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-00-00
 
+## [0.2.0] - 2026-03-03
+
+### Added
+
+- Support for modifying keys.
+- Allow to collect information about the encryption process in the encryptor.
+
 ## [0.1.0] - 2026-02-10
 
 ### Added
+
 - Initial release of the `proton-rpgp` crate.
