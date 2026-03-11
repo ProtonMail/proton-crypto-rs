@@ -26,7 +26,6 @@ smol = "2.0.0"
 default = ["gopgp"]
 rustpgp = ["dep:proton-rpgp"]
 gopgp = ["dep:gopenpgp-sys"]
-rustpgp_wasm = ["rustpgp", "proton-rpgp/wasm"]
 rustpgp_asm = ["rustpgp", "proton-rpgp/asm"]
 multi_be = ["rustpgp", "gopgp"]
 facet = ["dep:facet"]

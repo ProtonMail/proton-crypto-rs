@@ -15,6 +15,9 @@ hkdf = "0.12.4"
 sha2 = { workspace = true }
 rand = { workspace = true }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies] # Enable js BE for wasm targets
+getrandom_legacy = { package = "getrandom", version = "0.2", features = ["js"] }
+
 [lints]
 workspace = true
 
