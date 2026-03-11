@@ -27,6 +27,11 @@ workspace = true
 [features]
 default = ["gopgp"]
 sql = ["dep:rusqlite"]
+facet = ["dep:facet", "proton-crypto/facet"]
+
+# re-export proton-crypto flags
 rustpgp = ["proton-crypto/rustpgp"]
 gopgp = ["proton-crypto/gopgp"]
-facet = ["dep:facet", "proton-crypto/facet"]
+rustpgp_asm = ["rustpgp", "proton-crypto/rustpgp_asm"]
+multi_be = ["rustpgp", "gopgp", "proton-crypto/multi_be"]
+
