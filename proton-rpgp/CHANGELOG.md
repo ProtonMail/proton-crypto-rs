@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-00-00
 
+## [0.3.0] - 2026-03-13
+
+### Changed
+
+- Removed the `wasm` feature flag
+- Enable wasm32 target build without adding any external dependencies.
+
 ## [0.2.0] - 2026-03-03
 
 ### Added

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.16.0] - 2026-03-13
+
+### Added
+
+- Moved encryption/verification preferences from crypto-inbox into this crate.
+- Re-export all proton-crypto feature flags.
+
+### Chnaged
+
+- Update `proton-crypto` to 0.10.0.
+
 ## [0.15.0] - 2026-03-03
 
 ### Added

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.11.0] - 2026-03-13
+
+### Changed
+
+- Removed the `rustpgp_wasm` feature flag.
+- Enabled building for the wasm32 target without requiring an additional feature flag.
+- Bump `proton-rpgp` to `0.3.0`.
+- Update `proton-srp` to `0.8.2`.
+
 ## [0.10.0] - 2026-03-03
 
 ### Added
