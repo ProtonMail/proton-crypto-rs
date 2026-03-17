@@ -19,6 +19,9 @@ rand = { workspace = true }
 web-time = { workspace = true }
 facet = { workspace = true, optional = true }
 
+[target.'cfg(forcego)'.dependencies]
+gopenpgp-sys = { workspace = true }
+
 [dev-dependencies]
 smol = "2.0.0"
 

@@ -3,7 +3,7 @@
 pub type Error = CryptoError;
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[cfg(feature = "gopgp")]
+#[cfg(any(feature = "gopgp", forcego))]
 mod go;
 
 mod rust;
@@ -127,6 +127,15 @@ impl CryptoClockProvider for LocalTimeProvider {
     }
 }
 
+/// Offers functions to create a [`SRPProvider`].
+pub struct ProtonSRP {}
+
+impl ProtonSRP {
+    pub fn new_sync() -> impl SRPProvider {
+        new_srp_provider()
+    }
+}
+
 /// Offers functions to create a [`PGPProviderSync`] or [`PGPProviderAsync`].
 pub struct ProtonPGP {}
 
@@ -138,85 +147,118 @@ impl ProtonPGP {
     pub fn new_async() -> impl PGPProviderAsync {
         new_pgp_provider_async()
     }
+}
 
-    #[cfg(feature = "rustpgp")]
-    pub fn new_rust_sync() -> impl PGPProviderSync {
-        new_rust_pgp_provider()
+pub use cfg::*;
+
+#[cfg(forcego)]
+mod cfg {
+    use super::{crypto_clock, PGPProviderAsync, PGPProviderSync};
+
+    impl super::ProtonPGP {
+        pub fn new_go_sync() -> impl PGPProviderSync {
+            new_go_pgp_provider()
+        }
+
+        pub fn new_go_async() -> impl PGPProviderAsync {
+            new_go_pgp_provider_async()
+        }
     }
 
-    #[cfg(feature = "rustpgp")]
-    pub fn new_rust_async() -> impl PGPProviderAsync {
-        new_rust_pgp_provider_async()
-    }
-
-    #[cfg(feature = "gopgp")]
-    pub fn new_go_sync() -> impl PGPProviderSync {
+    /// Factory function to create a synchronous `PGPProvider`.
+    pub fn new_pgp_provider() -> impl PGPProviderSync {
         new_go_pgp_provider()
     }
 
-    #[cfg(feature = "gopgp")]
-    pub fn new_go_async() -> impl PGPProviderAsync {
+    /// Factory function to create a asynchronous `PGPProvider`.
+    pub fn new_pgp_provider_async() -> impl PGPProviderAsync {
         new_go_pgp_provider_async()
     }
-}
 
-/// Offers functions to create a [`SRPProvider`].
-pub struct ProtonSRP {}
+    pub fn new_go_pgp_provider() -> impl PGPProviderSync {
+        super::go::pgp::GoPGPProvider(crypto_clock())
+    }
 
-impl ProtonSRP {
-    pub fn new_sync() -> impl SRPProvider {
-        new_srp_provider()
+    pub fn new_go_pgp_provider_async() -> impl PGPProviderAsync {
+        super::go::pgp::GoPGPProvider(crypto_clock())
     }
 }
 
-/// Factory function to create a synchronous `PGPProvider`.
-pub fn new_pgp_provider() -> impl PGPProviderSync {
-    #[cfg(all(feature = "rustpgp", feature = "gopgp", not(feature = "multi_be")))]
-    compile_error!("Multiple crypto backends enabled, but 'multi_be' feature is not set.");
+#[cfg(not(forcego))]
+mod cfg {
+    use super::{crypto_clock, PGPProviderAsync, PGPProviderSync};
+
+    impl super::ProtonPGP {
+        #[cfg(feature = "rustpgp")]
+        pub fn new_rust_sync() -> impl PGPProviderSync {
+            new_rust_pgp_provider()
+        }
+
+        #[cfg(feature = "rustpgp")]
+        pub fn new_rust_async() -> impl PGPProviderAsync {
+            new_rust_pgp_provider_async()
+        }
+
+        #[cfg(feature = "gopgp")]
+        pub fn new_go_sync() -> impl PGPProviderSync {
+            new_go_pgp_provider()
+        }
+
+        #[cfg(feature = "gopgp")]
+        pub fn new_go_async() -> impl PGPProviderAsync {
+            new_go_pgp_provider_async()
+        }
+    }
+
+    /// Factory function to create a synchronous `PGPProvider`.
+    pub fn new_pgp_provider() -> impl PGPProviderSync {
+        #[cfg(all(feature = "rustpgp", feature = "gopgp", not(feature = "multi_be")))]
+        compile_error!("Multiple crypto backends enabled, but 'multi_be' feature is not set.");
+
+        #[cfg(feature = "rustpgp")]
+        return new_rust_pgp_provider();
+
+        #[cfg(all(not(feature = "rustpgp"), feature = "gopgp"))]
+        return new_go_pgp_provider();
+
+        #[cfg(not(any(feature = "rustpgp", feature = "gopgp")))]
+        compile_error!("At least one of 'rustpgp' or 'gopgp' features must be enabled.");
+    }
+
+    /// Factory function to create a asynchronous `PGPProvider`.
+    pub fn new_pgp_provider_async() -> impl PGPProviderAsync {
+        #[cfg(all(feature = "rustpgp", feature = "gopgp", not(feature = "multi_be")))]
+        compile_error!("Multiple crypto backends enabled, but 'multi_be' feature is not set.");
+
+        #[cfg(feature = "rustpgp")]
+        return new_rust_pgp_provider_async();
+
+        #[cfg(all(not(feature = "rustpgp"), feature = "gopgp"))]
+        return new_go_pgp_provider_async();
+
+        #[cfg(not(any(feature = "rustpgp", feature = "gopgp")))]
+        compile_error!("At least one of 'rustpgp' or 'gopgp' features must be enabled.");
+    }
+
+    #[cfg(feature = "gopgp")]
+    pub fn new_go_pgp_provider() -> impl PGPProviderSync {
+        super::go::pgp::GoPGPProvider(crypto_clock())
+    }
+
+    #[cfg(feature = "gopgp")]
+    pub fn new_go_pgp_provider_async() -> impl PGPProviderAsync {
+        super::go::pgp::GoPGPProvider(crypto_clock())
+    }
 
     #[cfg(feature = "rustpgp")]
-    return new_rust_pgp_provider();
-
-    #[cfg(all(not(feature = "rustpgp"), feature = "gopgp"))]
-    return new_go_pgp_provider();
-
-    #[cfg(not(any(feature = "rustpgp", feature = "gopgp")))]
-    compile_error!("At least one of 'rustpgp' or 'gopgp' features must be enabled.");
-}
-
-/// Factory function to create a asynchronous `PGPProvider`.
-pub fn new_pgp_provider_async() -> impl PGPProviderAsync {
-    #[cfg(all(feature = "rustpgp", feature = "gopgp", not(feature = "multi_be")))]
-    compile_error!("Multiple crypto backends enabled, but 'multi_be' feature is not set.");
+    pub fn new_rust_pgp_provider() -> impl PGPProviderSync {
+        super::rust::pgp::RustPGPProvider::new(crypto_clock())
+    }
 
     #[cfg(feature = "rustpgp")]
-    return new_rust_pgp_provider_async();
-
-    #[cfg(all(not(feature = "rustpgp"), feature = "gopgp"))]
-    return new_go_pgp_provider_async();
-
-    #[cfg(not(any(feature = "rustpgp", feature = "gopgp")))]
-    compile_error!("At least one of 'rustpgp' or 'gopgp' features must be enabled.");
-}
-
-#[cfg(feature = "gopgp")]
-pub fn new_go_pgp_provider() -> impl PGPProviderSync {
-    go::pgp::GoPGPProvider(crypto_clock())
-}
-
-#[cfg(feature = "gopgp")]
-pub fn new_go_pgp_provider_async() -> impl PGPProviderAsync {
-    go::pgp::GoPGPProvider(crypto_clock())
-}
-
-#[cfg(feature = "rustpgp")]
-pub fn new_rust_pgp_provider() -> impl PGPProviderSync {
-    rust::pgp::RustPGPProvider::new(crypto_clock())
-}
-
-#[cfg(feature = "rustpgp")]
-pub fn new_rust_pgp_provider_async() -> impl PGPProviderAsync {
-    rust::pgp::RustPGPProvider::new(crypto_clock())
+    pub fn new_rust_pgp_provider_async() -> impl PGPProviderAsync {
+        super::rust::pgp::RustPGPProvider::new(crypto_clock())
+    }
 }
 
 /// Factory function to create an `SRPProvider`.

@@ -22,6 +22,7 @@ unused_extern_crates ="warn"
 unused_import_braces="warn"
 trivial_casts="warn"
 unused_qualifications="warn"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(forcego)"] }
 
 [workspace.lints.clippy]
 cast_possible_truncation="warn"
