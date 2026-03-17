@@ -12,7 +12,7 @@ use super::{AsPublicKeyRef, DataEncoding, PublicKey, UnixTimestamp, Verification
 /// If `is_required` is false, the signature is allowed to have no context set.
 /// If `required_after` is != 0, the signature is allowed to have no context set if it
 /// was created before the unix time set in `required_after`.
-pub trait VerificationContext: Clone + Send + Sync {
+pub trait VerificationContext: Clone + Send + Sync + 'static {
     // Returns the context value.
     fn value(&self) -> impl AsRef<str>;
 
@@ -35,7 +35,7 @@ where
 }
 
 /// Represents decrypted PGP data that might have been verified with a signature.  
-pub trait VerifiedData: AsRef<[u8]> + Sized {
+pub trait VerifiedData: AsRef<[u8]> + Sized + 'static {
     /// Borrow the raw inner data.
     ///
     /// WARNING: Accessing this data directly ignores the result of the verification.
@@ -85,7 +85,7 @@ pub trait VerifiedData: AsRef<[u8]> + Sized {
 
 /// `Verifier` provides a builder API to verify signatures with `OpenPGP` signature operations.
 pub trait Verifier<'a> {
-    type PublicKey: PublicKey + 'a;
+    type PublicKey: PublicKey;
     type VerifiedData: VerifiedData;
     type VerificationContext: VerificationContext;
     /// Adds the `OpenPGP` verification key for verifying the signatures.

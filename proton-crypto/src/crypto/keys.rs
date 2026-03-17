@@ -5,7 +5,7 @@ use super::{OpenPGPFingerprint, OpenPGPKeyID, SHA256Fingerprint, UnixTimestamp};
 use super::SessionKeyAlgorithm;
 
 /// Represents a PGP session key.
-pub trait SessionKey: Clone + Send + Sync {
+pub trait SessionKey: Clone + Send + Sync + 'static {
     /// Export the session key as bytes.
     fn export(&self) -> impl AsRef<[u8]>;
 
@@ -16,10 +16,10 @@ pub trait SessionKey: Clone + Send + Sync {
 }
 
 /// Represents a PGP key containing public keys.
-pub trait PublicKey: AccessKeyInfo + Clone + AsPublicKeyRef<Self> + Send + Sync {}
+pub trait PublicKey: AccessKeyInfo + Clone + AsPublicKeyRef<Self> + Send + Sync + 'static {}
 
 /// Represents a PGP key containing unlocked private keys.
-pub trait PrivateKey: AccessKeyInfo + Clone + AsRef<Self> + Send + Sync {}
+pub trait PrivateKey: AccessKeyInfo + Clone + AsRef<Self> + Send + Sync + 'static {}
 
 /// A customized `AsRef` trait for public keys to avoid conflicting implementations.
 ///

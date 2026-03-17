@@ -1,5 +1,7 @@
 use std::{future::Future, io};
 
+use crate::crypto::SessionKey;
+
 use super::{
     AsPublicKeyRef, DataEncoding, PrivateKey, PublicKey, UnixTimestamp, VerificationContext,
     VerifiedData, VerifiedDataReader,
@@ -10,13 +12,13 @@ use super::DetachedSignatureVariant;
 /// `Decryptor` provides a builder API to decrypt data with `OpenPGP` operations.
 pub trait Decryptor<'a> {
     /// `OpenPGP` session key type.
-    type SessionKey;
+    type SessionKey: SessionKey;
 
     /// `OpenPGP` private key type.
-    type PrivateKey: PrivateKey + 'a;
+    type PrivateKey: PrivateKey;
 
     /// `OpenPGP` public key type.
-    type PublicKey: PublicKey + 'a;
+    type PublicKey: PublicKey;
 
     /// Type for data that has been verified against `OpenPGP` signatures.
     type VerifiedData: VerifiedData;

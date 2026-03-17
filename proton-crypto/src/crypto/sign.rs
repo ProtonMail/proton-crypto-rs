@@ -11,13 +11,16 @@ use super::{DataEncoding, EncryptorWriter, PrivateKey, UnixTimestamp};
 /// For example, if app A uses a context `a` and app B uses a context `b` for its signatures, an
 /// adversary cannot misuse a signature from app A in app B, since each App checks the custom
 /// signature context on signature verification.
-pub trait SigningContext: Clone + Send + Sync {}
+pub trait SigningContext: Clone + Send + Sync + 'static {}
 
 /// `Signer` provides a builder API to sign data and create signatures with `OpenPGP` operations.
 pub trait Signer<'a> {
-    type PrivateKey: PrivateKey + 'a;
+    type PrivateKey: PrivateKey;
+
     type SigningContext: SigningContext;
+
     type SignerWriter<'b, T: io::Write + 'b>: EncryptorWriter<'b, T>;
+
     /// Adds an `OpenPGP` key for creating a signature over the data.
     ///
     /// For each signing key provided, the signer will create a signature over the input data.

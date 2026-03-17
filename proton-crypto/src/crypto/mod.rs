@@ -36,7 +36,7 @@ mod armor;
 pub use armor::*;
 
 /// `PGPProvider` provides access to an `OpenPGP` implementation.
-pub trait PGPProvider: Send + Sync {
+pub trait PGPProvider: Send + Sync + 'static {
     /// An `OpenPGP` session key type.
     type SessionKey: SessionKey;
 

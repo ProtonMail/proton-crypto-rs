@@ -1,6 +1,8 @@
 use std::{future::Future, io};
 
-use crate::crypto::{DetachedMessageData, DetachedSignatureVariant, SigningMode, WritingMode};
+use crate::crypto::{
+    DetachedMessageData, DetachedSignatureVariant, SessionKey, SigningMode, WritingMode,
+};
 
 use super::{
     AsPublicKeyRef, DataEncoding, OpenPGPKeyID, PrivateKey, PublicKey, SigningContext,
@@ -8,7 +10,7 @@ use super::{
 };
 
 /// Represent an `OpenPGP` message with encrypted data.
-pub trait PGPMessage: AsRef<[u8]> + Send + Sync {
+pub trait PGPMessage: AsRef<[u8]> + Send + Sync + 'static {
     /// Returns the serialized armored pgp message.
     fn armor(&self) -> crate::Result<Vec<u8>>;
 
@@ -52,13 +54,13 @@ where
 /// `Encryptor` provides a builder API to encrypt data with `OpenPGP` operations.
 pub trait Encryptor<'a> {
     /// `OpenPGP` session key type.
-    type SessionKey;
+    type SessionKey: SessionKey;
 
     /// `OpenPGP` privates key type.
-    type PrivateKey: PrivateKey + 'a;
+    type PrivateKey: PrivateKey;
 
     /// `OpenPGP` public key type.
-    type PublicKey: PublicKey + 'a;
+    type PublicKey: PublicKey;
 
     /// Type for encrypted `OpenPGP` messages.
     type PGPMessage: PGPMessage;
