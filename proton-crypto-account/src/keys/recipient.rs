@@ -111,8 +111,8 @@ impl<P: PGPProviderSync> AddressKeyForEmailSelector<P> {
 
     /// Returns the signature verification preferences for the selected email address.
     ///
-    /// Verification perfernces are used to verify signatures from a specific email identity.
-    /// Verifcation prefernces consider key flags and consider pinned keys if available.
+    /// Verification perferences are used to verify signatures from a specific email identity.
+    /// Verification preferences consider key flags and consider pinned keys if available.
     pub fn for_signature_verification(&self) -> VerificationPreferences<P::PublicKey> {
         match self {
             Self::Owned { address_keys } => {

@@ -445,7 +445,7 @@ impl<'a, P: PGPProviderSync> AddressKeySelector<'a, P> {
 
     /// Returns the primary address key for encryption considering PQC keys of the selected address.
     ///
-    /// With PQC the primary key selection logic cosniders PQC keys.
+    /// With PQC the primary key selection logic includes PQC keys.
     /// Only use this function if PQC keys should be considered, might break compatibility with old code.
     ///
     /// The returned primrary key provides methods to access keys per operation:
