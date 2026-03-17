@@ -7,7 +7,7 @@ use crate::{
         generate_locked_pgp_key_with_token, generate_token_values, unlock_legacy_key,
         unlock_legacy_key_async,
     },
-    errors::{AccountCryptoError, AddressKeySelectionError, KeySerializationError},
+    errors::{AccountCryptoError, KeySelectionError, KeySerializationError},
     salts::KeySecret,
 };
 
@@ -123,14 +123,14 @@ impl<Provider: PGPProviderSync> UnlockedAddressKeys<Provider> {
         &self,
     ) -> Result<
         PrimaryUnlockedAddressKey<Provider::PrivateKey, Provider::PublicKey>,
-        AddressKeySelectionError,
+        KeySelectionError,
     > {
         // Select the first v4 key in the list as the flag can not be trusted (legacy).
         let primary_v4_opt = self.0.iter().find(|key| !key.is_v6);
         // Select the v6 key flagged as primary.
         let primary_v6_opt = self.0.iter().find(|key| key.is_v6 && key.primary);
         match (primary_v4_opt, primary_v6_opt) {
-            (None, None) => Err(AddressKeySelectionError::NoPrimaryAddressKey),
+            (None, None) => Err(KeySelectionError::NoPrimaryAddressKey),
             (None, Some(primary_v6)) => Ok(PrimaryUnlockedAddressKey {
                 id: primary_v6.id.clone(),
                 flags: primary_v6.flags,
@@ -157,6 +157,20 @@ impl<Provider: PGPProviderSync> UnlockedAddressKeys<Provider> {
             }),
         }
     }
+
+    /// Transforms the unlocked user keys into a user key selector.
+    ///
+    /// The selector can be use to seclect keys for `OpenPGP` operations.
+    pub fn into_selector(self) -> AddressKeySelector<Provider> {
+        self.into()
+    }
+
+    /// Creates a user key selector from the unlocked user keys.
+    ///
+    /// The selector can be use to seclect keys for `OpenPGP` operations.
+    pub fn selector(&self) -> AddressKeySelector<Provider> {
+        self.clone().into()
+    }
 }
 
 /// Type that represent and primary address key for e-mail encryption and signing.
@@ -178,11 +192,11 @@ pub struct PrimaryUnlockedAddressKey<Priv: PrivateKey, Pub: PublicKey> {
 impl<Priv: PrivateKey, Pub: PublicKey> TryFrom<DecryptedAddressKey<Priv, Pub>>
     for PrimaryUnlockedAddressKey<Priv, Pub>
 {
-    type Error = AddressKeySelectionError;
+    type Error = KeySelectionError;
 
     fn try_from(value: DecryptedAddressKey<Priv, Pub>) -> Result<Self, Self::Error> {
         if value.is_v6 || !value.primary {
-            return Err(AddressKeySelectionError::InvalidPrimaryTransform(value.id));
+            return Err(KeySelectionError::InvalidPrimaryTransform(value.id));
         }
         Ok(Self {
             id: value.id,
@@ -397,6 +411,72 @@ impl AddressKeys {
         self.0
             .iter()
             .any(|locked_key| locked_key.token.is_none() || locked_key.signature.is_none())
+    }
+}
+
+/// Key selector for the unlocked address keys of an account for a specific address.
+pub struct AddressKeySelector<P: PGPProviderSync> {
+    address_keys: UnlockedAddressKeys<P>,
+}
+
+impl<P: PGPProviderSync> AddressKeySelector<P> {
+    /// Returns the primary address key of the selected address.
+    pub fn primary(&self) -> Result<&UnlockedAddressKey<P>, KeySelectionError> {
+        self.address_keys
+            .primary_default()
+            .ok_or(KeySelectionError::NoPrimaryAddressKey)
+    }
+
+    /// Returns the primary address key for encryption considering PQC keys of the selected address.
+    ///
+    /// With PQC the primary key selection logic cosniders PQC keys.
+    /// Only use this function if PQC keys should be considered, might break compatibility with old code.
+    ///
+    /// The returned primrary key provides methods to access keys per operation:
+    /// - [`PrimaryUnlockedAddressKey::for_encryption`] to get the public key for encryption.
+    /// - [`PrimaryUnlockedAddressKey::for_signing`] to get the private key for signing.
+    pub fn primary_address_key_with_pqc(
+        &self,
+    ) -> Result<PrimaryUnlockedAddressKey<P::PrivateKey, P::PublicKey>, KeySelectionError> {
+        self.address_keys.primary_for_mail()
+    }
+
+    /// Returns the public key for encryption of the selected address.
+    pub fn for_encryption(&self) -> Result<&P::PublicKey, KeySelectionError> {
+        self.primary().map(AsPublicKeyRef::as_public_key)
+    }
+
+    /// Returns the private key for signing of the selected address.
+    pub fn for_signing(&self) -> Result<&P::PrivateKey, KeySelectionError> {
+        self.primary().map(AsRef::as_ref)
+    }
+
+    /// Returns the address keys for decryption of the selected address.
+    #[must_use]
+    pub fn for_decryption(&self) -> &[UnlockedAddressKey<P>] {
+        &self.address_keys
+    }
+
+    /// Returns the address keys for signature verification of the selected address.
+    ///
+    /// This method includes all address keys that are unlockable, but it does not consider key flags.
+    #[must_use]
+    pub fn for_signature_verification(&self) -> &[UnlockedAddressKey<P>] {
+        &self.address_keys
+    }
+
+    /// Transform into the raw unlocked address keys.
+    ///
+    /// Only use this function if you absolutely need to access the raw unlocked address keys.
+    #[must_use]
+    pub fn into_raw_keys(self) -> UnlockedAddressKeys<P> {
+        self.address_keys
+    }
+}
+
+impl<P: PGPProviderSync> From<UnlockedAddressKeys<P>> for AddressKeySelector<P> {
+    fn from(address_keys: UnlockedAddressKeys<P>) -> Self {
+        Self { address_keys }
     }
 }
 

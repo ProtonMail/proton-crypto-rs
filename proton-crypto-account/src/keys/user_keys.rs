@@ -5,7 +5,7 @@ use futures::future::join_all;
 use super::{ArmoredPrivateKey, KeyId, LockedKey, UnlockResult};
 use crate::{
     crypto::generate_locked_pgp_key,
-    errors::{AccountCryptoError, KeyError},
+    errors::{AccountCryptoError, KeyError, KeySelectionError},
     salts::KeySecret,
 };
 use proton_crypto::crypto::{
@@ -82,6 +82,20 @@ impl<Provider: PGPProviderSync> UnlockedUserKeys<Provider> {
         // For now we treat the first key in the list as primary.
         // - This might change with key transparency in place.
         self.0.first()
+    }
+
+    /// Transforms the unlocked user keys into a user key selector.
+    ///
+    /// The selector can be use to seclect keys for `OpenPGP` operations.
+    pub fn into_selector(self) -> UserKeySelector<Provider> {
+        self.into()
+    }
+
+    /// Creates a user key selector from the unlocked user keys.
+    ///
+    /// The selector can be use to seclect keys for `OpenPGP` operations.
+    pub fn selector(&self) -> UserKeySelector<Provider> {
+        self.clone().into()
     }
 }
 
@@ -205,6 +219,60 @@ impl UserKeys {
             unlocked_keys: decrypted_user_keys,
             failed: failed_keys,
         }
+    }
+}
+
+/// Key selector for the unlocked user keys of an account.
+pub struct UserKeySelector<P: PGPProviderSync> {
+    user_keys: UnlockedUserKeys<P>,
+}
+
+impl<P: PGPProviderSync> UserKeySelector<P> {
+    pub fn new(user_keys: UnlockedUserKeys<P>) -> Self {
+        Self { user_keys }
+    }
+
+    /// Returns the primary user key of this account.
+    pub fn primary(&self) -> Result<&UnlockedUserKey<P>, KeySelectionError> {
+        self.user_keys
+            .primary()
+            .ok_or(KeySelectionError::NoPrimaryUserKey)
+    }
+
+    /// Returns the public key for encryption of this account.
+    pub fn for_encryption(&self) -> Result<&P::PublicKey, KeySelectionError> {
+        self.primary().map(AsPublicKeyRef::as_public_key)
+    }
+
+    /// Returns the private key for signing of this account.
+    pub fn for_signing(&self) -> Result<&P::PrivateKey, KeySelectionError> {
+        self.primary().map(AsRef::as_ref)
+    }
+
+    /// Returns the user keys for signature verification of this account.
+    #[must_use]
+    pub fn for_signature_verification(&self) -> &[UnlockedUserKey<P>] {
+        &self.user_keys
+    }
+
+    /// Returns the user keys for decryption of this account.
+    #[must_use]
+    pub fn for_decryption(&self) -> &[UnlockedUserKey<P>] {
+        &self.user_keys
+    }
+
+    /// Transform into the raw unlocked user keys.
+    ///
+    /// Only use this function if you absolutely need to access the raw unlocked user keys.
+    #[must_use]
+    pub fn into_raw_keys(self) -> UnlockedUserKeys<P> {
+        self.user_keys
+    }
+}
+
+impl<P: PGPProviderSync> From<UnlockedUserKeys<P>> for UserKeySelector<P> {
+    fn from(user_keys: UnlockedUserKeys<P>) -> Self {
+        Self { user_keys }
     }
 }
 

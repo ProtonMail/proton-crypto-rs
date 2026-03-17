@@ -18,7 +18,9 @@ pub enum KeyError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum AddressKeySelectionError {
+pub enum KeySelectionError {
+    #[error("No valid primary user key found")]
+    NoPrimaryUserKey,
     #[error("No valid primary address key found")]
     NoPrimaryAddressKey,
     #[error("Cannot transform address key to primary address key: {0}")]
@@ -131,5 +133,5 @@ assert_send_static!(
     AccountCryptoError,
     KeyError,
     KeySerializationError,
-    AddressKeySelectionError,
+    KeySelectionError,
 );

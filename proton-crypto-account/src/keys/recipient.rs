@@ -4,16 +4,139 @@ use std::{
 };
 
 use proton_crypto::{
-    crypto::{AsPublicKeyRef, OpenPGPFingerprint, PrivateKey, PublicKey, UnixTimestamp},
+    crypto::{
+        AsPublicKeyRef, OpenPGPFingerprint, PGPProviderSync, PrivateKey, PublicKey, UnixTimestamp,
+    },
     keytransparency::{KTVerificationResult, KT_UNVERIFIED, KT_VERIFIED},
 };
 
-use crate::{errors::EncryptionPreferencesError, keys::DecryptedAddressKey};
+use crate::{
+    errors::{EncryptionPreferencesError, KeySelectionError},
+    keys::{DecryptedAddressKey, UnlockedAddressKeys},
+};
 
 use super::{
     EmailMimeType, InboxPublicKeys, PGPScheme, PinnedPublicKeys, PublicAddressKey,
     PublicAddressKeys,
 };
+
+/// Selector for the public address keys of an email address.
+#[allow(clippy::large_enum_variant)]
+pub enum AddressKeyForEmailSelector<P: PGPProviderSync> {
+    /// The email address is owned by the user.
+    Owned {
+        address_keys: UnlockedAddressKeys<P>,
+    },
+    /// The email address is not owned by the user.
+    Other {
+        api_keys: PublicAddressKeys<P::PublicKey>,
+        vcard_keys: Option<PinnedPublicKeys<P::PublicKey>>,
+    },
+}
+
+impl<P: PGPProviderSync> AddressKeyForEmailSelector<P> {
+    pub fn new_with_self_owned_keys(address_keys: UnlockedAddressKeys<P>) -> Self {
+        Self::Owned { address_keys }
+    }
+
+    pub fn new_with_api_keys(
+        api_keys: PublicAddressKeys<P::PublicKey>,
+        vcard_keys: Option<PinnedPublicKeys<P::PublicKey>>,
+    ) -> Self {
+        Self::Other {
+            api_keys,
+            vcard_keys,
+        }
+    }
+
+    /// Returns the public key for encryption of the selected email address.
+    pub fn for_encryption(&self) -> Result<&P::PublicKey, KeySelectionError> {
+        match self {
+            Self::Owned { address_keys } => address_keys
+                .primary_default()
+                .ok_or(KeySelectionError::NoPrimaryAddressKey)
+                .map(AsPublicKeyRef::as_public_key),
+            Self::Other {
+                api_keys,
+                vcard_keys: _,
+            } => api_keys
+                .address
+                .keys
+                .first()
+                .ok_or(KeySelectionError::NoPrimaryAddressKey)
+                .map(AsPublicKeyRef::as_public_key),
+        }
+    }
+
+    /// Returns the encryption preferences for the selected email address.
+    ///
+    /// Encryption preferences are used to determine the encryption preferences for the selected email address
+    /// and encode more information than just keys.
+    /// They include whether the email should be encrypted, whether the email should be signed, the contact type,
+    /// the PGP scheme, the MIME type, the selected key, whether the selected key is pinned, whether the email should be sent unencrypted.
+    pub fn for_inbox_encryption(
+        &self,
+        is_address_external: bool,
+        prefer_pqc: bool,
+        crypto_mail_settings: CryptoMailSettings,
+        encryption_time: UnixTimestamp,
+    ) -> Result<EncryptionPreferences<P::PublicKey>, EncryptionPreferencesError> {
+        match self {
+            Self::Owned { address_keys } => {
+                EncryptionPreferences::from_unlocked_address_keys_and_settings(
+                    is_address_external,
+                    address_keys,
+                    crypto_mail_settings,
+                    encryption_time,
+                )
+            }
+            Self::Other {
+                api_keys,
+                vcard_keys,
+            } => {
+                let recipient_key_model = RecipientPublicKeyModel::from_public_keys_at_time(
+                    api_keys.clone(),
+                    vcard_keys.clone(),
+                    encryption_time,
+                    prefer_pqc,
+                );
+
+                EncryptionPreferences::from_key_model_and_settings(
+                    recipient_key_model,
+                    &crypto_mail_settings,
+                )
+            }
+        }
+    }
+
+    /// Returns the signature verification preferences for the selected email address.
+    ///
+    /// Verification perfernces are used to verify signatures from a specific email identity.
+    /// Verifcation prefernces consider key flags and consider pinned keys if available.
+    pub fn for_signature_verification(&self) -> VerificationPreferences<P::PublicKey> {
+        match self {
+            Self::Owned { address_keys } => {
+                VerificationPreferences::from_unlocked_address_keys(address_keys)
+            }
+            Self::Other {
+                api_keys,
+                vcard_keys,
+            } => VerificationPreferences::from_public_keys(api_keys.clone(), vcard_keys.clone()),
+        }
+    }
+}
+
+impl<P: PGPProviderSync> From<UnlockedAddressKeys<P>> for AddressKeyForEmailSelector<P> {
+    fn from(value: UnlockedAddressKeys<P>) -> Self {
+        Self::new_with_self_owned_keys(value)
+    }
+}
+
+impl<P: PGPProviderSync> From<PublicAddressKeys<P::PublicKey>> for AddressKeyForEmailSelector<P> {
+    fn from(value: PublicAddressKeys<P::PublicKey>) -> Self {
+        Self::new_with_api_keys(value, None)
+    }
+}
 
 /// Represents the public key information and preferences for a recipient.
 ///
