@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use futures::future::join_all;
 
@@ -87,15 +87,19 @@ impl<Provider: PGPProviderSync> UnlockedUserKeys<Provider> {
     /// Transforms the unlocked user keys into a user key selector.
     ///
     /// The selector can be use to seclect keys for `OpenPGP` operations.
-    pub fn into_selector(self) -> UserKeySelector<Provider> {
-        self.into()
+    pub fn into_selector<'a>(self) -> UserKeySelector<'a, Provider>
+    where
+        Self: 'a,
+        Provider: 'a,
+    {
+        UserKeySelector::new(self)
     }
 
     /// Creates a user key selector from the unlocked user keys.
     ///
     /// The selector can be use to seclect keys for `OpenPGP` operations.
-    pub fn selector(&self) -> UserKeySelector<Provider> {
-        self.clone().into()
+    pub fn selector(&self) -> UserKeySelector<'_, Provider> {
+        UserKeySelector::new_with_ref(self)
     }
 }
 
@@ -223,13 +227,21 @@ impl UserKeys {
 }
 
 /// Key selector for the unlocked user keys of an account.
-pub struct UserKeySelector<P: PGPProviderSync> {
-    user_keys: UnlockedUserKeys<P>,
+pub struct UserKeySelector<'a, P: PGPProviderSync> {
+    user_keys: Cow<'a, UnlockedUserKeys<P>>,
 }
 
-impl<P: PGPProviderSync> UserKeySelector<P> {
+impl<'a, P: PGPProviderSync> UserKeySelector<'a, P> {
     pub fn new(user_keys: UnlockedUserKeys<P>) -> Self {
-        Self { user_keys }
+        Self {
+            user_keys: Cow::Owned(user_keys),
+        }
+    }
+
+    pub fn new_with_ref(user_keys: &'a UnlockedUserKeys<P>) -> Self {
+        Self {
+            user_keys: Cow::Borrowed(user_keys),
+        }
     }
 
     /// Returns the primary user key of this account.
@@ -266,13 +278,23 @@ impl<P: PGPProviderSync> UserKeySelector<P> {
     /// Only use this function if you absolutely need to access the raw unlocked user keys.
     #[must_use]
     pub fn into_raw_keys(self) -> UnlockedUserKeys<P> {
-        self.user_keys
+        self.user_keys.into_owned()
     }
 }
 
-impl<P: PGPProviderSync> From<UnlockedUserKeys<P>> for UserKeySelector<P> {
+impl<'a, P: PGPProviderSync> From<UnlockedUserKeys<P>> for UserKeySelector<'a, P>
+where
+    Self: 'a,
+    P: 'a,
+{
     fn from(user_keys: UnlockedUserKeys<P>) -> Self {
-        Self { user_keys }
+        Self::new(user_keys)
+    }
+}
+
+impl<'a, P: PGPProviderSync> From<&'a UnlockedUserKeys<P>> for UserKeySelector<'a, P> {
+    fn from(user_keys: &'a UnlockedUserKeys<P>) -> Self {
+        Self::new_with_ref(user_keys)
     }
 }
 

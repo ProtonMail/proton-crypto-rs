@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use futures::future::join_all;
 
@@ -161,15 +161,19 @@ impl<Provider: PGPProviderSync> UnlockedAddressKeys<Provider> {
     /// Transforms the unlocked user keys into a user key selector.
     ///
     /// The selector can be use to seclect keys for `OpenPGP` operations.
-    pub fn into_selector(self) -> AddressKeySelector<Provider> {
-        self.into()
+    pub fn into_selector<'a>(self) -> AddressKeySelector<'a, Provider>
+    where
+        Self: 'a,
+        Provider: 'a,
+    {
+        AddressKeySelector::new(self)
     }
 
     /// Creates a user key selector from the unlocked user keys.
     ///
     /// The selector can be use to seclect keys for `OpenPGP` operations.
-    pub fn selector(&self) -> AddressKeySelector<Provider> {
-        self.clone().into()
+    pub fn selector(&self) -> AddressKeySelector<'_, Provider> {
+        AddressKeySelector::new_with_ref(self)
     }
 }
 
@@ -415,11 +419,23 @@ impl AddressKeys {
 }
 
 /// Key selector for the unlocked address keys of an account for a specific address.
-pub struct AddressKeySelector<P: PGPProviderSync> {
-    address_keys: UnlockedAddressKeys<P>,
+pub struct AddressKeySelector<'a, P: PGPProviderSync> {
+    address_keys: Cow<'a, UnlockedAddressKeys<P>>,
 }
 
-impl<P: PGPProviderSync> AddressKeySelector<P> {
+impl<'a, P: PGPProviderSync> AddressKeySelector<'a, P> {
+    pub fn new(address_keys: UnlockedAddressKeys<P>) -> Self {
+        Self {
+            address_keys: Cow::Owned(address_keys),
+        }
+    }
+
+    pub fn new_with_ref(address_keys: &'a UnlockedAddressKeys<P>) -> Self {
+        Self {
+            address_keys: Cow::Borrowed(address_keys),
+        }
+    }
+
     /// Returns the primary address key of the selected address.
     pub fn primary(&self) -> Result<&UnlockedAddressKey<P>, KeySelectionError> {
         self.address_keys
@@ -470,13 +486,23 @@ impl<P: PGPProviderSync> AddressKeySelector<P> {
     /// Only use this function if you absolutely need to access the raw unlocked address keys.
     #[must_use]
     pub fn into_raw_keys(self) -> UnlockedAddressKeys<P> {
-        self.address_keys
+        self.address_keys.into_owned()
     }
 }
 
-impl<P: PGPProviderSync> From<UnlockedAddressKeys<P>> for AddressKeySelector<P> {
+impl<'a, P: PGPProviderSync> From<UnlockedAddressKeys<P>> for AddressKeySelector<'a, P>
+where
+    Self: 'a,
+    P: 'a,
+{
     fn from(address_keys: UnlockedAddressKeys<P>) -> Self {
-        Self { address_keys }
+        Self::new(address_keys)
+    }
+}
+
+impl<'a, P: PGPProviderSync> From<&'a UnlockedAddressKeys<P>> for AddressKeySelector<'a, P> {
+    fn from(address_keys: &'a UnlockedAddressKeys<P>) -> Self {
+        Self::new_with_ref(address_keys)
     }
 }
 
