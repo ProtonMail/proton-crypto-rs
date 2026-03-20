@@ -23,7 +23,7 @@ pub type UnlockedUserKey<Provider: PGPProviderSync> =
 
 /// The unlocked user keys owned by a user.
 #[allow(clippy::module_name_repetitions)]
-pub struct UnlockedUserKeys<Provider: PGPProviderSync>(pub Vec<UnlockedUserKey<Provider>>);
+pub struct UnlockedUserKeys<Provider: PGPProviderSync>(Vec<UnlockedUserKey<Provider>>);
 
 impl<Provider: PGPProviderSync> Deref for UnlockedUserKeys<Provider> {
     type Target = Vec<UnlockedUserKey<Provider>>;
@@ -146,7 +146,7 @@ impl<Provider: PGPProviderSync> UnlockedUserKeys<Provider> {
 
     /// Deserializes the unlocked user keys from a recovery blob.
     ///
-    /// The returned keys have fingerpints as key ids instead of the BE keys ids.
+    /// The returned keys have fingerprints as key ids instead of the BE keys ids.
     /// To lock them with a new secret use [`LocalUserKey::relock_user_key`].
     pub fn deserialize_from_recovery_blob(
         pgp_provider: &Provider,

@@ -228,7 +228,7 @@ pub trait PGPProviderSync: PGPProvider {
     /// The binary blob is a concatenation of the unlocked private keys.
     fn private_keys_import_unlocked(
         &self,
-        private_key: impl AsRef<[u8]>,
+        private_keys: impl AsRef<[u8]>,
     ) -> crate::Result<Vec<Self::PrivateKey>>;
 
     /// Export the PGP private key without locking it.
