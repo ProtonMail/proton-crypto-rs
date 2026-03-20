@@ -115,6 +115,15 @@ impl PGPProviderSync for GoPGPProvider {
         private_key_import(private_key, passphrase, encoding)
     }
 
+    fn private_keys_import_unlocked(
+        &self,
+        private_key: impl AsRef<[u8]>,
+    ) -> crate::Result<Vec<Self::PrivateKey>> {
+        gopenpgp_sys::import_private_keys_unlocked(private_key.as_ref())
+            .map(|values| values.into_iter().map(GoPrivateKey).collect())
+            .map_err(Into::into)
+    }
+
     fn private_key_export(
         &self,
         private_key: &Self::PrivateKey,

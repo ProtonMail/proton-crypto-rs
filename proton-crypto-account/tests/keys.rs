@@ -3,7 +3,7 @@ use proton_crypto::{new_pgp_provider, new_srp_provider};
 use proton_crypto_account::keys::{
     AddressKeys, ArmoredPrivateKey, DecryptedUserKey, EncryptedKeyToken, KeyFlag, KeyId,
     KeyTokenSignature, LocalAddressKey, LocalUserKey, LockedKey, PGPDeviceKey, UnlockedAddressKeys,
-    UserKeys,
+    UnlockedUserKeys, UserKeys,
 };
 use proton_crypto_account::salts::{KeySalt, KeySecret, Salt, Salts};
 
@@ -373,4 +373,27 @@ fn test_device_key() {
         .expect("Export should not fail");
 
     assert_eq!(exported_public_key, exported_public_key_after);
+}
+
+#[test]
+fn test_user_keys_serialize_and_deserialize() {
+    let provider = new_pgp_provider();
+    let user_keys = UnlockedUserKeys::from(get_test_decrypted_user_key(&provider, TEST_USER_KEY));
+    let serialized = user_keys
+        .serialize_to_recovery_blob(&provider)
+        .expect("serialize should not fail");
+    let deserialized = user_keys
+        .deserialize_from_recovery_blob(&provider, serialized.as_slice())
+        .expect("deserialize should not fail");
+    assert_eq!(deserialized.num_keys(), 1);
+
+    let mut locked_user_keys = Vec::new();
+    for key in &deserialized {
+        let locked_key =
+            LocalUserKey::relock_user_key(&provider, key, &KeySecret::new("new_password".into()))
+                .expect("lock should succeed");
+        locked_user_keys.push(locked_key);
+    }
+
+    assert_eq!(locked_user_keys.len(), 1);
 }

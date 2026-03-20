@@ -149,6 +149,34 @@ func pgp_private_key_import(
 	return errorToPGPError(nil)
 }
 
+//export pgp_private_keys_import_unlocked
+func pgp_private_keys_import_unlocked(
+	private_keys *C.cuchar_t,
+	private_keys_len C.size_t,
+	out_keys *C.PGP_HandleArray,
+) (cErr C.PGP_Error) {
+	defer func() {
+		if err := recover(); err != nil {
+			cErr = errorToPGPError(fmt.Errorf("go panic: %v", err))
+		}
+	}()
+	// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block
+	privateKeys := unsafe.Slice((*byte)(private_keys), (C.int)(private_keys_len))
+	keyring, err := crypto.NewKeyRingFromBinary(privateKeys)
+	if err != nil {
+		return errorToPGPError(fmt.Errorf("failed construct private keys: %w", err))
+	}
+
+	handles := make([]C.uintptr_t, len(keyring.GetKeys()))
+	for i, key := range keyring.GetKeys() {
+		handles[i] = (C.uintptr_t)(cgo.NewHandle(key))
+	}
+
+	*out_keys = handleSliceCMem(handles)
+
+	return errorToPGPError(nil)
+}
+
 //export pgp_public_key_import
 func pgp_public_key_import(
 	public_key *C.cuchar_t,

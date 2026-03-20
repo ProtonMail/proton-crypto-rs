@@ -223,6 +223,14 @@ pub trait PGPProviderSync: PGPProvider {
         encoding: DataEncoding,
     ) -> crate::Result<Self::PrivateKey>;
 
+    /// Imports multiple unlocked PGP private keys from a single binary blob.
+    ///
+    /// The binary blob is a concatenation of the unlocked private keys.
+    fn private_keys_import_unlocked(
+        &self,
+        private_key: impl AsRef<[u8]>,
+    ) -> crate::Result<Vec<Self::PrivateKey>>;
+
     /// Export the PGP private key without locking it.
     ///
     /// Exports the private key without encrypting the secrets.

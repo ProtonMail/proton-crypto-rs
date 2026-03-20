@@ -228,6 +228,19 @@ impl LockedPrivateKey {
         Ok(Self::new(secret))
     }
 
+    /// Allows to import multiple locked secret keys from a single binary blob.
+    pub fn import_many_from_blob(key_data: &[u8]) -> crate::Result<Vec<Self>> {
+        let mut locked_keys = Vec::new();
+        for signed_secret_key in
+            SignedSecretKey::from_bytes_many(key_data).map_err(KeyOperationError::Decode)?
+        {
+            locked_keys.push(Self::new(
+                signed_secret_key.map_err(KeyOperationError::Decode)?,
+            ));
+        }
+        Ok(locked_keys)
+    }
+
     /// Export the locked key.
     pub fn export(&self, encoding: DataEncoding) -> crate::Result<Vec<u8>> {
         // The key is already locked.
@@ -292,6 +305,16 @@ impl PrivateKey {
             return Ok(locked.0);
         }
         locked.unlock(password)
+    }
+
+    /// Imports multiple unlocked `OpenPGP` secret keys from a single binary blob.
+    pub fn import_unlocked_many(key_data: &[u8]) -> crate::Result<Vec<PrivateKey>> {
+        let locked_keys = LockedPrivateKey::import_many_from_blob(key_data)?;
+        Ok(locked_keys
+            .into_iter()
+            .filter(|key| !key.is_locked())
+            .map(|key| key.0)
+            .collect())
     }
 
     /// Import an unlocked `OpenPGP` secret key from a byte slice.

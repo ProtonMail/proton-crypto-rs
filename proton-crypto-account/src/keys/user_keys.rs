@@ -1,6 +1,7 @@
 use std::{borrow::Cow, ops::Deref};
 
 use futures::future::join_all;
+use zeroize::Zeroizing;
 
 use super::{ArmoredPrivateKey, KeyId, LockedKey, UnlockResult};
 use crate::{
@@ -9,8 +10,8 @@ use crate::{
     salts::KeySecret,
 };
 use proton_crypto::crypto::{
-    AsPublicKeyRef, DataEncoding, KeyGeneratorAlgorithm, PGPProviderAsync, PGPProviderSync,
-    PrivateKey, PublicKey,
+    AccessKeyInfo, AsPublicKeyRef, DataEncoding, KeyGeneratorAlgorithm, PGPProviderAsync,
+    PGPProviderSync, PrivateKey, PublicKey,
 };
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +23,7 @@ pub type UnlockedUserKey<Provider: PGPProviderSync> =
 
 /// The unlocked user keys owned by a user.
 #[allow(clippy::module_name_repetitions)]
-pub struct UnlockedUserKeys<Provider: PGPProviderSync>(Vec<UnlockedUserKey<Provider>>);
+pub struct UnlockedUserKeys<Provider: PGPProviderSync>(pub Vec<UnlockedUserKey<Provider>>);
 
 impl<Provider: PGPProviderSync> Deref for UnlockedUserKeys<Provider> {
     type Target = Vec<UnlockedUserKey<Provider>>;
@@ -74,6 +75,30 @@ impl<Provider: PGPProviderSync> Clone for UnlockedUserKeys<Provider> {
     }
 }
 
+impl<Provider: PGPProviderSync> IntoIterator for UnlockedUserKeys<Provider> {
+    type Item = UnlockedUserKey<Provider>;
+    type IntoIter = std::vec::IntoIter<UnlockedUserKey<Provider>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a, Provider: PGPProviderSync> IntoIterator for &'a UnlockedUserKeys<Provider> {
+    type Item = &'a UnlockedUserKey<Provider>;
+    type IntoIter = std::slice::Iter<'a, UnlockedUserKey<Provider>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a, Provider: PGPProviderSync> IntoIterator for &'a mut UnlockedUserKeys<Provider> {
+    type Item = &'a mut UnlockedUserKey<Provider>;
+    type IntoIter = std::slice::IterMut<'a, UnlockedUserKey<Provider>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
+
 impl<Provider: PGPProviderSync> UnlockedUserKeys<Provider> {
     /// Retrieves the primary user key for encryption and signing operations
     /// for the user who owns these keys.
@@ -100,6 +125,55 @@ impl<Provider: PGPProviderSync> UnlockedUserKeys<Provider> {
     /// The selector can be use to seclect keys for `OpenPGP` operations.
     pub fn selector(&self) -> UserKeySelector<'_, Provider> {
         UserKeySelector::new_with_ref(self)
+    }
+
+    /// Serializes the unlocked user keys for recovery.
+    ///
+    /// WARNING: This function encodes secret user material and should be used with caution.
+    pub fn serialize_to_recovery_blob(
+        &self,
+        pgp_provider: &Provider,
+    ) -> Result<Zeroizing<Vec<u8>>, AccountCryptoError> {
+        let mut recovery_blob = Zeroizing::new(Vec::new());
+        for key in &self.0 {
+            let key_bytes = pgp_provider
+                .private_key_export_unlocked(&key.private_key, DataEncoding::Bytes)
+                .map_err(AccountCryptoError::KeyExport)?;
+            recovery_blob.extend_from_slice(key_bytes.as_ref());
+        }
+        Ok(recovery_blob)
+    }
+
+    /// Deserializes the unlocked user keys from a recovery blob.
+    ///
+    /// The returned keys have fingerpints as key ids instead of the BE keys ids.
+    /// To lock them with a new secret use [`LocalUserKey::relock_user_key`].
+    pub fn deserialize_from_recovery_blob(
+        &self,
+        pgp_provider: &Provider,
+        recovery_blob: impl AsRef<[u8]>,
+    ) -> Result<Self, AccountCryptoError> {
+        let unlocked_keys = pgp_provider
+            .private_keys_import_unlocked(recovery_blob.as_ref())
+            .map_err(AccountCryptoError::KeyImport)?;
+        let mut unlocked_user_keys = Vec::with_capacity(unlocked_keys.len());
+        for unlocked_key in unlocked_keys {
+            let public_key = pgp_provider
+                .private_key_to_public_key(&unlocked_key)
+                .map_err(AccountCryptoError::KeyImport)?;
+            let id = unlocked_key.key_fingerprint();
+            unlocked_user_keys.push(DecryptedUserKey {
+                id: KeyId::from(id.to_string()),
+                private_key: unlocked_key,
+                public_key,
+            });
+        }
+        Ok(Self(unlocked_user_keys))
+    }
+
+    /// Returns the number of unlocked user keys.
+    pub fn num_keys(&self) -> usize {
+        self.0.len()
     }
 }
 

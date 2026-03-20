@@ -52,6 +52,16 @@ func stringSliceCMem(values []string) C.PGP_StringArray {
 	return C.PGP_StringArray{C.size_t(len(values)), (*C.charptr_t)(array)}
 }
 
+func handleSliceCMem(values []C.uintptr_t) C.PGP_HandleArray {
+	array := C.malloc(C.sizeof_uintptr_t * C.size_t(len(values)))
+	for index := 0; index < len(values); index++ {
+		// nosemgrep: go.lang.security.audit.unsafe.use-of-unsafe-block, gitlab.gosec.G103-1
+		location := (*C.uintptr_t)(unsafe.Pointer(uintptr(array) + uintptr(index*C.sizeof_charptr_t)))
+		*location = values[index]
+	}
+	return C.PGP_HandleArray{C.size_t(len(values)), (*C.uintptr_t)(array)}
+}
+
 func errorToPGPError(err error) C.PGP_Error {
 	cerr := C.PGP_Error{
 		err:     nil,

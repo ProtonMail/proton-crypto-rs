@@ -141,6 +141,12 @@ impl RustPrivateKey {
             .map_err(Into::into)
     }
 
+    pub fn import_unlocked_many(key_data: &[u8]) -> crate::Result<Vec<Self>> {
+        proton_rpgp::PrivateKey::import_unlocked_many(key_data)
+            .map(|keys| keys.into_iter().map(Into::into).collect())
+            .map_err(Into::into)
+    }
+
     pub fn export(
         &self,
         passphrase: impl AsRef<[u8]>,

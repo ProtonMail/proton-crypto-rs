@@ -45,6 +45,8 @@ pub enum AccountCryptoError {
     TokenDecryption(CryptoError),
     #[error("Failed to import key {0}")]
     KeyImport(CryptoError),
+    #[error("Failed to export key {0}")]
+    KeyExport(CryptoError),
     #[error("Failed to export public key from private key {0}")]
     TransformPublic(CryptoError),
     #[error("Failed to generate a fresh key {0}")]

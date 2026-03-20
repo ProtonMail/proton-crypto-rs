@@ -163,6 +163,32 @@ impl GoKey {
     }
 }
 
+pub fn import_private_keys_unlocked(private_keys: &[u8]) -> Result<Vec<PrivateKey>, PGPError> {
+    // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
+    unsafe {
+        let mut key_handles = sys::PGP_HandleArray {
+            num: 0,
+            handles: null_mut(),
+        };
+        let err = sys::pgp_private_keys_import_unlocked(
+            private_keys.as_ptr(),
+            private_keys.len(),
+            &mut key_handles,
+        );
+        PGPError::unwrap(err)?;
+        if key_handles.num == 0 || key_handles.handles.is_null() {
+            return Ok(Vec::new());
+        }
+        let key_handle_slice = std::slice::from_raw_parts(key_handles.handles, key_handles.num);
+        let exported_keys = key_handle_slice
+            .iter()
+            .map(|handle| PrivateKey(Arc::new(GoKey(*handle))))
+            .collect();
+        sys::pgp_free(key_handles.handles as *mut c_void);
+        Ok(exported_keys)
+    }
+}
+
 // For cheap clones we use a reference counter to the go handle.
 // The invariant is that the GoKey is immutable.
 #[derive(Debug, Clone)]

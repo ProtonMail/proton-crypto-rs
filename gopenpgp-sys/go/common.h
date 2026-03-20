@@ -26,4 +26,9 @@ typedef struct {
   charptr_t* strings;
 } PGP_StringArray;
 
+typedef struct {
+  size_t num;
+  uintptr_t* handles;
+} PGP_HandleArray;
+
 #endif /* COMMON_H */

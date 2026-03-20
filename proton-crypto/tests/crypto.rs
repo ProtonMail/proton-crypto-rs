@@ -831,3 +831,23 @@ fn test_api_encrypt_to_writer_split_decrypt() {
     assert_eq!(verified_data.as_bytes(), plaintext.as_bytes());
     assert!(verification_result.is_ok());
 }
+
+#[test]
+fn test_api_private_keys_import_unlocked() {
+    let provider = ProtonPGP::new_sync();
+    let mut many_keys: Vec<u8> = Vec::new();
+
+    let private_key = get_test_private_key(&provider);
+
+    let num_keys = 10;
+    for _ in 0..num_keys {
+        let key_bytes = provider
+            .private_key_export_unlocked(&private_key, DataEncoding::Bytes)
+            .unwrap();
+        many_keys.extend_from_slice(key_bytes.as_ref());
+    }
+    let private_keys = provider
+        .private_keys_import_unlocked(many_keys.as_slice())
+        .unwrap();
+    assert_eq!(private_keys.len(), num_keys);
+}

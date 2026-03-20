@@ -183,6 +183,13 @@ impl PGPProviderSync for RustPGPProvider {
         RustPrivateKey::import(private_key, passphrase, encoding)
     }
 
+    fn private_keys_import_unlocked(
+        &self,
+        private_key: impl AsRef<[u8]>,
+    ) -> crate::Result<Vec<Self::PrivateKey>> {
+        RustPrivateKey::import_unlocked_many(private_key.as_ref())
+    }
+
     fn private_key_export(
         &self,
         private_key: &Self::PrivateKey,
