@@ -127,7 +127,7 @@ impl<Provider: PGPProviderSync> UnlockedUserKeys<Provider> {
         UserKeySelector::new_with_ref(self)
     }
 
-    /// Serializes the unlocked user keys for recovery.
+    /// Serializes the unlocked user keys for recovery into a single binary blob.
     ///
     /// WARNING: This function encodes secret user material and should be used with caution.
     pub fn serialize_to_recovery_blob(
@@ -149,7 +149,6 @@ impl<Provider: PGPProviderSync> UnlockedUserKeys<Provider> {
     /// The returned keys have fingerpints as key ids instead of the BE keys ids.
     /// To lock them with a new secret use [`LocalUserKey::relock_user_key`].
     pub fn deserialize_from_recovery_blob(
-        &self,
         pgp_provider: &Provider,
         recovery_blob: impl AsRef<[u8]>,
     ) -> Result<Self, AccountCryptoError> {

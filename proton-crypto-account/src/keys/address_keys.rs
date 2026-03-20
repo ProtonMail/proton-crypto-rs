@@ -93,6 +93,30 @@ impl<Provider: PGPProviderSync> From<UnlockedAddressKey<Provider>>
     }
 }
 
+impl<Provider: PGPProviderSync> IntoIterator for UnlockedAddressKeys<Provider> {
+    type Item = UnlockedAddressKey<Provider>;
+    type IntoIter = std::vec::IntoIter<UnlockedAddressKey<Provider>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a, Provider: PGPProviderSync> IntoIterator for &'a UnlockedAddressKeys<Provider> {
+    type Item = &'a UnlockedAddressKey<Provider>;
+    type IntoIter = std::slice::Iter<'a, UnlockedAddressKey<Provider>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a, Provider: PGPProviderSync> IntoIterator for &'a mut UnlockedAddressKeys<Provider> {
+    type Item = &'a mut UnlockedAddressKey<Provider>;
+    type IntoIter = std::slice::IterMut<'a, UnlockedAddressKey<Provider>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
+
 impl<Provider: PGPProviderSync> UnlockedAddressKeys<Provider> {
     /// Retrieves the default primary address key for encryption and signing operations.
     ///

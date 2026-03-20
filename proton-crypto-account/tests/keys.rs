@@ -382,9 +382,9 @@ fn test_user_keys_serialize_and_deserialize() {
     let serialized = user_keys
         .serialize_to_recovery_blob(&provider)
         .expect("serialize should not fail");
-    let deserialized = user_keys
-        .deserialize_from_recovery_blob(&provider, serialized.as_slice())
-        .expect("deserialize should not fail");
+    let deserialized =
+        UnlockedUserKeys::deserialize_from_recovery_blob(&provider, serialized.as_slice())
+            .expect("deserialize should not fail");
     assert_eq!(deserialized.num_keys(), 1);
 
     let mut locked_user_keys = Vec::new();
