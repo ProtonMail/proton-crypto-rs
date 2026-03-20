@@ -8,6 +8,7 @@ pub mod contacts;
 mod crypto;
 pub mod errors;
 pub mod keys;
+pub mod recovery;
 pub mod salts;
 
 // re-export crypto crate;
