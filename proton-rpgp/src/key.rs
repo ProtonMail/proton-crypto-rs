@@ -310,11 +310,10 @@ impl PrivateKey {
     /// Imports multiple unlocked `OpenPGP` secret keys from a single binary blob.
     pub fn import_unlocked_many(key_data: &[u8]) -> crate::Result<Vec<PrivateKey>> {
         let locked_keys = LockedPrivateKey::import_many(key_data)?;
-        Ok(locked_keys
-            .into_iter()
-            .filter(|key| !key.is_locked())
-            .map(|key| key.0)
-            .collect())
+        if locked_keys.iter().any(LockedPrivateKey::is_locked) {
+            return Err(KeyOperationError::Locked.into());
+        }
+        Ok(locked_keys.into_iter().map(|key| key.0).collect())
     }
 
     /// Import an unlocked `OpenPGP` secret key from a byte slice.
