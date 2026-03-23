@@ -127,6 +127,28 @@ pub enum EncryptionPreferencesError {
     ExternalUserNoValidApiKey,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum RecoverySecretError {
+    #[error("Failed to encode signature as UTF-8")]
+    SignatureEncoding,
+    #[error("Failed to sign recovery secret: {0}")]
+    SignatureCreation(CryptoError),
+    #[error("Failed to encrypt recovery data: {0}")]
+    Encrypt(CryptoError),
+    #[error("Failed to decrypt recovery data: {0}")]
+    Decrypt(CryptoError),
+    #[error("Failed to verify recovery secret signature: {0}")]
+    VerifySignature(VerificationError),
+    #[error("Failed to export private key: {0}")]
+    ExportKey(AccountCryptoError),
+    #[error("Failed to import private key: {0}")]
+    ImportKey(AccountCryptoError),
+    #[error("No primary user key")]
+    NoPrimary,
+    #[error("No matching secret found to decrypt recovery data")]
+    NoMatchingSecret,
+}
+
 // Ensure all error types to be Send and 'static.
 assert_send_static!(
     CardCryptoError,
@@ -136,4 +158,5 @@ assert_send_static!(
     KeyError,
     KeySerializationError,
     KeySelectionError,
+    RecoverySecretError,
 );
