@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-00-00
 
+## [0.3.1] - 2026-03-23
+
+### Added
+
+- Add API for importing multiple private keys from a blob.
+
 ## [0.3.0] - 2026-03-13
 
 ### Changed

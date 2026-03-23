@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.17.0] - 2026-03-23
+
 ### Added
 
 - Key selector types for user, address, and public address keys. Simplifies key selection for OpenPGP operations.
+- Serialize/deserialize API on user keys for recovery purposes.
+- New recovery module that offers an API for file recovery.
+
+### Changed
+
+- Update `proton-crypto` to 0.12.0.
 
 ## [0.16.0] - 2026-03-13
 
@@ -20,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chnaged
 
-- Update `proton-crypto` to 0.10.0.
+- Update `proton-crypto` to 0.11.0.
 
 ## [0.15.0] - 2026-03-03
 

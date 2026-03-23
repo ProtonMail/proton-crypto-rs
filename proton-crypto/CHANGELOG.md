@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+## [0.12.0] - 2026-03-23
+
+### Added
+
+- API `private_keys_import_unlocked` on the PGP provider for importing multiple keys. 
+
+### Changed
+
+- Require Provider types to be 'static in the crypto API traits.
+- Bump `proton-rpgp` to `0.3.1`.
+- Nump `gopenpgp-sys` to `0.3.4`.
+
+## [0.11.0] - 2026-03-13
+
+### Changed
+
 - Require Provider types to be 'static in the crypto API traits.
 
 ## [0.11.0] - 2026-03-13
