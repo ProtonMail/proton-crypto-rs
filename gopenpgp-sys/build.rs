@@ -7,7 +7,7 @@ use std::process::Command;
 
 const GO_LIB_NAME: &str = "gopenpgp-sys";
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "android"))]
 const GO_LIB_SUFFIX: &str = "a";
 
 #[cfg(target_os = "macos")]
@@ -60,8 +60,8 @@ impl Platform {
             ("ios", "aarch64" | "arm64") => Self::Ios(IosTarget::Device),
             ("windows", "x86_64") => Self::Windows(CPUArch::X86_64),
             ("windows", "x86") => Self::Windows(CPUArch::X86),
-            ("macos" | "linux", "x86_64") => Self::Unix(CPUArch::X86_64),
-            ("macos" | "linux", "aarch64" | "arm64") => Self::Unix(CPUArch::Aarch64),
+            ("linux" | "macos" | "freebsd", "x86_64") => Self::Unix(CPUArch::X86_64),
+            ("linux" | "macos" | "freebsd", "aarch64" | "arm64") => Self::Unix(CPUArch::Aarch64),
             (os, arch) => panic!("unsupported architecture: {os}/{arch}"),
         }
     }
@@ -223,6 +223,8 @@ fn prepare_go_lib_build_android(
         "windows-x86_64"
     } else if cfg!(target_os = "macos") {
         "darwin-x86_64"
+    } else if cfg!(target_os = "freebsd") {
+        "freebsd-x86_64"
     } else {
         "linux-x86_64"
     };
@@ -370,7 +372,7 @@ fn prepare_go_lib_build_unix(command: &mut Command, arch: CPUArch) -> BindingEnv
         command.env("GOARCH", "amd64");
     }
 
-    #[cfg(any(target_os = "linux", target_os = "android"))]
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "android"))]
     add_linux_compile_flags(command);
 
     #[cfg(target_os = "macos")]
@@ -385,7 +387,7 @@ fn post_process_go_lib_build_windows(lib_dir: &Path) {
     patch_header_file(lib_dir);
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "android"))]
 fn add_linux_compile_flags(command: &mut Command) {
     //command.arg("-ldflags");
     //#command.arg(format!("-extldflags -Wl,-soname,lib{GO_LIB_NAME}.so"));
