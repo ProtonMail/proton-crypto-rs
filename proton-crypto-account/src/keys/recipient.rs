@@ -25,6 +25,7 @@ use super::{
 pub enum AddressKeyForEmailSelector<P: PGPProviderSync> {
     /// The email address is owned by the user.
     Owned {
+        is_external_address: bool,
         address_keys: UnlockedAddressKeys<P>,
     },
     /// The email address is not owned by the user.
@@ -35,8 +36,14 @@ pub enum AddressKeyForEmailSelector<P: PGPProviderSync> {
 }
 
 impl<P: PGPProviderSync> AddressKeyForEmailSelector<P> {
-    pub fn new_with_self_owned_keys(address_keys: UnlockedAddressKeys<P>) -> Self {
-        Self::Owned { address_keys }
+    pub fn new_with_self_owned_keys(
+        is_external: bool,
+        address_keys: UnlockedAddressKeys<P>,
+    ) -> Self {
+        Self::Owned {
+            is_external_address: is_external,
+            address_keys,
+        }
     }
 
     pub fn new_with_api_keys(
@@ -52,7 +59,7 @@ impl<P: PGPProviderSync> AddressKeyForEmailSelector<P> {
     /// Returns the public key for encryption of the selected email address.
     pub fn for_encryption(&self) -> Result<&P::PublicKey, KeySelectionError> {
         match self {
-            Self::Owned { address_keys } => address_keys
+            Self::Owned { address_keys, .. } => address_keys
                 .primary_default()
                 .ok_or(KeySelectionError::NoPrimaryAddressKey)
                 .map(AsPublicKeyRef::as_public_key),
@@ -76,20 +83,20 @@ impl<P: PGPProviderSync> AddressKeyForEmailSelector<P> {
     /// the PGP scheme, the MIME type, the selected key, whether the selected key is pinned, whether the email should be sent unencrypted.
     pub fn for_inbox_encryption(
         &self,
-        is_address_external: bool,
         prefer_pqc: bool,
         crypto_mail_settings: CryptoMailSettings,
         encryption_time: UnixTimestamp,
     ) -> Result<EncryptionPreferences<P::PublicKey>, EncryptionPreferencesError> {
         match self {
-            Self::Owned { address_keys } => {
-                EncryptionPreferences::from_unlocked_address_keys_and_settings(
-                    is_address_external,
-                    address_keys,
-                    crypto_mail_settings,
-                    encryption_time,
-                )
-            }
+            Self::Owned {
+                is_external_address: is_external,
+                address_keys,
+            } => EncryptionPreferences::from_unlocked_address_keys_and_settings(
+                *is_external,
+                address_keys,
+                crypto_mail_settings,
+                encryption_time,
+            ),
             Self::Other {
                 api_keys,
                 vcard_keys,
@@ -115,7 +122,7 @@ impl<P: PGPProviderSync> AddressKeyForEmailSelector<P> {
     /// Verification preferences consider key flags and consider pinned keys if available.
     pub fn for_signature_verification(&self) -> VerificationPreferences<P::PublicKey> {
         match self {
-            Self::Owned { address_keys } => {
+            Self::Owned { address_keys, .. } => {
                 VerificationPreferences::from_unlocked_address_keys(address_keys)
             }
             Self::Other {
@@ -123,12 +130,6 @@ impl<P: PGPProviderSync> AddressKeyForEmailSelector<P> {
                 vcard_keys,
             } => VerificationPreferences::from_public_keys(api_keys.clone(), vcard_keys.clone()),
         }
-    }
-}
-
-impl<P: PGPProviderSync> From<UnlockedAddressKeys<P>> for AddressKeyForEmailSelector<P> {
-    fn from(value: UnlockedAddressKeys<P>) -> Self {
-        Self::new_with_self_owned_keys(value)
     }
 }
 
