@@ -52,9 +52,15 @@ pub struct RustPublicKey(pub(super) Arc<proton_rpgp::PublicKey>);
 
 impl RustPublicKey {
     pub fn import(public_key: impl AsRef<[u8]>, encoding: DataEncoding) -> crate::Result<Self> {
-        proton_rpgp::PublicKey::import(public_key.as_ref(), encoding.into())
-            .map(Into::into)
-            .map_err(Into::into)
+        let encoding = proton_rpgp::DataEncoding::from(encoding);
+        match proton_rpgp::PublicKey::import(public_key.as_ref(), encoding) {
+            Ok(public_key) => Ok(public_key),
+            Err(error) => proton_rpgp::LockedPrivateKey::import(public_key.as_ref(), encoding)
+                .map(proton_rpgp::PublicKey::from)
+                .map_err(|_| error),
+        }
+        .map(Into::into)
+        .map_err(Into::into)
     }
 
     pub fn export(&self, encoding: DataEncoding) -> crate::Result<impl AsRef<[u8]>> {

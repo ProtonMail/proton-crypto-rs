@@ -851,3 +851,16 @@ fn test_api_private_keys_import_unlocked() {
         .unwrap();
     assert_eq!(private_keys.len(), num_keys);
 }
+
+#[test]
+fn test_api_import_private_key_as_public() {
+    let provider = ProtonPGP::new_sync();
+    let key = provider
+        .public_key_import(TEST_PRIVATE_KEY.as_bytes(), DataEncoding::Armor)
+        .unwrap();
+
+    assert_eq!(
+        key.key_id(),
+        OpenPGPKeyID::from_hex("cb186c4f0609a697").unwrap()
+    );
+}
