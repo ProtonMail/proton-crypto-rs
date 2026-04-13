@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-00-00
 
+## [0.12.1] - 2026-04-13
+
 ### Changed
+
+- proton-rpgp backend: Support importing a private key as a public key, mirroring the behavior of the Go backend.
 
 ## [0.12.0] - 2026-03-23
 
