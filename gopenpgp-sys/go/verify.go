@@ -283,6 +283,6 @@ func pgp_verify_inline_stream(
 	if err != nil {
 		return errorToPGPError(fmt.Errorf("signature verification failed: %w", err))
 	}
-	*out_verification_reader = C.uintptr_t(cgo.NewHandle(verifiedDataReader))
+	*out_verification_reader = C.uintptr_t(cgo.NewHandle(newVerifyReaderWrapper(verifiedDataReader)))
 	return errorToPGPError(nil)
 }

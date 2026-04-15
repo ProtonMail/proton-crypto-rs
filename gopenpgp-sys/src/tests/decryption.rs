@@ -156,6 +156,64 @@ KNvdUjAExQ==
 }
 
 #[test]
+fn test_decrypt_session_key_compressed_stream() {
+    let session_key =
+        hex::decode("b399a07cb400e5a3dcf4e5ae2ba9beb05b1144b729df4abe486fcdb8e95277c5").unwrap();
+    let message = "-----BEGIN PGP MESSAGE-----
+
+wV4DJ7OpFgpxLJYSAQdAII/74N5Q0EOBuLJ2We6+Hv+TfZg8DF3TYiwAPSFwQkYw
+eYK2eKI17tlam9OxT1LvlKz7f5pH+FwNbGGc4At3zgQ4Gr+Z9i+DIjqvZhTcopdF
+0kEBRT4owwJHSFIYST1PFH3qibR1lOxepjJCNk0rLjeDvf72Q2TkS2usZyYmLpTp
+9RsNnMXgzflSajabRXiTYFunag==
+=CTgA
+-----END PGP MESSAGE-----
+";
+    let session_key = SessionKey::from_token(session_key.as_slice(), SessionKeyAlgorithm::Aes256);
+    let mut result = Decryptor::new()
+        .with_session_key(&session_key)
+        .decrypt_stream(message.as_bytes(), DataEncoding::Armor)
+        .unwrap();
+    let mut buffer = Vec::with_capacity(1024);
+    result.read_to_end(&mut buffer).unwrap();
+    assert_eq!(buffer.as_slice(), &vec![0; 1014]);
+
+    let result = Decryptor::new()
+        .with_session_key(&session_key)
+        .with_utf8_out()
+        .decrypt(message.as_bytes(), DataEncoding::Armor)
+        .unwrap();
+    assert_eq!(result.as_bytes(), &vec![0; 1014]);
+}
+
+#[test]
+fn test_decrypt_session_key_compressed_not_stream() {
+    let session_key =
+        hex::decode("b399a07cb400e5a3dcf4e5ae2ba9beb05b1144b729df4abe486fcdb8e95277c5").unwrap();
+    let message = "-----BEGIN PGP MESSAGE-----
+
+wV4DJ7OpFgpxLJYSAQdAII/74N5Q0EOBuLJ2We6+Hv+TfZg8DF3TYiwAPSFwQkYw
+eYK2eKI17tlam9OxT1LvlKz7f5pH+FwNbGGc4At3zgQ4Gr+Z9i+DIjqvZhTcopdF
+0kEBRT4owwJHSFIYST1PFH3qibR1lOxepjJCNk0rLjeDvf72Q2TkS2usZyYmLpTp
+9RsNnMXgzflSajabRXiTYFunag==
+=CTgA
+-----END PGP MESSAGE-----
+";
+    let session_key = SessionKey::from_token(session_key.as_slice(), SessionKeyAlgorithm::Aes256);
+    let result = Decryptor::new()
+        .with_session_key(&session_key)
+        .decrypt(message.as_bytes(), DataEncoding::Armor)
+        .unwrap();
+    assert_eq!(result.as_bytes(), &vec![0; 1014]);
+
+    let result = Decryptor::new()
+        .with_session_key(&session_key)
+        .with_utf8_out()
+        .decrypt(message.as_bytes(), DataEncoding::Armor)
+        .unwrap();
+    assert_eq!(result.as_bytes(), &vec![0; 1014]);
+}
+
+#[test]
 fn test_decrypt_password_stream() {
     let password = "password";
     let expected_plaintext = "Hello, world!";

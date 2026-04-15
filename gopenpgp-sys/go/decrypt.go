@@ -106,7 +106,7 @@ func pgp_decrypt_stream(
 		return errorToPGPError(fmt.Errorf("failed to prepare decryption stream: %w", err))
 	}
 
-	*out_verification_reader = C.uintptr_t(cgo.NewHandle(plaintextReader))
+	*out_verification_reader = C.uintptr_t(cgo.NewHandle(newVerifyReaderWrapper(plaintextReader)))
 	return errorToPGPError(nil)
 }
 
