@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2023-00-00
 
+## [0.3.5] - 2026-04-16
+
+### Fixed
+
+- Resolved MDC errors when decrypting streamed compressed messages.
+
 ## [0.3.4] - 2026-03-23
 
 ### Added
