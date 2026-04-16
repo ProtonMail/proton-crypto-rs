@@ -5,8 +5,8 @@ use proton_rpgp::{
     component::{PrivateComponentKeyPublicView, PublicComponentKey},
     AccessKeyInfo, AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, EncryptedMessage,
     EncryptedMessageInfo, EncryptionError, EncryptionMechanism, EncryptionObserver, Encryptor,
-    Error, KeyGenerator, PrivateKey, Profile, ProfileSettings, SessionKey, StringToKeyOption,
-    UnixTime, VerificationError,
+    Error, KeyGenerator, PrivateKey, Profile, ProfileSettings, PublicKey, SessionKey,
+    StringToKeyOption, UnixTime, VerificationError,
 };
 
 mod utils;
@@ -1213,4 +1213,105 @@ pub fn encrypt_message_v4_with_observer() {
         .with_observer(Arc::new(observer))
         .encrypt_raw(input_data, DataEncoding::Armored)
         .expect("Failed to encrypt");
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_message_v4_with_compression() {
+    let input_data = b"hello world";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let encrypted_data = Encryptor::default()
+        .compress()
+        .with_encryption_key(key.as_public_key())
+        .encrypt(input_data)
+        .expect("Failed to encrypt");
+
+    let session_key = encrypted_data
+        .revealed_session_key()
+        .expect("Failed to get session key");
+
+    assert!(has_compression(
+        encrypted_data.as_bytes(),
+        session_key.export_bytes().as_ref(),
+    ));
+
+    let encrypted_data = Encryptor::default()
+        .with_encryption_key(key.as_public_key())
+        .encrypt(input_data)
+        .expect("Failed to encrypt");
+
+    let session_key = encrypted_data
+        .revealed_session_key()
+        .expect("Failed to get session key");
+
+    assert!(!has_compression(
+        encrypted_data.as_bytes(),
+        session_key.export_bytes().as_ref(),
+    ));
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_message_v4_compression_only_when_enabled() {
+    const PUBLIC_KEY_NO_UNCOMPRESSED: &str =
+        include_str!("../test-data/keys/public_key_v4_no_uncompressed.asc");
+    let input_data = b"hello world";
+    let public_key =
+        PublicKey::import(PUBLIC_KEY_NO_UNCOMPRESSED.as_bytes(), DataEncoding::Armored)
+            .expect("Failed to import key");
+
+    let encrypted_data = Encryptor::default()
+        .compress()
+        .with_encryption_key(&public_key)
+        .encrypt(input_data)
+        .expect("Failed to encrypt");
+
+    let session_key = encrypted_data
+        .revealed_session_key()
+        .expect("Failed to get session key");
+
+    assert!(has_compression(
+        encrypted_data.as_bytes(),
+        session_key.export_bytes().as_ref(),
+    ));
+
+    let encrypted_data = Encryptor::default()
+        .with_encryption_key(&public_key)
+        .encrypt(input_data)
+        .expect("Failed to encrypt");
+
+    let session_key = encrypted_data
+        .revealed_session_key()
+        .expect("Failed to get session key");
+
+    assert!(!has_compression(
+        encrypted_data.as_bytes(),
+        session_key.export_bytes().as_ref(),
+    ));
+}
+
+// Test helper to check if the message is internally compressed.
+fn has_compression(encrypted_message: &[u8], session_key_bytes: &[u8]) -> bool {
+    use pgp::composed::{DecryptionOptions, Message, PlainSessionKey, TheRing};
+
+    let msg = Message::from_bytes(encrypted_message).expect("Failed to parse message");
+
+    let session_key = PlainSessionKey::V3_4 {
+        sym_alg: SymmetricKeyAlgorithm::AES256,
+        key: session_key_bytes.into(),
+    };
+
+    let the_ring = TheRing {
+        session_keys: vec![session_key],
+        decrypt_options: DecryptionOptions::default().enable_gnupg_aead(),
+        ..Default::default()
+    };
+
+    let (decrypted, _) = msg
+        .decrypt_the_ring(the_ring, false)
+        .expect("Failed to decrypt message");
+
+    matches!(decrypted, Message::Compressed { .. })
 }

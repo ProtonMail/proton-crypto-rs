@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-00-00
 
+### Fixed
+
+- Compression while writing messages is now applied only when explicitly enabled through the API or user profile independant of the key preferences.
+
 ## [0.3.1] - 2026-03-23
 
 ### Added

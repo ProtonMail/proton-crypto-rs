@@ -90,15 +90,17 @@ impl RecipientsAlgorithms {
                     .unwrap_or(SymmetricKeyAlgorithm::AES128)
             };
 
-        let compression_algorithm =
-            if candidate_compression_algorithms.contains(&message_compression) {
-                message_compression
-            } else {
-                candidate_compression_algorithms
-                    .into_iter()
-                    .next()
-                    .unwrap_or(CompressionAlgorithm::Uncompressed)
-            };
+        let compression_algorithm = if message_compression == CompressionAlgorithm::Uncompressed {
+            // We only allow compression if explicitly enabled via message_compression.
+            CompressionAlgorithm::Uncompressed
+        } else if candidate_compression_algorithms.contains(&message_compression) {
+            message_compression
+        } else {
+            candidate_compression_algorithms
+                .into_iter()
+                .next()
+                .unwrap_or(CompressionAlgorithm::Uncompressed)
+        };
 
         let aead_algorithm = if candidate_aead_algorithms
             .iter()

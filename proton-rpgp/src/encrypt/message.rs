@@ -160,6 +160,10 @@ impl EncryptedMessage {
         let detached_signature = self.info.detached_signature.take();
         (self, detached_signature)
     }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
 }
 
 impl Serialize for EncryptedMessage {
