@@ -41,6 +41,7 @@
 
 use crypto_bigint::modular::{FixedMontyForm, FixedMontyParams};
 use crypto_bigint::{CtEq, NonZero, Odd, RandomMod, U2048};
+use crypto_primes::is_prime;
 use rand::CryptoRng;
 use zeroize::Zeroizing;
 
@@ -226,10 +227,10 @@ fn extract_and_check_modulus(
     modulus: &[u8; SRP_LEN_BYTES],
 ) -> Result<(Odd<BigUint>, NonZero<BigUint>), SRPError> {
     let n_unchecked = BigUint::from_le_slice(modulus);
-    let Some(n) = Odd::new(n_unchecked).into_option() else {
+    let Some(n_odd) = Odd::new(n_unchecked).into_option() else {
         return Err(SRPError::InvalidModulus("modulus is not odd"));
     };
-    if !(n.bit(0).into() && n.bit(1).into() && !bool::from(n.bit(2))) {
+    if bool::from(!(n_odd.bit(0) & n_odd.bit(1) & !n_odd.bit(2))) {
         // By quadratic reciprocity, 2 is a square mod N if and only if
         // N is 1 or 7 mod 8. We want the generator, 2, to generate the
         // whole group, not just the prime-order subgroup, so it should
@@ -238,12 +239,15 @@ fn extract_and_check_modulus(
         // not be 1 mod 4. This leaves 3 mod 8 as the only option.
         return Err(SRPError::InvalidModulus("modulus did not pass bit check"));
     }
-    // We have to unwrap here due to CtOption not exposing the inner value.
-    let Some(n_minus_one) = NonZero::new(n.sub_mod(&BigUint::ONE, n.as_nz_ref())).into_option()
+    if !is_prime(crypto_primes::Flavor::Safe, &n_unchecked) {
+        return Err(SRPError::InvalidModulus("modulus is not a safe prime"));
+    }
+    let Some(n_minus_one) =
+        NonZero::new(n_odd.sub_mod(&BigUint::ONE, n_odd.as_nz_ref())).into_option()
     else {
         return Err(SRPError::InvalidModulus("modulus is invalid"));
     };
-    Ok((n, n_minus_one))
+    Ok((n_odd, n_minus_one))
 }
 
 fn hash_two(first: &BigUint, second: &BigUint) -> BigUint {
