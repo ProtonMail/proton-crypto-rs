@@ -149,7 +149,7 @@ impl GoKey {
 
     fn can_verify(&self, unix_time: u64) -> bool {
         // nosemgrep: rust.lang.security.unsafe-usage.unsafe-usage
-        unsafe { sys::pgp_key_can_encrypt(self.0, unix_time) }
+        unsafe { sys::pgp_key_can_verify(self.0, unix_time) }
     }
 
     fn is_expired(&self, unix_time: u64) -> bool {
