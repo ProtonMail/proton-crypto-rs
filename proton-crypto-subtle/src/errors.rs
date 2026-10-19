@@ -26,4 +26,13 @@ pub enum SubtleError {
 
     #[error("The input secret must be at least 16 bytes long")]
     InvalidSecretLen,
+
+    #[error("Invalid wrapped key encoding")]
+    InvalidWrappedKey,
+
+    #[error("Failed to wrap key")]
+    KeyWrap,
+
+    #[error("Failed to unwrap key")]
+    KeyUnwrap,
 }

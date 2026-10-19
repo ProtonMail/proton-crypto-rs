@@ -16,7 +16,7 @@
 //! let decrypted = key.decrypt(ciphertext, Some("username.app.proton.me")).unwrap();
 //! assert_eq!(plaintext, decrypted.as_slice());
 //! ```
-use std::{borrow::Cow, io::Write};
+use std::{borrow::Cow, fmt, io::Write};
 
 #[cfg(feature = "legacy")]
 use aes_gcm::aes::Aes256;
@@ -27,7 +27,7 @@ use aes_gcm::{
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::{SubtleError, SubtleResult};
+use crate::{key_wrap::UnwrappedKey, SubtleError, SubtleResult};
 
 #[cfg(feature = "legacy")]
 pub type Aes256GcmIv16 = AesGcm<Aes256, U16>;
@@ -138,8 +138,16 @@ impl AesGcmCiphertext<'static> {
 /// A AES-GCM-256 key used to encrypt and decrypt data.
 ///
 /// This key data is zeroized on drop.
-#[derive(Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct AesGcmKey(Key<Aes256Gcm>);
+
+impl fmt::Debug for AesGcmKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("AesGcmKey")
+            .field(&format_args!("[REDACTED]"))
+            .finish()
+    }
+}
 
 impl AsRef<[u8]> for AesGcmKey {
     fn as_ref(&self) -> &[u8] {
@@ -150,6 +158,13 @@ impl AsRef<[u8]> for AesGcmKey {
 impl From<[u8; AES_GCM_256_KEY_SIZE]> for AesGcmKey {
     fn from(key_bytes: [u8; AES_GCM_256_KEY_SIZE]) -> Self {
         Self(key_bytes.into())
+    }
+}
+
+impl From<UnwrappedKey> for AesGcmKey {
+    /// Converts an unwrapped key into an AES-GCM key.
+    fn from(key: UnwrappedKey) -> Self {
+        Self((*key.as_array()).into())
     }
 }
 
@@ -179,6 +194,11 @@ impl AesGcmKey {
 
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
+    }
+
+    /// Returns the key as a fixed-size array reference.
+    pub fn as_array(&self) -> &[u8; AES_GCM_256_KEY_SIZE] {
+        self.0.as_ref()
     }
 
     /// Encrypts the given data using the key and an optional context.

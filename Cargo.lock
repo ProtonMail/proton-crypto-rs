@@ -2311,8 +2311,14 @@ dependencies = [
 name = "proton-crypto-subtle"
 version = "0.2.1"
 dependencies = [
+ "aes",
  "aes-gcm",
+<<<<<<< HEAD
  "base64 0.23.1",
+=======
+ "aes-kw",
+ "base64 0.22.1",
+>>>>>>> 9d666a6 (feat(subtle): Aes key wrapping API)
  "getrandom 0.2.17",
  "hkdf",
  "rand 0.8.8",
