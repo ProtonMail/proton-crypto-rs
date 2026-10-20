@@ -410,7 +410,8 @@ pub(crate) fn check_message_signature_details(
     // Check the Proton signature context.
     if let Some(verification_context) = context {
         // If there is a verification context, we check if signature notations match the verification context.
-        verification_context.check_subpackets(&config.hashed_subpackets, date)?;
+        verification_context
+            .check_subpackets(&config.hashed_subpackets, signature_creation_time)?;
     } else if let Some(criticial_context) =
         // If there is no verification context, we check if there is a critical Proton context in the notations.
         VerificationContext::filter_context(

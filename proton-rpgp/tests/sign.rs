@@ -1,6 +1,6 @@
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, Error, PrivateKey, PublicKey, SignatureContext, Signer,
-    SigningError, UnixTime, VerificationContext, VerificationError, Verifier,
+    AsPublicKeyRef, CheckUnixTime, DataEncoding, Error, PrivateKey, PublicKey, SignatureContext,
+    Signer, SigningError, UnixTime, VerificationContext, VerificationError, Verifier,
 };
 
 pub const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");
@@ -710,6 +710,80 @@ pub fn sign_no_ctx_signature_check_signature_context() {
         &signature_no_context,
         true,
         "critical signature: correct context and not required time",
+    );
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn sign_no_ctx_signature_required_after_uses_signature_creation_time() {
+    let signature_date = UnixTime::new(1_752_476_259);
+    let verification_date = UnixTime::new(1_752_486_259);
+    let input_data = b"hello world";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored).unwrap();
+    let ctx_name = "test";
+    let signature_no_context = Signer::default()
+        .with_signing_key(&key)
+        .at_date(signature_date.into())
+        .sign_detached(input_data, DataEncoding::Armored)
+        .unwrap();
+
+    let pubkey = key.as_public_key();
+
+    verify_signature_with_context(
+        pubkey,
+        verification_date,
+        input_data,
+        Some(VerificationContext::new(
+            ctx_name.into(),
+            true,
+            Some(UnixTime::new(1_752_476_269)),
+        )),
+        &signature_no_context,
+        true,
+        "no ctx signature: created before required time, verified after",
+    );
+
+    verify_signature_with_context(
+        pubkey,
+        verification_date,
+        input_data,
+        Some(VerificationContext::new(
+            ctx_name.into(),
+            true,
+            Some(UnixTime::new(1_752_476_249)),
+        )),
+        &signature_no_context,
+        false,
+        "no ctx signature: created after required time",
+    );
+
+    verify_signature_with_context(
+        pubkey,
+        verification_date,
+        input_data,
+        Some(VerificationContext::new(
+            ctx_name.into(),
+            true,
+            Some(signature_date),
+        )),
+        &signature_no_context,
+        true,
+        "no ctx signature: created exactly at required time",
+    );
+
+    // With time checks disabled, the signature creation time still decides.
+    let result = Verifier::default()
+        .with_verification_key(pubkey)
+        .with_verification_context(VerificationContext::new(
+            ctx_name.into(),
+            true,
+            Some(UnixTime::new(1_752_476_269)),
+        ))
+        .at_date(CheckUnixTime::disable())
+        .verify_detached(input_data, &signature_no_context, DataEncoding::Armored);
+    assert!(
+        result.is_ok(),
+        "no ctx signature: time checks disabled should be ok got: {result:?}"
     );
 }
 

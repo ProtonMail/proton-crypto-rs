@@ -2,7 +2,7 @@ use pgp::packet::{Notation, Subpacket, SubpacketData};
 
 use std::{borrow::Cow, fmt};
 
-use crate::{CheckUnixTime, MessageSignatureError, SignatureContextError, UnixTime};
+use crate::{MessageSignatureError, SignatureContextError, UnixTime};
 
 pub const PROTON_CONTEXT_NOTATION_NAME: &str = "context@proton.ch";
 
@@ -86,21 +86,18 @@ impl VerificationContext {
         Self::new(value, true, None)
     }
 
-    fn is_required_at_time(&self, signature_time: CheckUnixTime) -> bool {
-        if !self.is_required {
-            return false;
-        }
-        let Some(signature_time) = signature_time.at() else {
-            return true;
-        };
-        self.required_after
-            .map_or_else(|| true, |time| signature_time >= time)
+    /// Checks if the context is required for a signature created at `signature_creation_time`.
+    fn is_required_at_time(&self, signature_creation_time: UnixTime) -> bool {
+        self.is_required
+            && self
+                .required_after
+                .is_none_or(|time| signature_creation_time > time)
     }
 
     pub(crate) fn check_subpackets<'a>(
         &'a self,
         subpackets: impl IntoIterator<Item = &'a Subpacket>,
-        date: CheckUnixTime,
+        signature_creation_time: UnixTime,
     ) -> Result<(), MessageSignatureError> {
         // Collect all context notations matching the Proton context name
         let mut context_notations = Self::filter_context(subpackets)
@@ -127,7 +124,7 @@ impl VerificationContext {
 
         // If required, there must be exactly one context notation
         let Some(context) = context_notations.pop() else {
-            if self.is_required_at_time(date) {
+            if self.is_required_at_time(signature_creation_time) {
                 return Err(MessageSignatureError::Context(
                     SignatureContextError::MissingContext(self.clone()),
                 ));
