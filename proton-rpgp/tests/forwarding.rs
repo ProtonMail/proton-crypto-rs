@@ -13,8 +13,9 @@ use pgp::{
 use proton_rpgp::{
     AccessKeyInfo, AsPublicKeyRef, DataEncoding, Decryptor, EncryptedMessage, Encryptor, Error,
     FingerprintExt, ForwardingInstance, ForwardingInstanceError, ForwardingKeyGenerationError,
-    ForwardingKeyValidationError, ForwardingPkesk, ForwardingTransformError, KeyGenerationType,
-    KeyGenerator, PrivateKey, Profile, UnixTime,
+    ForwardingKeyValidationError, ForwardingPkesk, ForwardingTransformError,
+    KeyCertificationSelectionError, KeyGenerationType, KeyGenerator, KeyValidationError,
+    PrivateKey, Profile, UnixTime,
 };
 
 const FORWARDEE_KEY: &str = include_str!("../test-data/keys/private_key_v4_forwardee.asc");
@@ -27,6 +28,8 @@ const LOCKED_KEY_NIST_P256: &str =
     include_str!("../test-data/keys/locked_private_key_v4_nist_p256.asc");
 const LOCKED_KEY_RSA_1023: &str =
     include_str!("../test-data/keys/locked_private_key_v4_rsa_1023.asc");
+const SUBKEYS_EXPIRED_KEY: &str =
+    include_str!("../test-data/keys/private_key_v4_subkeys_expired.asc");
 const MESSAGE_V6: &str = include_str!("../test-data/messages/encrypted_message_v6.asc");
 pub const TEST_KEY_V4: &str = include_str!("../test-data/keys/private_key_v4.asc");
 
@@ -409,6 +412,40 @@ pub fn forwarding_generation_from_non_curve25519_key_fails() {
     assert!(matches!(
         errors.0.first(),
         Some(ForwardingKeyValidationError::SubKeyNoMatchingAlgorithm(_))
+    ));
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn forwarding_generation_from_expired_subkey_fails() {
+    // The primary key does not expire, the encryption subkey expires at 2026-01-01.
+    let forwarder = import_unlocked(SUBKEYS_EXPIRED_KEY);
+
+    forwarder
+        .forwarding_key_generator()
+        .with_user_id("forwardee", "forwardee@test.test")
+        .at_date(UnixTime::new(1_748_736_000))
+        .generate()
+        .expect("Failed to generate forwarding key before subkey expiration");
+
+    let result = forwarder
+        .forwarding_key_generator()
+        .with_user_id("forwardee", "forwardee@test.test")
+        .at_date(UnixTime::new(1_780_272_000))
+        .generate();
+
+    let Err(Error::ForwardingKeyGeneration(ForwardingKeyGenerationError::SubKeyValidation(errors))) =
+        result
+    else {
+        panic!("Expected a subkey validation error, got {result:?}");
+    };
+    assert!(matches!(
+        errors.0.first(),
+        Some(ForwardingKeyValidationError::KeyValidation(
+            KeyValidationError::KeySelfCertification(
+                KeyCertificationSelectionError::ExpiredKey { .. }
+            )
+        ))
     ));
 }
 

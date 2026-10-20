@@ -202,6 +202,12 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
                     }
                 };
 
+            if let Err(err) = check_key_not_expired(&sub_key.key, sub_key_self_certification, date)
+            {
+                errors.push(KeyValidationError::KeySelfCertification(err));
+                continue;
+            }
+
             // Check if the subkey is a valid signing key.
             if let Err(err) =
                 check_signing_key_flags(&sub_key.key, sub_key_self_certification, profile, usage)
@@ -221,6 +227,7 @@ pub trait PublicKeySelectionExt: CertificationSelectionExt {
                 ));
                 continue;
             }
+
             verification_keys.push(PublicComponentKey::new(
                 AnyPublicKey::PublicSubKey(&sub_key.key),
                 primary_self_certification,
@@ -286,6 +293,13 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
                         continue;
                     }
                 };
+
+            if let Err(err) =
+                check_key_not_expired(&sub_key.key.public_key(), sub_key_self_certification, date)
+            {
+                errors.push(KeyValidationError::KeySelfCertification(err));
+                continue;
+            }
 
             // Check if the subkey is a valid signing key.
             if let Err(err) = check_signing_key_flags(
@@ -405,6 +419,13 @@ pub trait PrivateKeySelectionExt: PublicKeySelectionExt {
                     }
                 };
 
+            if let Err(err) =
+                check_key_not_expired(&sub_key.key.public_key(), subkey_self_certification, date)
+            {
+                errors.push(KeyValidationError::KeySelfCertification(err));
+                continue;
+            }
+
             // Check if the subkey is a valid decryption key.
             if let Err(err) = check_valid_encryption_key(
                 sub_key.key.public_key(),
@@ -489,6 +510,13 @@ fn select_encryption_key<'a, T: PublicKeySelectionExt + ?Sized>(
                     continue;
                 }
             };
+
+        if let Err(err) =
+            check_key_not_expired(&sub_key.key, sub_key_self_certification, encryption_date)
+        {
+            errors.push(KeyValidationError::KeySelfCertification(err));
+            continue;
+        }
 
         // Check if the subkey is a valid encryption key.
         if let Err(err) =
@@ -817,6 +845,13 @@ where
     let sub_key_self_certification = sub_key
         .check_validity(primary_key, encryption_date, profile)
         .map_err(KeyValidationError::KeySelfCertification)?;
+
+    check_key_not_expired(
+        &sub_key.key.public_key(),
+        sub_key_self_certification,
+        encryption_date,
+    )
+    .map_err(KeyValidationError::KeySelfCertification)?;
 
     // Check if the subkey is a valid encryption key.
     check_valid_encryption_key(

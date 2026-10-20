@@ -1012,6 +1012,154 @@ mod tests {
         );
     }
 
+    // Primary key without expiration, signing and encryption subkeys expire at 2026-01-01.
+    const SUBKEYS_EXPIRED_PRIVATE_KEY: &str =
+        include_str!("../test-data/keys/private_key_v4_subkeys_expired.asc");
+    const SUBKEYS_EXPIRED_PUBLIC_KEY: &str =
+        include_str!("../test-data/keys/public_key_v4_subkeys_expired.asc");
+    const SUBKEYS_NOT_EXPIRED_DATE: u64 = 1_748_736_000;
+    const SUBKEYS_EXPIRED_DATE: u64 = 1_780_272_000;
+
+    fn assert_subkey_expired(selection_errors: &[KeyValidationError]) {
+        assert!(
+            selection_errors.iter().any(|selection_error| matches!(
+                selection_error,
+                KeyValidationError::KeySelfCertification(
+                    KeyCertificationSelectionError::ExpiredKey { .. }
+                )
+            )),
+            "Expected expired subkey error, got {selection_errors:?}"
+        );
+    }
+
+    #[test]
+    fn enc_key_selection_subkey_expired() {
+        let profile = ProfileSettings::builder()
+            .allow_encryption_with_future_and_expired_keys(false)
+            .build_into_profile();
+
+        let public_key =
+            PublicKey::import(SUBKEYS_EXPIRED_PUBLIC_KEY.as_bytes(), DataEncoding::Armored)
+                .expect("Failed to import key");
+
+        let selection_result = public_key
+            .as_signed_public_key()
+            .encryption_key(UnixTime::new(SUBKEYS_NOT_EXPIRED_DATE).into(), &profile)
+            .expect("key selected");
+        assert_eq!(
+            selection_result.public_key.fingerprint().to_string(),
+            "d78bb5454a8d6bfb379db9cd2f5140bddfbb37da"
+        );
+
+        let selection_result = public_key
+            .as_signed_public_key()
+            .encryption_key(UnixTime::new(SUBKEYS_EXPIRED_DATE).into(), &profile);
+
+        match selection_result {
+            Err(KeyValidationError::NoEncryptionKey(_, selection_errors)) => {
+                assert_subkey_expired(&selection_errors.0);
+            }
+            _ => panic!("Expected NoEncryptionKey, got {selection_result:?}"),
+        }
+    }
+
+    #[test]
+    fn enc_key_selection_subkey_expired_allowed_by_profile() {
+        let profile = ProfileSettings::builder()
+            .allow_encryption_with_future_and_expired_keys(true)
+            .build_into_profile();
+
+        let public_key =
+            PublicKey::import(SUBKEYS_EXPIRED_PUBLIC_KEY.as_bytes(), DataEncoding::Armored)
+                .expect("Failed to import key");
+
+        let selection_result = public_key
+            .as_signed_public_key()
+            .encryption_key(UnixTime::new(SUBKEYS_EXPIRED_DATE).into(), &profile)
+            .expect("key selected");
+        assert_eq!(
+            selection_result.public_key.fingerprint().to_string(),
+            "d78bb5454a8d6bfb379db9cd2f5140bddfbb37da"
+        );
+    }
+
+    #[test]
+    fn signing_key_selection_subkey_expired() {
+        let profile = Profile::default();
+
+        let private_key = PrivateKey::import_unlocked(
+            SUBKEYS_EXPIRED_PRIVATE_KEY.as_bytes(),
+            DataEncoding::Armored,
+        )
+        .expect("Failed to import key");
+
+        let selection_result = private_key
+            .secret
+            .signing_key(
+                UnixTime::new(SUBKEYS_NOT_EXPIRED_DATE).into(),
+                None,
+                SignatureUsage::Sign,
+                &profile,
+            )
+            .expect("key selected");
+        assert_eq!(
+            selection_result.private_key.fingerprint().to_string(),
+            "8dab3ca7065565ac1bb55434fb62f0c5882a9253"
+        );
+
+        let selection_result = private_key.secret.signing_key(
+            UnixTime::new(SUBKEYS_EXPIRED_DATE).into(),
+            None,
+            SignatureUsage::Sign,
+            &profile,
+        );
+
+        match selection_result {
+            Err(KeyValidationError::NoSigningKey(_, selection_errors)) => {
+                assert_subkey_expired(&selection_errors.0);
+            }
+            _ => panic!("Expected NoSigningKey, got {selection_result:?}"),
+        }
+    }
+
+    #[test]
+    fn verification_key_selection_subkey_expired() {
+        let profile = Profile::default();
+
+        let public_key =
+            PublicKey::import(SUBKEYS_EXPIRED_PUBLIC_KEY.as_bytes(), DataEncoding::Armored)
+                .expect("Failed to import key");
+
+        let selection_result = public_key
+            .as_signed_public_key()
+            .verification_keys(
+                UnixTime::new(SUBKEYS_NOT_EXPIRED_DATE).into(),
+                Vec::default(),
+                SignatureUsage::Sign,
+                &profile,
+            )
+            .expect("key selected");
+        let selected = selection_result.into_iter().next().unwrap();
+        assert_eq!(
+            selected.public_key.fingerprint().to_string(),
+            "8dab3ca7065565ac1bb55434fb62f0c5882a9253"
+        );
+
+        let selection_result = public_key.as_signed_public_key().verification_keys(
+            UnixTime::new(SUBKEYS_EXPIRED_DATE).into(),
+            Vec::default(),
+            SignatureUsage::Sign,
+            &profile,
+        );
+
+        match selection_result {
+            Err(KeyValidationError::NoVerificationKeys(_, selection_errors)) => {
+                assert_subkey_expired(&selection_errors.0);
+            }
+            _ => panic!("Expected NoVerificationKeys, got {selection_result:?}"),
+        }
+    }
+
     #[test]
     fn decryption_key_selection() {
         const TEST_KEY: &str = include_str!("../test-data/keys/private_key_v4.asc");

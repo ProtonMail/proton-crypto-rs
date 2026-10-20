@@ -137,12 +137,12 @@ pub trait CertificationSelectionExt {
     /// Returns an error if there is no valid self-certification or if the self-certification is revoked.
     fn check_validity<K: VerifyingKey + Serialize>(
         &self,
-        primary_key: &K,
+        selected_key: &K,
         date: CheckUnixTime,
         profile: &Profile,
     ) -> Result<&packet::Signature, KeyCertificationSelectionError> {
-        let self_signature = self.latest_valid_self_certification(primary_key, date, profile)?;
-        if self.revoked(primary_key, Some(self_signature), date, profile) {
+        let self_signature = self.latest_valid_self_certification(selected_key, date, profile)?;
+        if self.revoked(selected_key, Some(self_signature), date, profile) {
             return Err(KeyCertificationSelectionError::Revoked(Box::new(
                 self_signature.to_owned(),
             )));
