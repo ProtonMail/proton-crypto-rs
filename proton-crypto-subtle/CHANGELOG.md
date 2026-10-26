@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add `key_wrap` API for wrapping and unwrapping 32-byte keys with AES-KW-256.
+- Add `key_wrap` API for wrapping and unwrapping `AesGcmKey`s with AES-KW-256 (RFC 3394).
 
 ## [0.2.1] - 2026-02-10
 

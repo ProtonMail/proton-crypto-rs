@@ -25,9 +25,10 @@ use aes_gcm::{
     aes::cipher::{ArrayLength, BlockCipher, BlockEncrypt, BlockSizeUser},
     AeadCore, Aes256Gcm, AesGcm, Key, KeyInit, KeySizeUser, Nonce,
 };
+use rand::{CryptoRng, RngCore};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::{key_wrap::UnwrappedKey, SubtleError, SubtleResult};
+use crate::{SubtleError, SubtleResult};
 
 #[cfg(feature = "legacy")]
 pub type Aes256GcmIv16 = AesGcm<Aes256, U16>;
@@ -161,13 +162,6 @@ impl From<[u8; AES_GCM_256_KEY_SIZE]> for AesGcmKey {
     }
 }
 
-impl From<UnwrappedKey> for AesGcmKey {
-    /// Converts an unwrapped key into an AES-GCM key.
-    fn from(key: UnwrappedKey) -> Self {
-        Self((*key.as_array()).into())
-    }
-}
-
 impl TryFrom<&[u8]> for AesGcmKey {
     type Error = SubtleError;
 
@@ -189,7 +183,12 @@ impl AesGcmKey {
     /// Generates a new AES-GCM-256 key using a cryptographically secure random number generator.
     pub fn generate() -> Self {
         let mut rng = rand::thread_rng();
-        Self(Aes256Gcm::generate_key(&mut rng))
+        Self::generate_with_rng(&mut rng)
+    }
+
+    /// Generates a wrapping key with the supplied CSPRNG.
+    fn generate_with_rng<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        Self(Aes256Gcm::generate_key(rng))
     }
 
     pub fn as_bytes(&self) -> &[u8] {

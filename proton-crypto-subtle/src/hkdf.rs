@@ -37,15 +37,6 @@ pub fn derive_aes_gcm_key(
     salt: &[u8],
     info: &[u8],
 ) -> SubtleResult<AesGcmKey> {
-    let out = derive::<AES_GCM_256_KEY_SIZE>(high_entropy_secret, salt, info)?;
-    AesGcmKey::from_bytes(out)
-}
-
-fn derive<const N: usize>(
-    high_entropy_secret: &[u8],
-    salt: &[u8],
-    info: &[u8],
-) -> SubtleResult<Zeroizing<[u8; N]>> {
     if high_entropy_secret.len() < MIN_SECRET_LEN {
         return Err(SubtleError::InvalidSecretLen);
     }
@@ -53,9 +44,9 @@ fn derive<const N: usize>(
     // Unify api behaviour to the web crypto api.
     // If the salt slice is empty, the default salt is used.
     let salt_option = (!salt.is_empty()).then_some(salt);
-    let mut out = Zeroizing::new([0_u8; N]);
+    let mut out = Zeroizing::new([0_u8; AES_GCM_256_KEY_SIZE]);
     let hkdf = Hkdf::<Sha256>::new(salt_option, high_entropy_secret);
     hkdf.expand(info, out.as_mut_slice())
         .map_err(|_| SubtleError::InvalidKeyLength)?;
-    Ok(out)
+    AesGcmKey::from_bytes(out)
 }
