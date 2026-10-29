@@ -252,7 +252,7 @@ fn srp_password_hash_version_zero(
     hasher.update(&user_and_pass);
 
     let mut prehashed = Zeroizing::new([0_u8; 64]);
-    hasher.finalize_into(prehashed.as_mut_slice().into());
+    hasher.finalize_into((&mut *prehashed).into());
     let b64_hash = Zeroizing::new(BASE_64.encode(&prehashed));
 
     srp_password_hash_version_one(&b64_hash, username, modulus)

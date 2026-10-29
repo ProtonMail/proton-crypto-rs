@@ -43,6 +43,8 @@ pub enum SRPError {
     CannotFindClientSecret,
     #[error("The SRP protocol version is not supported by this implementation")]
     UnsupportedVersion,
+    #[error("Failed to generate randomness for client secret")]
+    FailedToGenerateClientSecret,
 }
 
 /// Errors thrown by by the SRP authenticator.

@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use base64::{prelude::BASE64_STANDARD as BASE_64, Engine as _};
-use rand::{CryptoRng, RngCore};
+use rand::CryptoRng;
 
 use zeroize::Zeroizing;
 
@@ -325,7 +325,7 @@ impl ServerInteraction {
         rng: &mut Rand,
     ) -> Result<Self, SRPError>
     where
-        Rand: CryptoRng + RngCore,
+        Rand: CryptoRng,
     {
         let modulus_bytes: &[u8; SRP_LEN_BYTES] = raw_modulus
             .0
@@ -388,7 +388,7 @@ impl ServerInteraction {
         rng: &mut Rand,
     ) -> Result<Self, SRPError>
     where
-        Rand: CryptoRng + RngCore,
+        Rand: CryptoRng,
     {
         let modulus_b64 = modulus_verifier.verify_and_extract_modulus(
             signed_modulus,
@@ -508,7 +508,7 @@ impl ServerInteraction {
         rng: &mut Rand,
     ) -> Result<Self, SRPError>
     where
-        Rand: CryptoRng + RngCore,
+        Rand: CryptoRng,
     {
         let modulus_bytes: &[u8; SRP_LEN_BYTES] = raw_modulus
             .0
