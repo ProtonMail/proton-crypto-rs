@@ -319,6 +319,17 @@ impl<'a> Verifier<'a> {
         signature: impl AsRef<[u8]>,
         signature_encoding: DataEncoding,
     ) -> crate::Result<VerifyingReader<'a>> {
+        self.detached_verifying_reader(data, signature, signature_encoding)
+            .map(Into::into)
+    }
+
+    /// Creates a reader that verifies a detached signature over the data it reads.
+    pub(crate) fn detached_verifying_reader(
+        self,
+        data: impl Read + 'a,
+        signature: impl AsRef<[u8]>,
+        signature_encoding: DataEncoding,
+    ) -> crate::Result<DetachedVerifyingReader<'a>> {
         let resolved_signature_encoding = signature_encoding.resolve_for_read(signature.as_ref());
         // Check encoding.
         let parser: PacketParser<Box<dyn BufRead>> =
@@ -337,9 +348,11 @@ impl<'a> Verifier<'a> {
             })
             .collect();
 
-        let reader = DetachedVerifyingReader::new(self, signatures, Box::new(BufReader::new(data)));
-
-        Ok(reader.into())
+        Ok(DetachedVerifyingReader::new(
+            self,
+            signatures,
+            Box::new(BufReader::new(data)),
+        ))
     }
 
     /// Verifies an inline-signed message with the verifier.

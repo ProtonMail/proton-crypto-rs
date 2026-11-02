@@ -7,14 +7,17 @@ use std::{
 
 use pgp::{
     composed::{decrypt_session_key_with_password, Esk},
+    line_writer::LineBreak,
+    normalize_lines::NormalizedReader,
     packet::{Packet, PacketParser},
     types::{Password, Seipdv1ReadMode},
 };
 
 use crate::{
-    armor, CheckUnixTime, CloneablePasswords, DataEncoding, DataVerificationResult,
-    DecryptionError, ExternalDetachedSignature, PrivateKey, Profile, PublicKey, SessionKey,
-    VerificationContext, VerificationResult, Verifier, VerifyingReader, DEFAULT_PROFILE,
+    armor, check_and_sanitize_text, CheckUnixTime, CloneablePasswords, DataEncoding,
+    DataVerificationResult, DecryptionError, ExternalDetachedSignature, MessageProcessingError,
+    PrivateKey, Profile, PublicKey, ReferencedReader, SessionKey, VerificationContext,
+    VerificationResult, Verifier, VerifyingReader, DEFAULT_PROFILE,
 };
 
 mod message;
@@ -215,12 +218,20 @@ impl<'a> Decryptor<'a> {
         let message = message.decrypt_with_decryptor(&self, mode)?;
 
         if let Some(detached_signature) = self.detached_signature.take() {
+            let output_utf8 = self.verifier.native_newlines_utf8;
+            // The detached signature is verified over the raw data, the output is sanitized after.
+            self.verifier.native_newlines_utf8 = false;
             let mut verified_data = self
                 .verifier
                 .verify_message(message)
                 .map_err(DecryptionError::MessageProcessing)?;
             verified_data.verification_result =
                 self.verify_detached_signature(detached_signature, &verified_data.data)?;
+            if output_utf8 {
+                verified_data.data = check_and_sanitize_text(&verified_data.data)
+                    .map_err(MessageProcessingError::TextSanitization)
+                    .map_err(DecryptionError::MessageProcessing)?;
+            }
             Ok(verified_data)
         } else {
             self.verifier
@@ -282,14 +293,16 @@ impl<'a> Decryptor<'a> {
         let message = message.decrypt_with_decryptor(&self, Seipdv1ReadMode::Streaming)?;
 
         if let Some(detached_signature) = self.detached_signature.take() {
+            let output_utf8 = self.verifier.native_newlines_utf8;
+            // The detached signature is verified over the raw data, the output is sanitized after.
+            self.verifier.native_newlines_utf8 = false;
             let message_reader = self
                 .clone()
                 .verifier
                 .verify_message_stream(message)
                 .map_err(DecryptionError::MessageProcessing)?;
-            let reader =
-                self.verify_detached_signature_stream(detached_signature, message_reader)?;
-            Ok(reader)
+            self.verify_detached_signature_stream(detached_signature, message_reader, output_utf8)
+                .map_err(Into::into)
         } else {
             self.verifier
                 .verify_message_stream(message)
@@ -342,28 +355,39 @@ impl<'a> Decryptor<'a> {
     }
 
     /// Helper function to verify an external detached signature with a reader.
+    ///
+    /// If `normalize_output` is set, the returned data has native newlines (`\n`),
+    /// while the signature is verified over the original data.
     fn verify_detached_signature_stream(
         mut self,
         signature: ExternalDetachedSignature,
         data: impl Read + 'a,
+        normalize_output: bool,
     ) -> Result<VerifyingReader<'a>, DecryptionError> {
         let reader = match signature {
             ExternalDetachedSignature::Unencrypted(signature, signature_data_encoding) => self
                 .verifier
-                .verify_detached_stream(data, signature, signature_data_encoding.into()),
+                .detached_verifying_reader(data, signature, signature_data_encoding.into()),
             ExternalDetachedSignature::Encrypted(signature, signature_data_encoding) => {
                 let profile = self.verifier.profile.clone();
                 let verifier = mem::replace(&mut self.verifier, Verifier::new(profile));
                 let decrypted_signature =
                     self.decrypt(signature.as_ref(), signature_data_encoding.into())?;
-                verifier.verify_detached_stream(
+                verifier.detached_verifying_reader(
                     data,
                     &decrypted_signature.data,
                     DataEncoding::Unarmored,
                 )
             }
-        };
-        Ok(reader?)
+        }?;
+        if normalize_output {
+            let inner_reader = ReferencedReader::new(reader);
+            return Ok(VerifyingReader::DetachedNormalizedLineEndings {
+                referenced_inner_reader: inner_reader.reference(),
+                normalized_reader: Box::new(NormalizedReader::new(inner_reader, LineBreak::Lf)),
+            });
+        }
+        Ok(reader.into())
     }
 
     pub(crate) fn decrypt_session_key_inner<'b>(

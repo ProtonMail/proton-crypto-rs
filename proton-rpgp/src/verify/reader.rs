@@ -1,6 +1,7 @@
 use std::{
     fmt,
     io::{self, BufRead, Read},
+    mem,
 };
 
 use pgp::{
@@ -26,6 +27,10 @@ pub enum VerifyingReader<'a> {
     },
     Inline(LimitingReader<MessageVerifyingReader<'a>>),
     Detached(DetachedVerifyingReader<'a>),
+    DetachedNormalizedLineEndings {
+        referenced_inner_reader: ReaderReference<DetachedVerifyingReader<'a>>,
+        normalized_reader: Box<NormalizedReader<ReferencedReader<DetachedVerifyingReader<'a>>>>,
+    },
 }
 
 impl VerifyingReader<'_> {
@@ -42,6 +47,9 @@ impl Read for VerifyingReader<'_> {
             } => normalized_reader.read(buf),
             Self::Inline(reader) => reader.read(buf),
             Self::Detached(reader) => reader.read(buf),
+            Self::DetachedNormalizedLineEndings {
+                normalized_reader, ..
+            } => normalized_reader.read(buf),
         }
     }
 }
@@ -54,6 +62,9 @@ impl fmt::Debug for VerifyingReader<'_> {
             }
             Self::Inline(_) => f.write_str("inline signature verification reader"),
             Self::Detached(_) => f.write_str("detached signature verification reader"),
+            Self::DetachedNormalizedLineEndings { .. } => {
+                f.write_str("detached signature verification reader with normalized line endings")
+            }
         }
     }
 }
@@ -69,7 +80,11 @@ impl VerifyingReader<'_> {
                 .as_inner()
                 .verification_result(),
             Self::Inline(reader) => reader.into_inner().verification_result(),
-            Self::Detached(reader) => reader.verification_result(),
+            Self::Detached(mut reader) => reader.verification_result(),
+            Self::DetachedNormalizedLineEndings {
+                referenced_inner_reader,
+                ..
+            } => referenced_inner_reader.borrow_mut().verification_result(),
         }
     }
 }
@@ -137,29 +152,32 @@ impl<'a> DetachedVerifyingReader<'a> {
         }
     }
 
-    pub fn verification_result(self) -> VerificationResult {
-        let verified_signatures = self
-            .reader
-            .into_hashes()
-            .into_iter()
-            .map(|(result_hash, signature)| match result_hash {
-                Ok(hash) => SignatureVerificationResult::create_by_verifying(
-                    self.verifier.date,
-                    signature,
-                    &self.verifier.verification_keys,
-                    VerificationInput::Hash(&hash),
-                    self.verifier.verification_context.as_deref(),
-                    &self.verifier.profile,
-                ),
-                Err(err) => SignatureVerificationResult {
-                    signature,
-                    verified_by: None,
-                    verification_result: Err(MessageSignatureError::Failed(
-                        SignatureError::HashComputation(err),
-                    )),
-                },
-            })
-            .collect();
+    /// Returns the verification result once all data has been read.
+    ///
+    /// Consumes the computed hashes, i.e., the reader cannot be used afterwards.
+    pub fn verification_result(&mut self) -> VerificationResult {
+        let verified_signatures =
+            mem::replace(&mut self.reader, DetachedSignaturesBodyReader::Error)
+                .into_hashes()
+                .into_iter()
+                .map(|(result_hash, signature)| match result_hash {
+                    Ok(hash) => SignatureVerificationResult::create_by_verifying(
+                        self.verifier.date,
+                        signature,
+                        &self.verifier.verification_keys,
+                        VerificationInput::Hash(&hash),
+                        self.verifier.verification_context.as_deref(),
+                        &self.verifier.profile,
+                    ),
+                    Err(err) => SignatureVerificationResult {
+                        signature,
+                        verified_by: None,
+                        verification_result: Err(MessageSignatureError::Failed(
+                            SignatureError::HashComputation(err),
+                        )),
+                    },
+                })
+                .collect();
 
         VerificationResultCreator::with_signatures(verified_signatures)
     }
@@ -264,7 +282,7 @@ impl<'a> DetachedSignaturesBodyReader<'a> {
         }
 
         loop {
-            match std::mem::replace(self, Self::Error) {
+            match mem::replace(self, Self::Error) {
                 Self::Init {
                     mut norm_hashers,
                     mut source,

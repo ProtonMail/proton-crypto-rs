@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use proton_rpgp::{
-    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, Encryptor, Error,
+    AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor, EncryptedMessage, Encryptor, Error,
     ExternalDetachedSignature, PrivateKey, Profile, ProfileSettings, UnixTime, VerificationContext,
     VerificationError,
 };
@@ -684,4 +684,53 @@ pub fn decrypt_rejects_non_integrity_protected_message() {
         decryption_result,
         Err(Error::Decryption(DecryptionError::InvalidSessionKey(_)))
     ));
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn decrypt_output_utf8_verifies_detached_signature_over_raw_data() {
+    let input_data = b"a\r\nb\r\n";
+    let key = PrivateKey::import_unlocked(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    // Binary signatures are verified over the raw data, text signatures over normalized data.
+    for text_signature in [false, true] {
+        for encrypted_signature in [false, true] {
+            let mut encryptor = Encryptor::default()
+                .with_encryption_key(key.as_public_key())
+                .with_signing_key(&key)
+                .using_detached_signature(encrypted_signature);
+            if text_signature {
+                encryptor = encryptor.as_utf8();
+            }
+            let (message, detached_signature) = encryptor
+                .encrypt(input_data)
+                .map(EncryptedMessage::split_detached_signature)
+                .expect("Failed to encrypt");
+            let detached_signature = detached_signature.expect("Missing detached signature");
+
+            let decryptor = || {
+                Decryptor::default()
+                    .with_decryption_key(&key)
+                    .with_verification_key(key.as_public_key())
+                    .with_external_detached_signature(detached_signature.clone())
+                    .output_utf8()
+            };
+            let case = format!("text={text_signature} encrypted={encrypted_signature}");
+
+            let verified_data = decryptor()
+                .decrypt(message.as_bytes(), DataEncoding::Unarmored)
+                .expect("Failed to decrypt");
+            assert_eq!(verified_data.data, b"a\nb\n", "{case}");
+            assert!(verified_data.verification_result.is_ok(), "{case}");
+
+            let mut reader = decryptor()
+                .decrypt_stream(message.as_bytes(), DataEncoding::Unarmored)
+                .expect("Failed to decrypt");
+            let mut output = Vec::new();
+            std::io::Read::read_to_end(&mut reader, &mut output).expect("Failed to read");
+            assert_eq!(output, b"a\nb\n", "{case}");
+            assert!(reader.verification_result().is_ok(), "{case}");
+        }
+    }
 }
