@@ -284,7 +284,7 @@ impl<'a> Encryptor<'a> {
             .write_and_signcrypt(message_data_ref, data_encoding, true, dest)?;
 
         let detached_signature =
-            self.handle_detached_signature_sign_stream(detached_signature_handle)?;
+            self.handle_detached_signature_sign_stream(detached_signature_handle, false)?;
 
         Ok(EncryptedMessageInfo::new(detached_signature, sk))
     }
@@ -331,7 +331,7 @@ impl<'a> Encryptor<'a> {
         )?;
 
         let detached_signature =
-            self.handle_detached_signature_sign_stream(detached_signature_handle)?;
+            self.handle_detached_signature_sign_stream(detached_signature_handle, true)?;
 
         Ok((
             key_packet_tracker.into_key_packets(),
@@ -452,6 +452,10 @@ impl<'a> Encryptor<'a> {
     ///     .expect("Failed generate session key");
     /// ```
     pub fn generate_session_key(self) -> crate::Result<SessionKey> {
+        self.generate_session_key_inner().map_err(Into::into)
+    }
+
+    fn generate_session_key_inner(&self) -> Result<SessionKey, EncryptionError> {
         self.check_encryption_tools()?;
         let encryption_keys = self.select_encryption_keys()?;
 
@@ -639,6 +643,7 @@ impl<'a> Encryptor<'a> {
         match self.detached_signature_op {
             SignDetachedOperation::None => Ok(None),
             SignDetachedOperation::Unencrypted | SignDetachedOperation::Encrypted => {
+                self.generate_shared_session_key_for_detached_signature()?;
                 let mut replaced_signer = Signer::new(self.signer.profile.clone());
                 replaced_signer.data_mode = self.signer.data_mode;
                 let signer = mem::replace(&mut self.signer, replaced_signer);
@@ -676,6 +681,7 @@ impl<'a> Encryptor<'a> {
         if self.detached_signature_op == SignDetachedOperation::None {
             Ok((None, Box::new(data)))
         } else {
+            self.generate_shared_session_key_for_detached_signature()?;
             let mut replaced_signer = Signer::new(self.signer.profile.clone());
             replaced_signer.data_mode = self.signer.data_mode;
             let signer = mem::replace(&mut self.signer, replaced_signer);
@@ -694,6 +700,7 @@ impl<'a> Encryptor<'a> {
     fn handle_detached_signature_sign_stream(
         &mut self,
         detached_singer: Option<DetachedSignatureHandle<'a>>,
+        split_key_packets: bool,
     ) -> Result<Option<ExternalDetachedSignature<'static>>, EncryptionError> {
         match self.detached_signature_op {
             SignDetachedOperation::None => Ok(None),
@@ -715,6 +722,15 @@ impl<'a> Encryptor<'a> {
                     let encrypted_signature = encryptor
                         .encrypt_raw(&signature, DataEncoding::Unarmored)
                         .map_err(EncryptionError::from)?;
+                    let encrypted_signature = if split_key_packets {
+                        // The key packets are shared with the message, only keep the data packet.
+                        EncryptedMessage::new(encrypted_signature, None)
+                            .as_data_packet()
+                            .map_err(EncryptionError::from)?
+                            .to_vec()
+                    } else {
+                        encrypted_signature
+                    };
                     Ok(Some(ExternalDetachedSignature::new_encrypted(
                         encrypted_signature,
                         DataEncoding::Unarmored,
@@ -722,6 +738,19 @@ impl<'a> Encryptor<'a> {
                 }
             }
         }
+    }
+
+    /// Ensures that the message and its encrypted detached signature share the same session key.
+    fn generate_shared_session_key_for_detached_signature(
+        &mut self,
+    ) -> Result<(), EncryptionError> {
+        if self.detached_signature_op == SignDetachedOperation::Encrypted
+            && self.session_key.is_none()
+        {
+            let session_key = self.generate_session_key_inner()?;
+            self.session_key = Some(Cow::Owned(session_key));
+        }
+        Ok(())
     }
 
     /// Returns the internally set profile.

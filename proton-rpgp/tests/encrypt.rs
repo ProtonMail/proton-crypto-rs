@@ -12,9 +12,9 @@ use proton_rpgp::{
     component::{PrivateComponentKeyPublicView, PublicComponentKey},
     AccessKeyInfo, AeadCiphersuite, AsPublicKeyRef, DataEncoding, DecryptionError, Decryptor,
     EncryptedMessage, EncryptedMessageInfo, EncryptionError, EncryptionMechanism,
-    EncryptionObserver, Encryptor, Error, KeyGenerator, PrivateKey, Profile, ProfileSettings,
-    PublicKey, SessionKey, SignatureContext, StringToKeyOption, UnixTime, VerificationContext,
-    VerificationError, HAZARD_AEAD_PROFILE,
+    EncryptionObserver, Encryptor, Error, ExternalDetachedSignature, KeyGenerator, PrivateKey,
+    Profile, ProfileSettings, PublicKey, SessionKey, SignatureContext, StringToKeyOption, UnixTime,
+    VerificationContext, VerificationError, HAZARD_AEAD_PROFILE,
 };
 
 mod utils;
@@ -1998,4 +1998,118 @@ pub fn encrypt_message_v4_key_with_malformed_mpi_subkey() {
         .with_encryption_key(&public_key)
         .encrypt(input_data)
         .expect("Failed to encrypt");
+}
+
+/// Checks that the message and its encrypted detached signature share one session key.
+fn check_detached_signature_shares_session_key(
+    key: &PrivateKey,
+    input_data: &[u8],
+    message: &[u8],
+    session_key: &SessionKey,
+    signature: &[u8],
+) {
+    // Session key only (e.g., Drive).
+    let verified_data = Decryptor::default()
+        .with_session_key(session_key)
+        .with_verification_key(key.as_public_key())
+        .with_external_detached_signature(ExternalDetachedSignature::new_encrypted(
+            signature,
+            DataEncoding::Unarmored,
+        ))
+        .decrypt(message, DataEncoding::Unarmored)
+        .expect("Failed to decrypt with session key");
+    assert_eq!(verified_data.data, input_data);
+    assert!(verified_data.verification_result.is_ok());
+
+    let sig_session_key = Decryptor::default()
+        .with_decryption_key(key)
+        .decrypt_session_key(message)
+        .expect("Failed to decrypt session key");
+    assert_eq!(sig_session_key.export_bytes(), session_key.export_bytes());
+}
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn encrypt_detached_signature_shares_session_key() {
+    let input_data = b"hello world".repeat(16);
+    for key_data in [TEST_KEY, TEST_KEY_V6] {
+        let key = PrivateKey::import_unlocked(key_data.as_bytes(), DataEncoding::Armored)
+            .expect("Failed to import key");
+
+        let encryptor = || {
+            Encryptor::default()
+                .with_encryption_key(key.as_public_key())
+                .with_signing_key(&key)
+                .using_detached_signature(true)
+        };
+
+        // One-shot.
+        let (message, signature) = encryptor()
+            .encrypt(&input_data)
+            .map(EncryptedMessage::split_detached_signature)
+            .expect("Failed to encrypt");
+        let signature = signature.unwrap().unarmored().unwrap();
+        let session_key = message.revealed_session_key().unwrap();
+        check_detached_signature_shares_session_key(
+            &key,
+            &input_data,
+            message.as_bytes(),
+            session_key,
+            &signature,
+        );
+        // The signature is a standalone message with its own key packets.
+        Decryptor::default()
+            .with_decryption_key(&key)
+            .decrypt(&signature, DataEncoding::Unarmored)
+            .expect("Failed to decrypt signature with key");
+
+        // Stream.
+        let mut message = Vec::new();
+        let (info, signature) = encryptor()
+            .encrypt_stream(&input_data[..], DataEncoding::Unarmored, &mut message)
+            .map(EncryptedMessageInfo::split_detached_signature)
+            .expect("Failed to encrypt");
+        let signature = signature.unwrap().unarmored().unwrap();
+        check_detached_signature_shares_session_key(
+            &key,
+            &input_data,
+            &message,
+            info.revealed_session_key().unwrap(),
+            &signature,
+        );
+
+        // Stream split: the signature only contains the data packet.
+        let mut data_packet = Vec::new();
+        let (key_packets, info) = encryptor()
+            .encrypt_stream_split(&input_data[..], &mut data_packet)
+            .expect("Failed to encrypt");
+        let (info, signature) = info.split_detached_signature();
+        let signature = signature.unwrap().unarmored().unwrap();
+        let message = [key_packets.as_slice(), data_packet.as_slice()].concat();
+        check_detached_signature_shares_session_key(
+            &key,
+            &input_data,
+            &message,
+            info.revealed_session_key().unwrap(),
+            &signature,
+        );
+        assert!(Decryptor::default()
+            .with_decryption_key(&key)
+            .decrypt(&signature, DataEncoding::Unarmored)
+            .is_err());
+
+        // Prepending the message key packets to the signature.
+        let signature_with_key_packets = [key_packets.as_slice(), signature.as_slice()].concat();
+        let verified_data = Decryptor::default()
+            .with_decryption_key(&key)
+            .with_verification_key(key.as_public_key())
+            .with_external_detached_signature(ExternalDetachedSignature::new_encrypted(
+                signature_with_key_packets,
+                DataEncoding::Unarmored,
+            ))
+            .decrypt(&message, DataEncoding::Unarmored)
+            .expect("Failed to decrypt");
+        assert_eq!(verified_data.data, input_data);
+        assert!(verified_data.verification_result.is_ok());
+    }
 }
