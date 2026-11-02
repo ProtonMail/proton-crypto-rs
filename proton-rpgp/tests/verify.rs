@@ -762,3 +762,58 @@ fn check_signatures(info: &VerificationInformation, expected_number: usize) {
         .count();
     assert_eq!(count, 1, "Expected 1 signatures, got {count}");
 }
+
+#[test]
+#[allow(clippy::missing_panics_doc)]
+pub fn verify_rejects_non_message_signature_types() {
+    const SIGNATURES: [(&str, &str); 3] = [
+        (
+            "standalone",
+            include_str!("../test-data/signatures/signature_v4_type_standalone.asc"),
+        ),
+        (
+            "timestamp",
+            include_str!("../test-data/signatures/signature_v4_type_timestamp.asc"),
+        ),
+        (
+            "cert_generic",
+            include_str!("../test-data/signatures/signature_v4_type_cert_generic.asc"),
+        ),
+    ];
+    const BINARY_SIGNATURE: &str = include_str!("../test-data/signatures/signature_v4.asc");
+
+    let date = UnixTime::new(1_752_153_651);
+    let key = PublicKey::import(TEST_KEY.as_bytes(), DataEncoding::Armored)
+        .expect("Failed to import key");
+
+    let verify = |data: &[u8], signature: &str| {
+        let result = Verifier::default()
+            .with_verification_key(&key)
+            .at_date(date.into())
+            .verify_detached(data, signature, DataEncoding::Armored);
+        let mut reader = Verifier::default()
+            .with_verification_key(&key)
+            .at_date(date.into())
+            .verify_detached_stream(data, signature, DataEncoding::Armored)
+            .expect("Failed to create reader");
+        io::copy(&mut reader, &mut io::sink()).expect("Failed to read");
+        (result, reader.verification_result())
+    };
+
+    // Control: a binary signature over the data verifies.
+    let (result, stream_result) = verify(b"hello world", BINARY_SIGNATURE);
+    assert!(result.is_ok(), "{result:?}");
+    assert!(stream_result.is_ok(), "{stream_result:?}");
+
+    for (name, signature) in SIGNATURES {
+        let (result, stream_result) = verify(b"hEVIL DATA", signature);
+        assert!(
+            matches!(result, Err(VerificationError::Failed(..))),
+            "{name}: {result:?}"
+        );
+        assert!(
+            matches!(stream_result, Err(VerificationError::Failed(..))),
+            "{name}: {stream_result:?}"
+        );
+    }
+}

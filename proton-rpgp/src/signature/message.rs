@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use pgp::{
     composed::Message,
-    packet::{PacketTrait, Signature, Subpacket, SubpacketData},
+    packet::{PacketTrait, Signature, SignatureType, Subpacket, SubpacketData},
     types::KeyId,
 };
 
@@ -384,6 +384,13 @@ pub(crate) fn check_message_signature_details(
     context: Option<&VerificationContext>,
     profile: &Profile,
 ) -> Result<(), MessageSignatureError> {
+    if !matches!(
+        signature.typ(),
+        Some(SignatureType::Binary | SignatureType::Text)
+    ) {
+        return Err(SignatureError::InvalidMessageSignatureType(signature.typ()).into());
+    }
+
     // Check the used message hash algorithm, might reject more than in the
     // default rejection.
     if profile.reject_message_hash_algorithm(signature.hash_alg()) {

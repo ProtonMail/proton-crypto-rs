@@ -98,6 +98,9 @@ pub enum SignatureError {
     #[error("Signature has no creation time")]
     NoCreationTime,
 
+    #[error("Signature type is not a message signature type: {0:?}")]
+    InvalidMessageSignatureType(Option<packet::SignatureType>),
+
     #[error("Signature does not specify a hash algorithm")]
     NoHash,
 

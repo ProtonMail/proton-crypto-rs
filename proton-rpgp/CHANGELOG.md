@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-00-00
 
+### Fixed
+
+- Message signatures are only accepted if they are binary (0x00) or text (0x01) signatures.
+
 ## [0.9.0] - 2026-10-05
 
 ### Added
