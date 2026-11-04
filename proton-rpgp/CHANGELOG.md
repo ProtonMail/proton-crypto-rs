@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-00-00
 
+## [0.10.0] - 2026-11-04
+
 ### Fixed
 
 - Message signatures are only accepted if they are binary (0x00) or text (0x01) signatures.
 - With `output_utf8`, external detached signatures are now verified over the raw decrypted data instead of the data with normalized line endings, as in gopenpgp. Previously, binary detached signatures over data with `\r\n` failed to verify.
 - Encrypted detached signatures are now encrypted with the same session key as the message, as in gopenpgp. In split mode (`encrypt_stream_split`), the encrypted signature only contains the data packet.
+- The signature context `required_after` check now uses the signature creation time and is no longer enforced when the verification time check is disabled.
+- Subkey expiration is now considered when selecting encryption, signing, decryption, and verification keys.
 
 ## [0.9.0] - 2026-10-05
 

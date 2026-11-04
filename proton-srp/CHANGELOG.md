@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2024-00-00
 
+## 0.9.0 - 2026-11-04
+
+### Changed
+
+- BREAKING: Update to `rand` `0.10`; the `custom_csprng` RNG parameters only require `CryptoRng`.
+- BREAKING: Add `SRPError::FailedToGenerateClientSecret`.
+- The modulus is now additionally checked to be a safe prime, aligning with the Go implementation.
+- Bump `crypto-bigint` to `0.7.10`, `bcrypt` to `0.19.3`, `md-5` to `0.11.0`, and `sha2` to `0.11.1`.
+
+
 ## 0.8.4 - 2026-10-05
 
 ### Changed

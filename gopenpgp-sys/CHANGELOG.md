@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2023-00-00
 
+## [0.3.10] - 2026-11-04
+
+### Fixed
+
+- `GoKey::can_verify` now checks `pgp_key_can_verify` instead of `pgp_key_can_encrypt`.
+
+
 ## [0.3.9] - 2026-10-05
 
 ### Changed
